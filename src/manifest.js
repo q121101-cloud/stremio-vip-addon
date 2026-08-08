@@ -57,14 +57,14 @@ const GENRE_NAMES = GENRES.map((g) => g.name);
 
 const MANIFEST = {
   id: 'org.nguonc.stremio.addon',
-  version: '1.0.0',
-  name: 'NguonC Movies 🎬',
+  version: '1.1.0',
+  name: 'VIP Movies 🎬',
   description:
-    'Xem phim Vietsub, thuyết minh chất lượng cao từ NguonC (phim.nguonc.com). Hỗ trợ phim lẻ & phim bộ.',
-  logo: 'https://phim.nguonc.com/favicon.ico',
+    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ phim lẻ, phim bộ & IMDb.',
+  logo: 'https://i.imgur.com/3C9XQFP.png',
   resources: ['catalog', 'meta', 'stream'],
   types: ['movie', 'series'],
-  idPrefixes: ['nguonc:'],
+  idPrefixes: ['nguonc:', 'tt'],
   behaviorHints: {
     adult: false,
     p2p: false,

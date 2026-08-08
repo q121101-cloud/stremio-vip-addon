@@ -18,6 +18,61 @@ const api = require('./api');
 const mapper = require('./mapper');
 const { MANIFEST, GENRES, COUNTRIES } = require('./manifest');
 
+// ─────────────────────────────────────────────────────────────
+//  HELPER: Resolve IMDb ID → streams từ NguonC
+// ─────────────────────────────────────────────────────────────
+/**
+ * Khi Stremio gửi request stream với IMDb ID (tt...) thay vì nguonc:...
+ * Flow:
+ *   1. Gọi Cinemeta lấy tên phim tiếng Anh
+ *   2. Tìm kiếm NguonC bằng tên đó
+ *   3. Lấy detail + trả về streams
+ *
+ * Format ID:
+ *   - Movie:  tt1234567
+ *   - Series: tt1234567:1:5  (tt:season:episode)
+ *
+ * @param {string} type - 'movie' | 'series'
+ * @param {string} id   - IMDb ID (với hoặc không có :season:ep)
+ * @returns {Promise<Array>}
+ */
+async function resolveImdbStream(type, id) {
+  // Parse: tt1234567  hoặc  tt1234567:1:5
+  const parts = id.split(':');
+  const imdbId  = parts[0];               // tt1234567
+  const season  = parts[1] ? parseInt(parts[1], 10) : null;
+  const episode = parts[2] ? parseInt(parts[2], 10) : null;
+
+  console.log(`[IMDb Stream] ${imdbId} s=${season} e=${episode}`);
+
+  // 1. Tìm slug NguonC tương ứng
+  const match = await api.findFilmByImdbId(type, imdbId);
+  if (!match) {
+    console.warn(`[IMDb Stream] Không tìm được phim cho ${imdbId}`);
+    return [];
+  }
+
+  // 2. Lấy detail
+  const data = await api.getFilmDetail(match.slug);
+  if (!data?.movie) {
+    console.warn(`[IMDb Stream] Không lấy được detail: ${match.slug}`);
+    return [];
+  }
+
+  const movie = data.movie;
+
+  // 3. Xác định tên tập
+  let epName = null;
+  if (type === 'series' && episode !== null) {
+    // Thử tìm theo số tập thuần; NguonC đánh số tập theo episode trong season tổng
+    epName = String(episode);
+  }
+
+  const streams = mapper.buildStreams(movie, epName);
+  console.log(`[IMDb Stream] ${imdbId} → "${match.name}" → ${streams.length} streams (ep=${epName})`);
+  return streams;
+}
+
 // ─── Helper: Chuẩn hoá response JSON ─────────────────────────
 function sendJSON(res, data) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -209,38 +264,39 @@ router.get('/meta/:type/:id.json', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 //  ROUTE: /stream/:type/:id.json
+//  Hỗ trợ 2 loại ID:
+//    - nguonc:{slug}[:{serverIdx}:{epName}]  → native NguonC
+//    - tt{digits}[:{season}:{ep}]             → IMDb ID (Cinemeta)
 // ─────────────────────────────────────────────────────────────
 router.get('/stream/:type/:id.json', async (req, res) => {
   const { type, id } = req.params;
 
   console.log(`[Stream] type=${type} id=${id}`);
 
-  // Parse stream ID
-  const parsed = mapper.parseStreamId(id);
-  const { slug, serverIdx, epName } = parsed;
-
-  if (!slug) {
-    return sendError(res, 400, 'ID stream không hợp lệ');
-  }
-
   try {
+    // ── Nhánh 1: IMDb ID (tt...) ─────────────────────────────
+    if (/^tt\d+/i.test(id)) {
+      const streams = await resolveImdbStream(type, id);
+      return sendJSON(res, { streams });
+    }
+
+    // ── Nhánh 2: Native nguonc: ID ───────────────────────────
+    const parsed = mapper.parseStreamId(id);
+    const { slug, epName } = parsed;
+
+    if (!slug) {
+      return sendError(res, 400, 'ID stream không hợp lệ');
+    }
+
     const data = await api.getFilmDetail(slug);
 
     if (!data || !data.movie) {
       return sendError(res, 404, `Không tìm thấy phim: ${slug}`);
     }
 
-    const movie = data.movie;
-
-    // Xác định tên tập cần lấy
-    let targetEpName = epName;
-
-    if (type === 'movie') {
-      // Phim lẻ: luôn lấy tập đầu (FULL)
-      targetEpName = null;
-    }
-
-    const streams = mapper.buildStreams(movie, targetEpName);
+    // Phim lẻ: luôn lấy tập đầu (FULL)
+    const targetEpName = type === 'movie' ? null : epName;
+    const streams = mapper.buildStreams(data.movie, targetEpName);
 
     if (!streams.length) {
       console.warn(`[Stream] Không có stream cho slug=${slug} ep=${epName}`);
@@ -267,7 +323,7 @@ router.get('/', (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NguonC Stremio Addon</title>
+  <title>VIP Movies Stremio Addon</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -358,10 +414,10 @@ router.get('/', (req, res) => {
 <body>
   <div class="card">
     <div class="logo">🎬</div>
-    <h1>NguonC Addon</h1>
+    <h1>VIP Movies Addon</h1>
     <p class="subtitle">
-      Xem phim Vietsub, thuyết minh chất lượng cao<br/>
-      từ <strong>phim.nguonc.com</strong> trực tiếp trên Stremio & Nuvio
+      Xem phim Vietsub, thuy&#7871;t minh ch&#7845;t l&#432;&#7907;ng cao<br/>
+      t&#7915; <strong>Server VIP</strong> tr&#7921;c ti&#7871;p tr&#234;n Stremio &amp; Nuvio
     </p>
     <div class="badge">✅ Tương thích Stremio v4 & Nuvio App</div>
 
@@ -383,6 +439,8 @@ router.get('/', (req, res) => {
       <div class="feature"><span class="icon">🏷️</span>Lọc Theo Thể Loại</div>
       <div class="feature"><span class="icon">🌐</span>CORS Full Support</div>
       <div class="feature"><span class="icon">⚡</span>Cache Thông Minh</div>
+      <div class="feature"><span class="icon">🎬</span>Hỗ Trợ IMDb ID</div>
+      <div class="feature"><span class="icon">🔄</span>Auto Retry & Fallback</div>
     </div>
   </div>
 </body>
