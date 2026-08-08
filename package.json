@@ -1,0 +1,33 @@
+{
+  "name": "stremio-nguonc-addon",
+  "version": "1.0.0",
+  "description": "Stremio Addon for NguonC - Xem phim Vietsub, thuyết minh từ phim.nguonc.com",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "node src/test.js"
+  },
+  "keywords": [
+    "stremio",
+    "addon",
+    "nguonc",
+    "vietnamese",
+    "vietsub",
+    "phim"
+  ],
+  "author": "NguonC Stremio Addon",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
