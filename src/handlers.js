@@ -702,6 +702,23 @@ router.get('/', (req, res) => {
       font-size: 0.76rem;
       color: rgba(148, 163, 184, 0.6);
     }
+
+    .brand-highlight {
+      font-weight: 800;
+      background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 10px rgba(236, 72, 153, 0.7));
+      letter-spacing: 0.5px;
+      padding: 0 4px;
+      display: inline-block;
+      transition: all 0.3s ease;
+    }
+
+    .brand-highlight:hover {
+      filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.9));
+      transform: scale(1.08);
+    }
   </style>
 </head>
 <body>
@@ -789,7 +806,7 @@ router.get('/', (req, res) => {
     </div>
 
     <div class="footer">
-      VIP Movies Addon v1.3.8 • Powered by Q121101
+      VIP Movies Addon v1.3.8 • Powered by <span class="brand-highlight">Q121101</span>
     </div>
   </main>
 
