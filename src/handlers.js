@@ -789,7 +789,7 @@ router.get('/', (req, res) => {
     </div>
 
     <div class="footer">
-      VIP Movies Addon v1.3.8 • Powered by Stremio Protocol
+      VIP Movies Addon v1.3.8 • Powered by Q121101
     </div>
   </main>
 
