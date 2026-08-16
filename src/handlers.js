@@ -239,26 +239,33 @@ router.get(
 // ─────────────────────────────────────────────────────────────
 router.get('/meta/:type/:id.json', async (req, res) => {
   const { type, id } = req.params;
+
+  // Stremio gửi IMDb ID tt... vào meta — trả về null để Cinemeta xử lý
+  if (/^tt\d+/i.test(id)) {
+    console.log(`[Meta] IMDb ID được chuyển sang Cinemeta: ${id}`);
+    return sendJSON(res, { meta: null });
+  }
+
   const slug = mapper.extractSlug(id);
 
   console.log(`[Meta] type=${type} id=${id} slug=${slug}`);
 
   if (!slug) {
-    return sendError(res, 400, 'ID không hợp lệ');
+    return sendJSON(res, { meta: null });
   }
 
   try {
     const data = await api.getFilmDetail(slug);
 
     if (!data || !data.movie) {
-      return sendError(res, 404, `Không tìm thấy phim: ${slug}`);
+      return sendJSON(res, { meta: null });
     }
 
     const meta = mapper.mapDetailMeta(data.movie, type);
     sendJSON(res, { meta });
   } catch (err) {
     console.error(`[Meta Error] slug=${slug}`, err.message);
-    sendError(res, 500, `Lỗi lấy thông tin phim: ${err.message}`);
+    sendJSON(res, { meta: null });
   }
 });
 

@@ -60,6 +60,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ─── Favicon: tắt log 404 rác do trình duyệt tự gọi ──────────
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // ─── Routes ───────────────────────────────────────────────────
 app.use('/', handlers);
 

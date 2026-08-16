@@ -62,7 +62,19 @@ const MANIFEST = {
   description:
     'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ phim lẻ, phim bộ & IMDb.',
   logo: 'https://i.imgur.com/3C9XQFP.png',
-  resources: ['catalog', 'meta', 'stream'],
+  resources: [
+    'catalog',
+    {
+      name: 'meta',
+      types: ['movie', 'series'],
+      idPrefixes: ['nguonc:'],
+    },
+    {
+      name: 'stream',
+      types: ['movie', 'series'],
+      idPrefixes: ['nguonc:', 'tt'],
+    },
+  ],
   types: ['movie', 'series'],
   idPrefixes: ['nguonc:', 'tt'],
   behaviorHints: {

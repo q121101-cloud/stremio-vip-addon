@@ -245,21 +245,14 @@ async function findFilmByImdbId(type, imdbId) {
   }
 
   // Ngưỡng tối thiểu để chấp nhận kết quả
-  if (bestScore < 0.3) {
+  const MIN_MATCH_SCORE = 0.65;
+  if (!bestSlug || bestScore < MIN_MATCH_SCORE) {
     console.warn(`[IMDb] Score quá thấp (${bestScore.toFixed(2)}) cho "${name}" — bỏ qua`);
-    // Fallback: dùng kết quả đầu tiên đúng type nếu có
-    const fallback = items.find((i) => {
-      const { detectType } = require('./mapper');
-      return detectType(i) === type;
-    });
-    if (fallback) {
-      bestSlug = { slug: fallback.slug, name: fallback.name };
-      console.log(`[IMDb] Fallback → "${fallback.name}" (${fallback.slug})`);
-    }
-  } else {
-    console.log(`[IMDb] Best match score=${bestScore.toFixed(2)} → "${bestSlug.name}" (${bestSlug.slug})`);
+    cache.set(key, null, CACHE_TTL.imdbMap);
+    return null;
   }
 
+  console.log(`[IMDb] Best match score=${bestScore.toFixed(2)} → "${bestSlug.name}" (${bestSlug.slug})`);
   cache.set(key, bestSlug, CACHE_TTL.imdbMap);
   return bestSlug;
 }
