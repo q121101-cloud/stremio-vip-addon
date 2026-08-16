@@ -57,7 +57,7 @@ const GENRE_NAMES = GENRES.map((g) => g.name);
 
 const MANIFEST = {
   id: 'org.nguonc.stremio.addon',
-  version: '1.3.3',
+  version: '1.3.4',
   name: 'VIP Movies 🎬',
   description:
     'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ phim lẻ, phim bộ & IMDb.',
