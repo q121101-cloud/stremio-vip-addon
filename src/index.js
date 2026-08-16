@@ -68,18 +68,21 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 // /hls/ts?url=<encoded>&referer=<encoded>    → Segment pipe proxy
 const axios = require('axios');
 
-const HLS_UA     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const HLS_UA     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const HLS_DEFREF = 'https://phim.nguonc.com/';
 const { extractM3u8FromEmbed } = require('./mapper');
 const mapper = require('./mapper');
 
 /**
- * /hls/extract?embed=<encoded_embed_url>
+ * /hls/extract?embed=<encoded_embed_url> | ?b64=<base64url>
  * Lazy extraction endpoint: fetch embed → extract m3u8 → proxy via /hls/manifest.m3u8
- * Called by the player when it actually needs to play the stream.
+ * Uses Base64URL Safe encoding to eliminate any URL mangling or Apache 404 issues.
  */
 app.get('/hls/extract', async (req, res) => {
-  const embedUrl = req.query.embed;
+  let embedUrl = req.query.embed;
+  if (req.query.b64) {
+    try { embedUrl = Buffer.from(req.query.b64, 'base64url').toString('utf8'); } catch {}
+  }
   if (!embedUrl) return res.status(400).send('Missing embed url');
 
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
@@ -91,12 +94,12 @@ app.get('/hls/extract', async (req, res) => {
       return res.status(502).send('Could not extract stream URL from embed');
     }
 
-    const { m3u8Url, embedHost } = result;
-    const encodedM3u8 = encodeURIComponent(m3u8Url);
-    const encodedRef  = encodeURIComponent(`${embedHost}/`);
+    const { m3u8Url } = result;
+    const b64M3u8 = Buffer.from(m3u8Url).toString('base64url');
+    const b64Ref  = Buffer.from(embedUrl).toString('base64url');
 
-    // Redirect to our /hls/manifest.m3u8 proxy so segments are also rewritten
-    const proxyUrl = `${protoHost}/hls/manifest.m3u8?url=${encodedM3u8}&referer=${encodedRef}`;
+    // Redirect to our /hls/manifest.m3u8 proxy using base64url parameters
+    const proxyUrl = `${protoHost}/hls/manifest.m3u8?b64=${b64M3u8}&ref=${b64Ref}`;
     console.log(`[HLS/extract] ${embedUrl.slice(0, 60)} → ${m3u8Url.slice(0, 60)}`);
     res.redirect(302, proxyUrl);
   } catch (err) {
@@ -106,55 +109,73 @@ app.get('/hls/extract', async (req, res) => {
 });
 
 app.get(['/hls/manifest.m3u8', '/hls/m3u8'], async (req, res) => {
-  const targetUrl = req.query.url;
+  let targetUrl = req.query.url;
+  if (req.query.b64) {
+    try { targetUrl = Buffer.from(req.query.b64, 'base64url').toString('utf8'); } catch {}
+  }
   if (!targetUrl) return res.status(400).send('Missing url');
 
-  const referer = req.query.referer ? decodeURIComponent(req.query.referer) : HLS_DEFREF;
+  let refererUrl = HLS_DEFREF;
+  if (req.query.ref) {
+    try { refererUrl = Buffer.from(req.query.ref, 'base64url').toString('utf8'); } catch {}
+  } else if (req.query.referer) {
+    try { refererUrl = decodeURIComponent(req.query.referer); } catch { refererUrl = req.query.referer; }
+  }
+
   let origin = HLS_DEFREF.replace(/\/$/, '');
-  try { origin = new URL(referer).origin; } catch {}
+  try { origin = new URL(refererUrl).origin; } catch {}
 
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
   try {
-    const r = await axios({ url: targetUrl, method: 'GET', responseType: 'text',
-      headers: { 'User-Agent': HLS_UA, Referer: referer, Origin: origin }, timeout: 15000, maxRedirects: 5 });
+    const r = await axios({
+      url: targetUrl,
+      method: 'GET',
+      responseType: 'text',
+      headers: { 'User-Agent': HLS_UA, Referer: refererUrl, Origin: origin },
+      timeout: 15000,
+      maxRedirects: 5,
+    });
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
 
-    let baseUrl; try { baseUrl = new URL(targetUrl); } catch { return res.send(r.data); }
-    const effectiveReferer = referer || (baseUrl.origin + '/');
-    const segRef = encodeURIComponent(effectiveReferer);
+    let baseUrl;
+    try { baseUrl = new URL(targetUrl); } catch { return res.send(r.data); }
 
-    const rewritten = String(r.data).split('\n').map(line => {
+    // Preserve full hash referer encoded as base64url
+    const encodedRef = Buffer.from(refererUrl).toString('base64url');
+
+    const rewritten = String(r.data).split('\n').map((line) => {
       const t = line.trim();
       if (!t || t.startsWith('#')) {
         if (t.startsWith('#EXT-X-KEY') && t.includes('URI=')) {
           return t.replace(/URI="([^"]+)"/, (_, uri) => {
-            let absUri = uri;
-            if (!uri.startsWith('http') && !uri.startsWith('data:')) {
-              try { absUri = new URL(uri, baseUrl.href).href; } catch {}
-            }
-            return `URI="${protoHost}/hls/ts?url=${encodeURIComponent(absUri)}&referer=${segRef}&is_key=1"`;
+            const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
+            const b64Key = Buffer.from(absUri).toString('base64url');
+            return `URI="${protoHost}/hls/ts?b64=${b64Key}&ref=${encodedRef}&is_key=1"`;
           });
         }
         if (t.startsWith('#EXT-X-MAP') && t.includes('URI=')) {
           return t.replace(/URI="([^"]+)"/, (_, uri) => {
-            let absUri = uri;
-            if (!uri.startsWith('http') && !uri.startsWith('data:')) {
-              try { absUri = new URL(uri, baseUrl.href).href; } catch {}
-            }
-            return `URI="${protoHost}/hls/ts?url=${encodeURIComponent(absUri)}&referer=${segRef}"`;
+            const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
+            const b64Map = Buffer.from(absUri).toString('base64url');
+            return `URI="${protoHost}/hls/ts?b64=${b64Map}&ref=${encodedRef}"`;
           });
         }
         return line;
       }
-      let abs = t;
-      if (!t.startsWith('http')) { try { abs = new URL(t, baseUrl.href).href; } catch { return line; } }
-      if (abs.includes('.m3u8')) return `${protoHost}/hls/manifest.m3u8?url=${encodeURIComponent(abs)}&referer=${segRef}`;
-      return `${protoHost}/hls/ts?url=${encodeURIComponent(abs)}&referer=${segRef}`;
+
+      // Segment or Sub-playlist URI
+      const absUrl = t.startsWith('http') ? t : new URL(t, baseUrl.href).href;
+      const b64Url = Buffer.from(absUrl).toString('base64url');
+
+      if (absUrl.includes('.m3u8')) {
+        return `${protoHost}/hls/manifest.m3u8?b64=${b64Url}&ref=${encodedRef}`;
+      }
+      return `${protoHost}/hls/ts?b64=${b64Url}&ref=${encodedRef}`;
     }).join('\n');
 
     res.send(rewritten);
@@ -165,17 +186,38 @@ app.get(['/hls/manifest.m3u8', '/hls/m3u8'], async (req, res) => {
 });
 
 app.get('/hls/ts', async (req, res) => {
-  const targetUrl = req.query.url;
+  let targetUrl = req.query.url;
+  if (req.query.b64) {
+    try { targetUrl = Buffer.from(req.query.b64, 'base64url').toString('utf8'); } catch {}
+  }
   if (!targetUrl) return res.status(400).send('Missing url');
 
-  let referer = req.query.referer ? decodeURIComponent(req.query.referer) : null;
-  if (!referer) { try { referer = new URL(targetUrl).origin + '/'; } catch { referer = HLS_DEFREF; } }
-  let origin = referer.replace(/\/$/, '');
-  try { origin = new URL(referer).origin; } catch {}
+  let refererUrl = null;
+  if (req.query.ref) {
+    try { refererUrl = Buffer.from(req.query.ref, 'base64url').toString('utf8'); } catch {}
+  } else if (req.query.referer) {
+    try { refererUrl = decodeURIComponent(req.query.referer); } catch { refererUrl = req.query.referer; }
+  }
+  if (!refererUrl) {
+    try { refererUrl = new URL(targetUrl).origin + '/'; } catch { refererUrl = HLS_DEFREF; }
+  }
+
+  let origin = refererUrl.replace(/\/$/, '');
+  try { origin = new URL(refererUrl).origin; } catch {}
 
   try {
-    const r = await axios({ url: targetUrl, method: 'GET', responseType: 'stream',
-      headers: { 'User-Agent': HLS_UA, Referer: referer, Origin: origin }, timeout: 25000, maxRedirects: 5 });
+    const r = await axios({
+      url: targetUrl,
+      method: 'GET',
+      responseType: 'stream',
+      headers: {
+        'User-Agent': HLS_UA,
+        Referer: refererUrl,
+        Origin: origin,
+      },
+      timeout: 25000,
+      maxRedirects: 5,
+    });
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
@@ -193,7 +235,10 @@ app.get('/hls/ts', async (req, res) => {
     if (r.headers['content-length']) res.setHeader('Content-Length', r.headers['content-length']);
 
     r.data.pipe(res);
-    r.data.on('error', (e) => { console.error('[HLS/ts]', e.message); if (!res.headersSent) res.status(502).end(); });
+    r.data.on('error', (e) => {
+      console.error('[HLS/ts] Stream error:', e.message);
+      if (!res.headersSent) res.status(502).end();
+    });
   } catch (err) {
     console.error('[HLS/ts]', err.message, targetUrl.slice(0, 80));
     if (!res.headersSent) res.status(502).send('HLS Segment Error');
@@ -222,7 +267,7 @@ const server = app.listen(PORT, HOST, () => {
 
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.4          ║');
+  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.5          ║');
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log(`║  Server:    ${addonUrl.padEnd(41)}║`);
   console.log(`║  Manifest:  ${manifestUrl.padEnd(41)}║`);
