@@ -320,9 +320,14 @@ router.get('/stream/:type/:id.json', async (req, res) => {
 //  ROUTE: / (trang chủ addon)
 // ─────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
-  const host = req.headers.host || 'localhost:7000';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
   const baseUrl = `${protocol}://${host}`;
+  const manifestUrl = `${baseUrl}/manifest.json`;
+  // Stremio deep link: thay thế http(s):// bằng stremio://
+  const stremioUrl = `stremio://${host}/manifest.json`;
+  // Web Stremio install URL
+  const webInstallUrl = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -331,6 +336,7 @@ router.get('/', (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VIP Movies Stremio Addon</title>
+  <meta name="description" content="Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio." />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -348,7 +354,7 @@ router.get('/', (req, res) => {
       border: 1px solid rgba(255,255,255,0.15);
       border-radius: 20px;
       padding: 48px 40px;
-      max-width: 540px;
+      max-width: 560px;
       width: 90%;
       text-align: center;
       box-shadow: 0 25px 50px rgba(0,0,0,0.5);
@@ -371,23 +377,33 @@ router.get('/', (req, res) => {
       border: 1px solid rgba(99,102,241,0.5);
       margin-bottom: 24px;
     }
-    .install-btn {
-      display: inline-block;
+    .btn-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .install-btn, .web-btn {
+      display: block;
       padding: 14px 32px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
       color: #fff;
       text-decoration: none;
       border-radius: 12px;
       font-weight: 600;
       font-size: 1rem;
       transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .install-btn {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
       box-shadow: 0 8px 20px rgba(99,102,241,0.4);
-      margin-bottom: 16px;
-      display: block;
     }
     .install-btn:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 28px rgba(99,102,241,0.5);
+    }
+    .web-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .web-btn:hover {
+      background: rgba(255,255,255,0.13);
+      transform: translateY(-1px);
     }
     .manifest-url {
       background: rgba(0,0,0,0.3);
@@ -399,8 +415,28 @@ router.get('/', (req, res) => {
       color: rgba(255,255,255,0.7);
       margin-top: 16px;
       text-align: left;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.2s;
     }
+    .manifest-url:hover { border-color: rgba(167,139,250,0.5); }
     .manifest-url span { color: #a78bfa; font-weight: 600; }
+    .copy-hint {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.4);
+      margin-top: 4px;
+    }
+    .copy-toast {
+      display: none;
+      position: absolute;
+      top: -32px; right: 8px;
+      background: #22c55e;
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
     .features {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -426,15 +462,22 @@ router.get('/', (req, res) => {
       Xem phim Vietsub, thuy&#7871;t minh ch&#7845;t l&#432;&#7907;ng cao<br/>
       t&#7915; <strong>Server VIP</strong> tr&#7921;c ti&#7871;p tr&#234;n Stremio &amp; Nuvio
     </p>
-    <div class="badge">✅ Tương thích Stremio v4 & Nuvio App</div>
+    <div class="badge">✅ Tương thích Stremio v4 &amp; Nuvio App</div>
 
-    <a class="install-btn" href="stremio://addon/install/${baseUrl}/manifest.json">
-      ⚡ Cài đặt vào Stremio
-    </a>
+    <div class="btn-group">
+      <a class="install-btn" href="${stremioUrl}" id="stremio-install-btn">
+        ⚡ Cài đặt vào Stremio (App)
+      </a>
+      <a class="web-btn" href="${webInstallUrl}" target="_blank" rel="noopener">
+        🌐 Cài đặt trên Web (Stremio Web)
+      </a>
+    </div>
 
-    <div class="manifest-url">
+    <div class="manifest-url" id="manifest-box" onclick="copyManifest()" title="Bấm để sao chép">
+      <div class="copy-toast" id="copy-toast">✅ Đã sao chép!</div>
       <span>Manifest URL:</span><br/>
-      ${baseUrl}/manifest.json
+      ${manifestUrl}
+      <div class="copy-hint">📋 Bấm để sao chép URL</div>
     </div>
 
     <div class="divider"></div>
@@ -447,9 +490,46 @@ router.get('/', (req, res) => {
       <div class="feature"><span class="icon">🌐</span>CORS Full Support</div>
       <div class="feature"><span class="icon">⚡</span>Cache Thông Minh</div>
       <div class="feature"><span class="icon">🎬</span>Hỗ Trợ IMDb ID</div>
-      <div class="feature"><span class="icon">🔄</span>Auto Retry & Fallback</div>
+      <div class="feature"><span class="icon">🔄</span>Auto Retry &amp; Fallback</div>
     </div>
   </div>
+
+  <script>
+    // Fix install button: đảm bảo dùng giao thức stremio:// chuẩn (client-side guard)
+    (function() {
+      var btn = document.getElementById('stremio-install-btn');
+      if (btn) {
+        var origin = window.location.origin.replace(/^https?:\\/\\//, 'stremio://');
+        btn.href = origin + '/manifest.json';
+      }
+    })();
+
+    function copyManifest() {
+      var url = window.location.origin + '/manifest.json';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(showToast).catch(function() { fallbackCopy(url); });
+      } else {
+        fallbackCopy(url);
+      }
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try { document.execCommand('copy'); showToast(); } catch(e) {}
+      document.body.removeChild(ta);
+    }
+
+    function showToast() {
+      var t = document.getElementById('copy-toast');
+      t.style.display = 'block';
+      setTimeout(function() { t.style.display = 'none'; }, 2000);
+    }
+  </script>
 </body>
 </html>`);
 });
