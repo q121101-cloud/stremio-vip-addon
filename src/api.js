@@ -91,6 +91,15 @@ async function getLatestFilms(page = 1) {
   return data;
 }
 
+async function getFilmsByList(listSlug, page = 1) {
+  const key = `list:${listSlug}:${page}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const data = await fetchAPI(`/films/danh-sach/${listSlug}`, { page });
+  cache.set(key, data, CACHE_TTL.catalog);
+  return data;
+}
+
 async function getFilmsByGenre(genreSlug, page = 1) {
   const key = `genre:${genreSlug}:${page}`;
   const cached = cache.get(key);
@@ -269,6 +278,7 @@ function clearCache() {
 
 module.exports = {
   getLatestFilms,
+  getFilmsByList,
   getFilmsByGenre,
   getFilmsByCountry,
   searchFilms,

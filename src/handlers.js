@@ -36,7 +36,7 @@ const { MANIFEST, GENRES, COUNTRIES } = require('./manifest');
  * @param {string} id   - IMDb ID (với hoặc không có :season:ep)
  * @returns {Promise<Array>}
  */
-async function resolveImdbStream(type, id) {
+async function resolveImdbStream(type, id, req) {
   // Parse: tt1234567  hoặc  tt1234567:1:5
   const parts = id.split(':');
   const imdbId  = parts[0];               // tt1234567
@@ -68,7 +68,8 @@ async function resolveImdbStream(type, id) {
     epName = String(episode);
   }
 
-  const streams = mapper.buildStreams(movie, epName);
+  const proxyBase = `${req?.protocol || 'https'}://${req?.get?.('x-forwarded-host') || req?.get?.('host') || ''}`.replace(/\/$/, '');
+  const streams = mapper.buildStreams(movie, epName, proxyBase);
   console.log(`[IMDb Stream] ${imdbId} → "${match.name}" → ${streams.length} streams (ep=${epName})`);
   return streams;
 }
@@ -202,11 +203,10 @@ router.get(
       }
       // ── Chế độ mặc định: phim mới nhất ───────────────────
       else {
-        // Fetch 3 pages concurrently để đảm bảo đủ items sau khi lọc theo type
+        const listSlug = type === 'movie' ? 'phim-le' : 'phim-bo';
         const pagePromises = [
-          api.getLatestFilms(page),
-          api.getLatestFilms(page + 1),
-          api.getLatestFilms(page + 2),
+          api.getFilmsByList(listSlug, page).catch(() => api.getLatestFilms(page)),
+          api.getFilmsByList(listSlug, page + 1).catch(() => api.getLatestFilms(page + 1)),
         ];
 
         const results = await Promise.allSettled(pagePromises);
@@ -215,8 +215,7 @@ router.get(
         for (const result of results) {
           if (result.status === 'fulfilled') {
             const rawItems = result.value.items || [];
-            const filtered = filterByType(rawItems, type);
-            collected.push(...filtered);
+            collected.push(...rawItems);
           }
         }
 
@@ -283,7 +282,7 @@ router.get('/stream/:type/:id.json', async (req, res) => {
   try {
     // ── Nhánh 1: IMDb ID (tt...) ─────────────────────────────
     if (/^tt\d+/i.test(id)) {
-      const streams = await resolveImdbStream(type, id);
+      const streams = await resolveImdbStream(type, id, req);
       return sendJSON(res, { streams });
     }
 
@@ -303,7 +302,8 @@ router.get('/stream/:type/:id.json', async (req, res) => {
 
     // Phim lẻ: luôn lấy tập đầu (FULL)
     const targetEpName = type === 'movie' ? null : epName;
-    const streams = mapper.buildStreams(data.movie, targetEpName);
+    const proxyBase    = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`.replace(/\/$/, '');
+    const streams      = mapper.buildStreams(data.movie, targetEpName, proxyBase);
 
     if (!streams.length) {
       console.warn(`[Stream] Không có stream cho slug=${slug} ep=${epName}`);
