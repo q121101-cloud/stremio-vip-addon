@@ -235,6 +235,7 @@ function buildStreams(movie, epName, proxyBase = '') {
     streams.push({
       name:        'NguonC 🎬',
       title:       `${flag} • ${serverName}${epLabel}\n📺 Embed Player`,
+      url:         targetEp.embed,
       externalUrl: targetEp.embed,
       behaviorHints: { notSupported: false, bingeGroup: `nguonc-${movie.slug}` },
     });

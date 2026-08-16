@@ -75,7 +75,7 @@ const mapper = require('./mapper');
 
 /**
  * /hls/extract?embed=<encoded_embed_url>
- * Lazy extraction endpoint: fetch embed → extract m3u8 → proxy via /hls/m3u8
+ * Lazy extraction endpoint: fetch embed → extract m3u8 → proxy via /hls/manifest.m3u8
  * Called by the player when it actually needs to play the stream.
  */
 app.get('/hls/extract', async (req, res) => {
@@ -95,8 +95,8 @@ app.get('/hls/extract', async (req, res) => {
     const encodedM3u8 = encodeURIComponent(m3u8Url);
     const encodedRef  = encodeURIComponent(`${embedHost}/`);
 
-    // Redirect to our /hls/m3u8 proxy so segments are also rewritten
-    const proxyUrl = `${protoHost}/hls/m3u8?url=${encodedM3u8}&referer=${encodedRef}`;
+    // Redirect to our /hls/manifest.m3u8 proxy so segments are also rewritten
+    const proxyUrl = `${protoHost}/hls/manifest.m3u8?url=${encodedM3u8}&referer=${encodedRef}`;
     console.log(`[HLS/extract] ${embedUrl.slice(0, 60)} → ${m3u8Url.slice(0, 60)}`);
     res.redirect(302, proxyUrl);
   } catch (err) {
@@ -105,9 +105,7 @@ app.get('/hls/extract', async (req, res) => {
   }
 });
 
-
-
-app.get('/hls/m3u8', async (req, res) => {
+app.get(['/hls/manifest.m3u8', '/hls/m3u8'], async (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl) return res.status(400).send('Missing url');
 
@@ -122,7 +120,8 @@ app.get('/hls/m3u8', async (req, res) => {
       headers: { 'User-Agent': HLS_UA, Referer: referer, Origin: origin }, timeout: 15000, maxRedirects: 5 });
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
 
     let baseUrl; try { baseUrl = new URL(targetUrl); } catch { return res.send(r.data); }
     const effectiveReferer = referer || (baseUrl.origin + '/');
@@ -133,21 +132,24 @@ app.get('/hls/m3u8', async (req, res) => {
       if (!t || t.startsWith('#')) {
         if (t.startsWith('#EXT-X-KEY') && t.includes('URI=')) {
           return t.replace(/URI="([^"]+)"/, (_, uri) => {
-            if (!uri.startsWith('http') && !uri.startsWith('data:')) uri = new URL(uri, baseUrl.href).href;
-            return `URI="${protoHost}/hls/ts?url=${encodeURIComponent(uri)}&referer=${segRef}"`;
+            let absUri = uri;
+            if (!uri.startsWith('http') && !uri.startsWith('data:')) {
+              try { absUri = new URL(uri, baseUrl.href).href; } catch {}
+            }
+            return `URI="${protoHost}/hls/ts?url=${encodeURIComponent(absUri)}&referer=${segRef}"`;
           });
         }
         return line;
       }
       let abs = t;
       if (!t.startsWith('http')) { try { abs = new URL(t, baseUrl.href).href; } catch { return line; } }
-      if (abs.includes('.m3u8')) return `${protoHost}/hls/m3u8?url=${encodeURIComponent(abs)}&referer=${segRef}`;
+      if (abs.includes('.m3u8')) return `${protoHost}/hls/manifest.m3u8?url=${encodeURIComponent(abs)}&referer=${segRef}`;
       return `${protoHost}/hls/ts?url=${encodeURIComponent(abs)}&referer=${segRef}`;
     }).join('\n');
 
     res.send(rewritten);
   } catch (err) {
-    console.error('[HLS/m3u8]', err.message, targetUrl.slice(0, 80));
+    console.error('[HLS/manifest]', err.message, targetUrl.slice(0, 80));
     if (!res.headersSent) res.status(502).send('HLS Proxy Error: ' + err.message);
   }
 });
@@ -166,6 +168,7 @@ app.get('/hls/ts', async (req, res) => {
       headers: { 'User-Agent': HLS_UA, Referer: referer, Origin: origin }, timeout: 25000, maxRedirects: 5 });
 
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
     // Support .png / .ts / .jpeg disguised segments
     res.setHeader('Content-Type', r.headers['content-type'] || 'video/mp2t');
     if (r.headers['content-length']) res.setHeader('Content-Length', r.headers['content-length']);
@@ -200,11 +203,11 @@ const server = app.listen(PORT, HOST, () => {
 
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.1          ║');
+  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.3          ║');
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log(`║  Server:    ${addonUrl.padEnd(41)}║`);
   console.log(`║  Manifest:  ${manifestUrl.padEnd(41)}║`);
-  console.log(`║  HLS Proxy: ${(addonUrl + '/hls/m3u8').padEnd(41)}║`);
+  console.log(`║  HLS Proxy: ${(addonUrl + '/hls/manifest.m3u8').padEnd(41)}║`);
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log('║  Deep Link Cài đặt:                                  ║');
   console.log(`║  ${stremioUrl.substring(0, 52)}║`);
