@@ -317,8 +317,6 @@ router.get('/stream/:type/:id.json', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  ROUTE: / (trang chủ addon)
-// ─────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
@@ -335,167 +333,473 @@ router.get('/', (req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VIP Movies Stremio Addon</title>
-  <meta name="description" content="Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio." />
+  <title>VIP Movies 🎬 — Stremio & Nuvio Addon</title>
+  <meta name="description" content="Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ phim lẻ, phim bộ & IMDb." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
+    :root {
+      --primary: #6366f1;
+      --accent: #ec4899;
+      --secondary: #8b5cf6;
+      --cyan: #06b6d4;
+      --bg: #07080d;
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      padding: 24px 16px;
+      position: relative;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
+
+    /* Ambient Aurora Glows */
+    .aurora-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .aurora-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.35;
+      animation: floatAurora 18s ease-in-out infinite alternate;
+    }
+
+    .orb-1 {
+      width: 480px; height: 480px;
+      top: -120px; left: -100px;
+      background: radial-gradient(circle, #6366f1, #3b82f6);
+    }
+
+    .orb-2 {
+      width: 520px; height: 520px;
+      bottom: -150px; right: -120px;
+      background: radial-gradient(circle, #ec4899, #8b5cf6);
+      animation-delay: -5s;
+    }
+
+    .orb-3 {
+      width: 380px; height: 380px;
+      top: 40%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, #06b6d4, #6366f1);
+      opacity: 0.2;
+      animation-delay: -10s;
+    }
+
+    @keyframes floatAurora {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(30px, 40px) scale(1.08); }
+      100% { transform: translate(-30px, -20px) scale(0.95); }
+    }
+
+    /* Central Glass Card */
     .card {
-      background: rgba(255,255,255,0.07);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 20px;
-      padding: 48px 40px;
-      max-width: 560px;
-      width: 90%;
+      position: relative;
+      z-index: 1;
+      background: var(--card-bg);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 44px 36px;
+      max-width: 640px;
+      width: 100%;
       text-align: center;
-      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: border-color 0.3s ease;
     }
-    .logo { font-size: 4rem; margin-bottom: 16px; }
-    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
-    .subtitle {
-      color: rgba(255,255,255,0.65);
-      margin-bottom: 32px;
-      font-size: 0.95rem;
-      line-height: 1.5;
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.14);
     }
-    .badge {
+
+    /* Logo & Glow */
+    .logo-wrapper {
+      position: relative;
       display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      background: rgba(99,102,241,0.3);
-      border: 1px solid rgba(99,102,241,0.5);
+      margin-bottom: 20px;
+    }
+
+    .logo-halo {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90px; height: 90px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.4), transparent 70%);
+      border-radius: 50%;
+      filter: blur(14px);
+    }
+
+    .logo-icon {
+      position: relative;
+      font-size: 3.6rem;
+      line-height: 1;
+      display: block;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+    }
+
+    /* Typography */
+    h1 {
+      font-size: 2.3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.6;
+      font-weight: 400;
       margin-bottom: 24px;
     }
-    .btn-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-    .install-btn, .web-btn {
-      display: block;
-      padding: 14px 32px;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 12px;
+
+    .subtitle strong {
+      color: #e2e8f0;
       font-weight: 600;
-      font-size: 1rem;
-      transition: transform 0.2s, box-shadow 0.2s;
     }
-    .install-btn {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      box-shadow: 0 8px 20px rgba(99,102,241,0.4);
+
+    /* Server Status Badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      color: #4ade80;
+      margin-bottom: 28px;
     }
-    .install-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(99,102,241,0.5);
+
+    .pulse-dot {
+      width: 8px; height: 8px;
+      background-color: #22c55e;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+      animation: pulseGreen 2s infinite;
     }
-    .web-btn {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.2);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+      70% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
     }
-    .web-btn:hover {
-      background: rgba(255,255,255,0.13);
+
+    /* Button Group */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px 28px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 1.02rem;
+      text-decoration: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: 0 15px 35px rgba(99, 102, 241, 0.55);
+      filter: brightness(1.08);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.04);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.25);
       transform: translateY(-1px);
+      color: #fff;
     }
-    .manifest-url {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 0.8rem;
-      word-break: break-all;
-      color: rgba(255,255,255,0.7);
-      margin-top: 16px;
+
+    /* Smart Manifest URL Box */
+    .manifest-box {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px dashed rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 28px;
       text-align: left;
       cursor: pointer;
       position: relative;
-      transition: border-color 0.2s;
+      transition: all 0.2s ease;
     }
-    .manifest-url:hover { border-color: rgba(167,139,250,0.5); }
-    .manifest-url span { color: #a78bfa; font-weight: 600; }
-    .copy-hint {
-      font-size: 0.72rem;
-      color: rgba(255,255,255,0.4);
-      margin-top: 4px;
+
+    .manifest-box:hover {
+      border-color: rgba(167, 139, 250, 0.6);
+      background: rgba(0, 0, 0, 0.55);
     }
-    .copy-toast {
-      display: none;
-      position: absolute;
-      top: -32px; right: 8px;
-      background: #22c55e;
-      color: #fff;
-      padding: 3px 10px;
-      border-radius: 6px;
-      font-size: 0.75rem;
+
+    .manifest-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
       font-weight: 600;
+      color: #a78bfa;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
-    .features {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 28px;
+
+    .manifest-value {
+      font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+      font-size: 0.84rem;
+      color: #cbd5e1;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .copy-badge {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(167, 139, 250, 0.15);
+      color: #c084fc;
+      font-weight: 500;
+    }
+
+    /* Floating Toast */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #4ade80;
+      backdrop-filter: blur(16px);
+      padding: 12px 24px;
+      border-radius: 9999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 100;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      margin: 28px 0;
+    }
+
+    /* Feature Grid (8 Mini-Cards) */
+    .features-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
       text-align: left;
     }
-    .feature {
-      background: rgba(255,255,255,0.05);
-      border-radius: 10px;
-      padding: 12px;
-      font-size: 0.85rem;
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
-    .feature .icon { margin-right: 6px; }
-    .divider { height: 1px; background: rgba(255,255,255,0.1); margin: 24px 0; }
+
+    @media (min-width: 520px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 12px 14px;
+      text-align: left;
+      transition: all 0.2s ease;
+    }
+
+    .feature-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .feature-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 3px;
+    }
+
+    .feature-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 24px;
+      font-size: 0.76rem;
+      color: rgba(148, 163, 184, 0.6);
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">🎬</div>
+  <!-- Ambient Aurora Background Elements -->
+  <div class="aurora-bg">
+    <div class="aurora-orb orb-1"></div>
+    <div class="aurora-orb orb-2"></div>
+    <div class="aurora-orb orb-3"></div>
+  </div>
+
+  <!-- Central Glassmorphism Card -->
+  <main class="card">
+    <div class="logo-wrapper">
+      <div class="logo-halo"></div>
+      <span class="logo-icon">🎬</span>
+    </div>
+
     <h1>VIP Movies Addon</h1>
     <p class="subtitle">
-      Xem phim Vietsub, thuy&#7871;t minh ch&#7845;t l&#432;&#7907;ng cao<br/>
-      t&#7915; <strong>Server VIP</strong> tr&#7921;c ti&#7871;p tr&#234;n Stremio &amp; Nuvio
+      Xem phim Vietsub & Thuyết minh tốc độ cao từ <strong>Server VIP</strong><br/>
+      trực tiếp trên Stremio, Nuvio và mọi nền tảng trình phát HLS.
     </p>
-    <div class="badge">✅ Tương thích Stremio v4 &amp; Nuvio App</div>
 
+    <div class="status-badge">
+      <div class="pulse-dot"></div>
+      <span>Hệ thống Trực tuyến • v1.3.7</span>
+    </div>
+
+    <!-- Call to Action Buttons -->
     <div class="btn-group">
-      <a class="install-btn" href="${stremioUrl}" id="stremio-install-btn">
-        ⚡ Cài đặt vào Stremio (App)
+      <a class="btn btn-primary" href="${stremioUrl}" id="stremio-install-btn">
+        <span>⚡</span> Cài đặt vào Stremio App
       </a>
-      <a class="web-btn" href="${webInstallUrl}" target="_blank" rel="noopener">
-        🌐 Cài đặt trên Web (Stremio Web)
+      <a class="btn btn-secondary" href="${webInstallUrl}" target="_blank" rel="noopener">
+        <span>🌐</span> Mở trên Stremio Web
       </a>
     </div>
 
-    <div class="manifest-url" id="manifest-box" onclick="copyManifest()" title="Bấm để sao chép">
-      <div class="copy-toast" id="copy-toast">✅ Đã sao chép!</div>
-      <span>Manifest URL:</span><br/>
-      ${manifestUrl}
-      <div class="copy-hint">📋 Bấm để sao chép URL</div>
+    <!-- Manifest URL Copy Box -->
+    <div class="manifest-box" onclick="copyManifest()" title="Bấm để sao chép liên kết">
+      <div class="manifest-label">
+        <span>Manifest URL</span>
+        <span class="copy-badge">📋 Bấm để Copy</span>
+      </div>
+      <div class="manifest-value">${manifestUrl}</div>
     </div>
 
     <div class="divider"></div>
 
-    <div class="features">
-      <div class="feature"><span class="icon">🎥</span>Phim Lẻ Vietsub</div>
-      <div class="feature"><span class="icon">📺</span>Phim Bộ Đa Tập</div>
-      <div class="feature"><span class="icon">🔍</span>Tìm Kiếm Nhanh</div>
-      <div class="feature"><span class="icon">🏷️</span>Lọc Theo Thể Loại</div>
-      <div class="feature"><span class="icon">🌐</span>CORS Full Support</div>
-      <div class="feature"><span class="icon">⚡</span>Cache Thông Minh</div>
-      <div class="feature"><span class="icon">🎬</span>Hỗ Trợ IMDb ID</div>
-      <div class="feature"><span class="icon">🔄</span>Auto Retry &amp; Fallback</div>
+    <!-- 8 Features Grid -->
+    <div class="features-title">Tính năng & Công nghệ nổi bật</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-head"><span>🎥</span> Phim Lẻ Vietsub</div>
+        <div class="feature-desc">Bom tấn chiếu rạp, Hollywood Full HD.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>📺</span> Phim Bộ Đa Tập</div>
+        <div class="feature-desc">K-Drama, Cổ trang Trung Quốc, US Series.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>⚡</span> HLS Proxy Tốc độ cao</div>
+        <div class="feature-desc">Stream trực tiếp không giới hạn băng thông.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>🍿</span> Hoạt Hình & Anime</div>
+        <div class="feature-desc">Kho Anime Nhật Bản, Hoạt hình 3D trọn bộ.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>🎬</span> Khớp TMDb & IMDb</div>
+        <div class="feature-desc">Nhận diện thông minh qua Cinemeta Catalog.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>🔄</span> Cơ chế Stream Kép</div>
+        <div class="feature-desc">Tự động điều hướng HLS Proxy & Embed Player.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>📱</span> Đa nền tảng</div>
+        <div class="feature-desc">Tương thích Stremio v4, Nuvio, Android TV.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-head"><span>🌐</span> CORS Mở & Cache 24h</div>
+        <div class="feature-desc">Tải dữ liệu siêu tốc, độ trễ tiệm cận 0ms.</div>
+      </div>
     </div>
+
+    <div class="footer">
+      VIP Movies Addon v1.3.7 • Powered by NguonC & Stremio Protocol
+    </div>
+  </main>
+
+  <!-- Notification Toast -->
+  <div class="toast" id="copy-toast">
+    <span>✨</span> Đã sao chép liên kết vào Clipboard!
   </div>
 
   <script>
-    // Fix install button: đảm bảo dùng giao thức stremio:// chuẩn (client-side guard)
+    // Client-side guard: đảm bảo deep link stremio:// luôn chuẩn xác theo origin hiện tại
     (function() {
       var btn = document.getElementById('stremio-install-btn');
       if (btn) {
@@ -526,8 +830,10 @@ router.get('/', (req, res) => {
 
     function showToast() {
       var t = document.getElementById('copy-toast');
-      t.style.display = 'block';
-      setTimeout(function() { t.style.display = 'none'; }, 2000);
+      if (t) {
+        t.classList.add('show');
+        setTimeout(function() { t.classList.remove('show'); }, 2200);
+      }
     }
   </script>
 </body>
