@@ -303,7 +303,7 @@ const server = app.listen(PORT, HOST, () => {
 
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.7          ║');
+  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.8          ║');
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log(`║  Server:    ${addonUrl.padEnd(41)}║`);
   console.log(`║  Manifest:  ${manifestUrl.padEnd(41)}║`);

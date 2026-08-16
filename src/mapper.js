@@ -157,32 +157,123 @@ function parseStreamId(streamId) {
 }
 
 /**
+ * Unpack Dean Edwards P.A.C.K.E.R encoded scripts
+ * Example: eval(function(p,a,c,k,e,d)...)
+ */
+function unpackDeanEdwards(packed) {
+  if (!packed || typeof packed !== 'string') return null;
+  const match = packed.match(/eval\s*\(\s*function\s*\(\s*p\s*,\s*a\s*,\s*c\s*,\s*k\s*,\s*e\s*,\s*[rd]\s*\)\s*\{[\s\S]+?\}\s*\(\s*['"]([\s\S]+?)['"]\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*['"]([\s\S]+?)['"]\.split\(\s*['"]\|['"]\s*\)/);
+  if (!match) return null;
+
+  try {
+    let payload = match[1];
+    const radix = parseInt(match[2], 10);
+    const count = parseInt(match[3], 10);
+    const symtab = match[4].split('|');
+
+    const encode = (c) => {
+      const a = (c < radix ? '' : encode(Math.floor(c / radix))) + ((c = c % radix) > 35 ? String.fromCharCode(c + 29) : c.toString(36));
+      return a;
+    };
+
+    const d = {};
+    for (let c = 0; c < count; c++) {
+      const key = encode(c);
+      d[key] = symtab[c] || key;
+    }
+
+    const unpacked = payload.replace(/\b\w+\b/g, (w) => (Object.prototype.hasOwnProperty.call(d, w) ? d[w] : w));
+    return unpacked;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
  * Extract m3u8 URL from embed page (async).
- * Decode mechanism: data-obf base64 JSON → sUb path → m3u8 URL
+ * Supports Vietsub, Thuyết Minh, Lồng Tiếng, and all upstream CDNs.
  */
 async function extractM3u8FromEmbed(embedUrl) {
-  const axios = require('axios');
+  if (!embedUrl) return null;
+
   try {
+    // 1. Direct .m3u8 link check
+    if (embedUrl.includes('.m3u8')) {
+      return { m3u8Url: embedUrl, embedHost: new URL(embedUrl).origin };
+    }
+
+    const axios = require('axios');
     const embedHost = new URL(embedUrl).origin;
     const r = await axios.get(embedUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         Referer: 'https://phim.nguonc.com/',
-        Origin:  'https://phim.nguonc.com',
+        Origin: 'https://phim.nguonc.com',
       },
       timeout: 10000,
     });
-    const html = r.data;
+
+    const html = String(r.data);
+
+    // 2. Check data-obf base64 JSON payload (NguonC / StreamC standard)
     const obfMatch = html.match(/data-obf="([^"]+)"/);
-    if (!obfMatch) {
-      const directM3u8 = html.match(/["'](https?:\/\/[^"']*\.m3u8[^"']*?)["']/);
-      if (directM3u8) return { m3u8Url: directM3u8[1], embedHost };
-      return null;
+    if (obfMatch) {
+      try {
+        const outerJson = JSON.parse(Buffer.from(obfMatch[1], 'base64').toString('utf8'));
+        if (outerJson && outerJson.sUb) {
+          const sUb = outerJson.sUb;
+          const fullUrl = sUb.startsWith('http') ? sUb : `${embedHost}/${sUb.replace(/^\//, '')}`;
+          return { m3u8Url: fullUrl, embedHost };
+        }
+      } catch {}
     }
-    const outerJson = JSON.parse(Buffer.from(obfMatch[1], 'base64').toString('utf8'));
-    const sUb = outerJson.sUb;
-    if (!sUb) return null;
-    return { m3u8Url: `${embedHost}/${sUb}`, embedHost };
+
+    // Helper regex scanner across text
+    const scanPatterns = (text) => {
+      if (!text) return null;
+
+      // Pattern 1: file: "..."
+      const mFile = text.match(/file\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      if (mFile) return mFile[1];
+
+      // Pattern 2: source: "..."
+      const mSource = text.match(/source\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      if (mSource) return mSource[1];
+
+      // Pattern 3: (url|src|link|hls|stream) = "..." or : "..."
+      const mVar = text.match(/(?:url|src|link|source|hls|stream)\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      if (mVar) return mVar[1];
+
+      // Pattern 4: General absolute http(s) m3u8 URL
+      const mAbs = text.match(/["'](https?:\/\/[^"']*\.m3u8[^"']*?)["']/i);
+      if (mAbs) return mAbs[1];
+
+      // Pattern 5: Relative m3u8 URL starting with /
+      const mRel = text.match(/["'](\/[^"']*\.m3u8[^"']*?)["']/i);
+      if (mRel) return mRel[1];
+
+      return null;
+    };
+
+    // 3. Scan raw HTML with multi-patterns
+    let candidate = scanPatterns(html);
+
+    // 4. If not found, attempt Dean Edwards P.A.C.K.E.R unpacker
+    if (!candidate && html.includes('eval(function(p,a,c,k,e,')) {
+      const unpacked = unpackDeanEdwards(html);
+      if (unpacked) {
+        candidate = scanPatterns(unpacked);
+      }
+    }
+
+    if (candidate) {
+      // Decode escaped slashes (e.g., https:\/\/...)
+      candidate = candidate.replace(/\\\//g, '/');
+      const finalM3u8 = candidate.startsWith('http') ? candidate : new URL(candidate, embedHost).href;
+      return { m3u8Url: finalM3u8, embedHost };
+    }
+
+    return null;
   } catch (err) {
     console.warn(`[Extractor] ${err.message} for ${embedUrl}`);
     return null;

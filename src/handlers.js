@@ -727,7 +727,7 @@ router.get('/', (req, res) => {
 
     <div class="status-badge">
       <div class="pulse-dot"></div>
-      <span>Hệ thống Trực tuyến • v1.3.7</span>
+      <span>Hệ thống Trực tuyến • v1.3.8</span>
     </div>
 
     <!-- Call to Action Buttons -->
@@ -789,7 +789,7 @@ router.get('/', (req, res) => {
     </div>
 
     <div class="footer">
-      VIP Movies Addon v1.3.7 • Powered by NguonC & Stremio Protocol
+      VIP Movies Addon v1.3.8 • Powered by NguonC & Stremio Protocol
     </div>
   </main>
 
