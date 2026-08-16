@@ -148,9 +148,38 @@ app.get(['/hls/manifest.m3u8', '/hls/m3u8'], async (req, res) => {
     // Preserve full hash referer encoded as base64url
     const encodedRef = Buffer.from(refererUrl).toString('base64url');
 
+    let isNextSubPlaylist = false;
+    let isNextSegment = false;
+
     const rewritten = String(r.data).split('\n').map((line) => {
       const t = line.trim();
-      if (!t || t.startsWith('#')) {
+      if (!t) return line;
+
+      if (t.startsWith('#')) {
+        // Master playlist tags: the subsequent URI line points to a sub-playlist
+        if (t.startsWith('#EXT-X-STREAM-INF') || t.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
+          isNextSubPlaylist = true;
+          isNextSegment = false;
+          return line;
+        }
+
+        // Media segment tag: the subsequent URI line points to a media segment
+        if (t.startsWith('#EXTINF')) {
+          isNextSegment = true;
+          isNextSubPlaylist = false;
+          return line;
+        }
+
+        // Alternative audio/subtitle renditions
+        if (t.startsWith('#EXT-X-MEDIA:') && t.includes('URI=')) {
+          return t.replace(/URI="([^"]+)"/, (_, uri) => {
+            const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
+            const b64Uri = Buffer.from(absUri).toString('base64url');
+            return `URI="${protoHost}/hls/manifest.m3u8?b64=${b64Uri}&ref=${encodedRef}"`;
+          });
+        }
+
+        // Decryption Key
         if (t.startsWith('#EXT-X-KEY') && t.includes('URI=')) {
           return t.replace(/URI="([^"]+)"/, (_, uri) => {
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
@@ -158,6 +187,8 @@ app.get(['/hls/manifest.m3u8', '/hls/m3u8'], async (req, res) => {
             return `URI="${protoHost}/hls/ts?b64=${b64Key}&ref=${encodedRef}&is_key=1"`;
           });
         }
+
+        // Init section for fMP4
         if (t.startsWith('#EXT-X-MAP') && t.includes('URI=')) {
           return t.replace(/URI="([^"]+)"/, (_, uri) => {
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
@@ -165,16 +196,20 @@ app.get(['/hls/manifest.m3u8', '/hls/m3u8'], async (req, res) => {
             return `URI="${protoHost}/hls/ts?b64=${b64Map}&ref=${encodedRef}"`;
           });
         }
+
         return line;
       }
 
-      // Segment or Sub-playlist URI
+      // URI Line: decide whether it is a sub-playlist or a segment
       const absUrl = t.startsWith('http') ? t : new URL(t, baseUrl.href).href;
       const b64Url = Buffer.from(absUrl).toString('base64url');
 
-      if (absUrl.includes('.m3u8')) {
+      if (isNextSubPlaylist || absUrl.includes('.m3u8') || absUrl.includes('playlist')) {
+        isNextSubPlaylist = false;
         return `${protoHost}/hls/manifest.m3u8?b64=${b64Url}&ref=${encodedRef}`;
       }
+
+      isNextSegment = false;
       return `${protoHost}/hls/ts?b64=${b64Url}&ref=${encodedRef}`;
     }).join('\n');
 
@@ -206,6 +241,20 @@ app.get('/hls/ts', async (req, res) => {
   try { origin = new URL(refererUrl).origin; } catch {}
 
   try {
+    const isKey = req.query.is_key === '1' || targetUrl.includes('.key');
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    // BẮT BUỘC ghi đè Content-Type thành video/mp2t (tránh MIME image/png từ CDN làm đen màn hình)
+    if (isKey) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+    } else {
+      res.setHeader('Content-Type', 'video/mp2t');
+    }
+
     const r = await axios({
       url: targetUrl,
       method: 'GET',
@@ -218,19 +267,6 @@ app.get('/hls/ts', async (req, res) => {
       timeout: 25000,
       maxRedirects: 5,
     });
-
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-
-    // BẮT BUỘC ghi đè Content-Type thành video/mp2t (tránh MIME image/png từ CDN làm đen màn hình)
-    const isKey = req.query.is_key === '1' || targetUrl.includes('.key');
-    if (isKey) {
-      res.setHeader('Content-Type', 'application/octet-stream');
-    } else {
-      res.setHeader('Content-Type', 'video/mp2t');
-    }
 
     if (r.headers['content-length']) res.setHeader('Content-Length', r.headers['content-length']);
 
@@ -267,7 +303,7 @@ const server = app.listen(PORT, HOST, () => {
 
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.5          ║');
+  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.6          ║');
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log(`║  Server:    ${addonUrl.padEnd(41)}║`);
   console.log(`║  Manifest:  ${manifestUrl.padEnd(41)}║`);
