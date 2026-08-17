@@ -16,7 +16,7 @@ const VALID_CATEGORIES = ['movie', 'series', 'anime', 'cinema'];
 
 /** Cấu hình mặc định */
 const DEFAULT_CONFIG = {
-  providers: ['nguonc'],
+  providers: ['nguonc', 'kkphim', 'vsmov'],
   categories: ['movie', 'series'],
   apiKey: '',
 };

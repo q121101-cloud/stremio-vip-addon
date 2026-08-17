@@ -140,6 +140,13 @@ class LRUCache {
 const imdbCache = new LRUCache(5000, 86400);
 
 /**
+ * Cinemeta Metadata Cache
+ * TTL: 24 giờ (86400s) — Cache metadata chính thức từ Cinemeta
+ * Max: 5.000 entries
+ */
+const cinemetaCache = new LRUCache(5000, 86400);
+
+/**
  * m3u8 Playlist content cache
  * TTL: 10 phút — Instant Playback cho lần xem lại
  * Max: 500 playlists
@@ -164,6 +171,7 @@ const detailCache = new LRUCache(1000, 600);
 setInterval(() => {
   const pruned = [
     imdbCache.prune(),
+    cinemetaCache.prune(),
     m3u8Cache.prune(),
     catalogCache.prune(),
     detailCache.prune(),
@@ -176,6 +184,7 @@ setInterval(() => {
 module.exports = {
   LRUCache,
   imdbCache,
+  cinemetaCache,
   m3u8Cache,
   catalogCache,
   detailCache,

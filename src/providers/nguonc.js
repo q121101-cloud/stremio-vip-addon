@@ -3,32 +3,32 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/providers/nguonc.js
- *  Mô-đun NguonC chuẩn đặc tả API phim.nguonc.com/api (100% Official Endpoints)
+ *  NguonC Provider Module (100% Official Endpoints: phim.nguonc.com/api)
  *
- *  Endpoints:
- *    - Tim kiem:    GET https://phim.nguonc.com/api/films/search?keyword=${kw}&page=${page}
- *    - Chi tiet:    GET https://phim.nguonc.com/api/film/${slug}
- *    - Moi cap nhat:GET https://phim.nguonc.com/api/films/phim-moi-cap-nhat?page=${page}
- *    - Danh sach:   GET https://phim.nguonc.com/api/films/danh-sach/${type}?page=${page}
- *    - The loai:    GET https://phim.nguonc.com/api/films/the-loai/${genreSlug}?page=${page}
- *    - Quoc gia:    GET https://phim.nguonc.com/api/films/quoc-gia/${countrySlug}?page=${page}
+ *  Features:
+ *  - 5-second axios timeout for high resilience & zero blocking
+ *  - Cinemeta title & year search matching
+ *  - Multi-server support: Vietsub & Thuyết Minh
+ *  - R3 Stremio Stream Protocol compliance:
+ *    * In-App Direct Play: HLS Proxy (url only, NO externalUrl)
+ *    * External Web Browser Play: Embed Player (externalUrl only, NO url)
  * ============================================================
  */
 
 const axios = require('axios');
-const api   = require('../api');
 const mapper = require('../mapper');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
+const { getCachedCinemeta } = require('../lib/cinemeta');
 
 const PROVIDER_ID    = 'nguonc';
-const PROVIDER_LABEL = 'VIP 1 • NguonC';
+const PROVIDER_LABEL = 'NguonC';
 const BASE_API       = 'https://phim.nguonc.com/api';
 const NGUONC_UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-// ─── Axios Client ───────────────────────────────────────────────
+// ─── Axios Client (5s Timeout) ───────────────────────────────────
 const http = axios.create({
   baseURL: BASE_API,
-  timeout: 12000,
+  timeout: 5000,
   headers: {
     'User-Agent': NGUONC_UA,
     Accept: 'application/json',
@@ -39,6 +39,77 @@ const http = axios.create({
 function encodeBase64(str) {
   if (!str) return '';
   return Buffer.from(str, 'utf8').toString('base64url');
+}
+
+/**
+ * Similarity and year score matching
+ */
+function scoreMatch(item, title, year, type) {
+  if (!item || !title) return 0;
+  const normalize = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const target = normalize(title);
+  const nameNorm = normalize(item.name);
+  const originNorm = normalize(item.original_name);
+  const slugNorm = normalize(String(item.slug || '').replace(/-/g, ' '));
+
+  let score = 0;
+  if (nameNorm === target || originNorm === target || slugNorm === target) {
+    score = 1.0;
+  } else if (
+    nameNorm.includes(target) ||
+    originNorm.includes(target) ||
+    target.includes(nameNorm) ||
+    target.includes(originNorm)
+  ) {
+    score = 0.8;
+  } else {
+    const targetWords = new Set(target.split(' ').filter(Boolean));
+    const words = [...new Set([...nameNorm.split(' '), ...originNorm.split(' ')])].filter(Boolean);
+    const common = words.filter((w) => targetWords.has(w)).length;
+    score = targetWords.size > 0 ? (common / targetWords.size) * 0.7 : 0;
+  }
+
+  // Check year
+  let itemYear = mapper.extractYear(item.category);
+  if (!itemYear && item.name) {
+    const m = String(item.name).match(/\b(19\d\d|20\d\d)\b/);
+    if (m) itemYear = parseInt(m[1], 10);
+  }
+  if (!itemYear && item.original_name) {
+    const m = String(item.original_name).match(/\b(19\d\d|20\d\d)\b/);
+    if (m) itemYear = parseInt(m[1], 10);
+  }
+
+  if (year && itemYear) {
+    const targetYear = parseInt(year, 10);
+    if (!isNaN(targetYear)) {
+      if (itemYear === targetYear) {
+        score += 0.25;
+      } else if (Math.abs(itemYear - targetYear) <= 1) {
+        score += 0.1;
+      } else {
+        score -= 0.2;
+      }
+    }
+  }
+
+  // Type check bonus
+  if (type) {
+    const itemType = mapper.detectType(item);
+    if (itemType === type) {
+      score += 0.1;
+    }
+  }
+
+  return score;
 }
 
 function mapCatalogMeta(item, forceType = null) {
@@ -174,20 +245,34 @@ async function getCatalog(type, page = 1, extra = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  4. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, season, episode, slug, proxyBase })
+//  4. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
   let imdbId = arg1;
   let slug = null;
+  let year = null;
+  let genres = null;
+
   if (typeof arg1 === 'object' && arg1 !== null) {
-    imdbId    = arg1.imdbId;
-    title     = arg1.title;
-    type      = arg1.type;
-    season    = arg1.season;
-    episode   = arg1.episode;
-    slug      = arg1.slug;
-    proxyBase = arg1.proxyBase;
+    imdbId    = arg1.imdbId || null;
+    title     = arg1.title || null;
+    type      = arg1.type || 'movie';
+    year      = arg1.year || null;
+    genres    = arg1.genres || null;
+    season    = arg1.season != null ? arg1.season : null;
+    episode   = arg1.episode != null ? arg1.episode : null;
+    slug      = arg1.slug || null;
+    proxyBase = arg1.proxyBase || '';
   }
+
+  // Check cached Cinemeta for year if missing
+  if (!year && imdbId) {
+    const cachedCine = getCachedCinemeta(type, imdbId);
+    if (cachedCine?.year) {
+      year = cachedCine.year;
+    }
+  }
+
   try {
     let movieData = null;
 
@@ -196,30 +281,35 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       movieData = await getDetail(slug);
     }
 
-    // Tra cứu qua IMDb ID
+    // Bước 2: Tra cứu qua IMDb ID đã cache
     if (!movieData && imdbId) {
       const cacheKey = `nguonc:imdb:${imdbId}`;
-      let cachedSlug = imdbCache.get(cacheKey);
-
-      if (!cachedSlug) {
-        const match = await api.findFilmByImdbId(type, imdbId);
-        if (match && match.slug) {
-          cachedSlug = match.slug;
-          imdbCache.set(cacheKey, cachedSlug, 86400); // 24h
-        }
-      }
-
+      const cachedSlug = imdbCache.get(cacheKey);
       if (cachedSlug) {
         movieData = await getDetail(cachedSlug);
       }
     }
 
-    // Fallback: Tìm kiếm theo title
+    // Bước 3: Tìm kiếm theo canonical title & match year
     if (!movieData && title) {
       const searchRes = await search(title, 1);
       const items = searchRes.items || [];
-      if (items.length > 0 && items[0].slug) {
-        movieData = await getDetail(items[0].slug);
+      if (items.length > 0) {
+        let bestItem = null;
+        let bestScore = -1;
+        for (const item of items) {
+          const score = scoreMatch(item, title, year, type);
+          if (score > bestScore) {
+            bestScore = score;
+            bestItem = item;
+          }
+        }
+        if (bestItem && bestItem.slug && bestScore >= 0.5) {
+          movieData = await getDetail(bestItem.slug);
+          if (movieData && imdbId) {
+            imdbCache.set(`nguonc:imdb:${imdbId}`, bestItem.slug, 86400);
+          }
+        }
       }
     }
 
@@ -228,18 +318,19 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     }
 
     const { movie } = movieData;
-    const episodes = movie.episodes || [];
+    const episodes = movie.episodes || movieData.episodes || [];
     if (!episodes.length) return [];
 
     const isMovie = type === 'movie' || mapper.detectType(movie) === 'movie';
-    const targetEpStr = !isMovie && episode != null ? String(episode) : null;
+    const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
 
     const streams = [];
 
-    // Duyệt mảng episodes qua các server (Vietsub, Thuyết Minh)
+    // Duyệt mảng episodes qua tất cả server (Vietsub, Thuyết Minh, v.v.)
     for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
       const server = episodes[sIdx];
-      const serverName = server.server_name || `Server ${sIdx + 1}`;
+      const rawServerName = server.server_name || `Server #${sIdx + 1}`;
+      const cleanServerName = rawServerName.replace(/#/g, '').trim() || `Server ${sIdx + 1}`;
       const items = server.items || [];
 
       if (!items.length) continue;
@@ -266,14 +357,14 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
 
       if (!targetEp || !targetEp.embed) continue;
 
-      const epLabel = targetEp.name && targetEp.name.toUpperCase() !== 'FULL' ? ` [Tập ${targetEp.name}]` : '';
+      const epLabel = targetEp.name && String(targetEp.name).toUpperCase() !== 'FULL' ? ` [Tập ${targetEp.name}]` : '';
       const encodedEmbed = encodeBase64(targetEp.embed);
 
-      // 1. HLS Proxy Stream (Lazy extraction từ iframe StreamC)
+      // 1. In-App Direct Play (HLS Proxy) — MUST NOT have externalUrl
       if (proxyBase) {
         streams.push({
           name: 'VIP Movies 🎬',
-          title: `[VIP 1 • NguonC] ${serverName}${epLabel} Full HD (HLS Proxy)\n⚡ Server VIP • StreamC Proxy`,
+          title: `[VIP • NguonC] ${cleanServerName}${epLabel} (HLS Proxy)\n⚡ Phát trực tiếp trong App`,
           url: `${proxyBase}/hls/extract?b64=${encodedEmbed}`,
           behaviorHints: {
             notSupported: false,
@@ -282,11 +373,10 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
         });
       }
 
-      // 2. Embed Player Fallback
+      // 2. External Web Browser Play (Embed Player Fallback) — MUST NOT have url
       streams.push({
         name: 'VIP Movies 🎬',
-        title: `[VIP 1 • NguonC] ${serverName}${epLabel} Full HD\n📺 Embed Player (Dự phòng)`,
-        url: targetEp.embed,
+        title: `[Dự phòng • NguonC] ${cleanServerName}${epLabel} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`,
         externalUrl: targetEp.embed,
         behaviorHints: {
           notSupported: false,

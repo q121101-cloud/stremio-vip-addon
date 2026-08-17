@@ -11,11 +11,11 @@
 
 const axios = require('axios');
 const NodeCache = require('node-cache');
+const { resolveCinemeta } = require('./lib/cinemeta');
 
 // ─── Cấu hình ────────────────────────────────────────────────
 const BASE_URL    = 'https://phim.nguonc.com/api';
 const REQUEST_TIMEOUT      = 12_000; // 12 giây
-const CINEMETA_TIMEOUT     =  8_000; // 8 giây — Cinemeta nhanh hơn
 const MAX_RETRIES          = 2;
 
 // ─── Cache Configuration ─────────────────────────────────────
@@ -29,7 +29,6 @@ const CACHE_TTL = {
   catalog:  300,   // 5 phút
   detail:   600,   // 10 phút
   search:   120,   // 2 phút
-  cinemeta: 3600,  // 1 giờ — meta IMDb thay đổi ít
   imdbMap:  1800,  // 30 phút — kết quả map IMDb → slug
 };
 
@@ -41,16 +40,6 @@ const httpClient = axios.create({
     'User-Agent': 'Mozilla/5.0 (compatible; StremioVIPAddon/1.1; +https://github.com)',
     Accept: 'application/json',
     'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
-  },
-});
-
-// ─── Axios: Cinemeta client (external) ───────────────────────
-const cinemetaClient = axios.create({
-  baseURL: 'https://v3-cinemeta.strem.io',
-  timeout: CINEMETA_TIMEOUT,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; StremioVIPAddon/1.1)',
-    Accept: 'application/json',
   },
 });
 
@@ -137,38 +126,7 @@ async function getFilmDetail(slug) {
 }
 
 // ─── IMDb Resolution Functions ────────────────────────────────
-
-/**
- * Lấy thông tin phim từ IMDb ID qua Cinemeta API
- * @param {string} type  - 'movie' | 'series'
- * @param {string} imdbId - e.g. 'tt1234567'
- * @returns {{ name, year, originalName } | null}
- */
-async function resolveCinemeta(type, imdbId) {
-  const key = `cinemeta:${type}:${imdbId}`;
-  const cached = cache.get(key);
-  if (cached !== undefined) return cached;
-
-  try {
-    const res = await cinemetaClient.get(`/meta/${type}/${imdbId}.json`);
-    const meta = res.data?.meta;
-    if (!meta) {
-      cache.set(key, null, CACHE_TTL.cinemeta);
-      return null;
-    }
-    const info = {
-      name: meta.name || null,
-      year: meta.year || null,
-      originalName: meta.name || null,
-    };
-    cache.set(key, info, CACHE_TTL.cinemeta);
-    return info;
-  } catch (err) {
-    console.warn(`[Cinemeta] Không lấy được meta cho ${imdbId}: ${err.message}`);
-    cache.set(key, null, CACHE_TTL.cinemeta);
-    return null;
-  }
-}
+// (resolveCinemeta is imported from ./lib/cinemeta for centralized LRUCache & resilience)
 
 /**
  * Tính điểm similarity giữa tên phim NguonC và tên tìm kiếm.

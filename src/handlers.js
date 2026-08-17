@@ -18,6 +18,7 @@ const mapper  = require('./mapper');
 const { MANIFEST, GENRES, COUNTRIES, buildManifest } = require('./manifest');
 const { decodeConfig, encodeConfig, isConfigToken, DEFAULT_CONFIG, getDefaultToken } = require('./config');
 const { imdbCache, catalogCache, detailCache }  = require('./lib/cache');
+const { resolveCinemeta } = require('./lib/cinemeta');
 
 // ─── Providers ────────────────────────────────────────────────
 const providerNguonC = require('./providers/nguonc');
@@ -552,7 +553,7 @@ router.get('/stream/:type/:id.json', async (req, res) => {
   const config = getConfig(req);
   const proxyBase = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`.replace(/\/$/, '');
 
-  console.log(`[Stream Aggregator] type=${type} id=${id} activeProviders=${config.providers.join(',')}`);
+  console.log(`[Stream Aggregator] type=${type} id=${id} activeProviders=${(config.providers || []).join(',')}`);
 
   try {
     let imdbId = null;
@@ -560,19 +561,29 @@ router.get('/stream/:type/:id.json', async (req, res) => {
     let season = null;
     let episode = null;
     let title = null;
+    let year = null;
+    let genres = [];
+    let aliases = [];
 
     // Parse ID
     if (/^tt\d+/i.test(id)) {
       const parts = id.split(':');
-      imdbId  = parts[0];
+      imdbId  = parts[0].toLowerCase();
       season  = parts[1] ? parseInt(parts[1], 10) : null;
       episode = parts[2] ? parseInt(parts[2], 10) : null;
 
-      // Lấy title qua Cinemeta
+      // Lấy canonical metadata qua Cinemeta
       try {
-        const cineMeta = await api.resolveCinemeta(type, imdbId);
-        title = cineMeta?.name || null;
-      } catch {}
+        const cineMeta = await resolveCinemeta(type, imdbId);
+        if (cineMeta) {
+          title = cineMeta.name || null;
+          year = cineMeta.year || null;
+          genres = cineMeta.genres || [];
+          aliases = cineMeta.aliases || [];
+        }
+      } catch (e) {
+        console.warn(`[Stream Aggregator] Cinemeta resolve warning for ${imdbId}:`, e.message);
+      }
     } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
       const withoutPrefix = id.replace(/^kkphim[_:]/, '');
       const parts = withoutPrefix.split(':');
@@ -595,14 +606,14 @@ router.get('/stream/:type/:id.json', async (req, res) => {
       slug = id;
     }
 
-    const payload = { imdbId, type, title, season, episode, slug, proxyBase };
+    const payload = { imdbId, type, title, year, genres, aliases, season, episode, slug, proxyBase };
 
     // Lọc danh sách provider theo config người dùng
-    const activeProviderKeys = config.providers.filter((p) => ALL_PROVIDERS[p]);
+    const activeProviderKeys = (config.providers || []).filter((p) => ALL_PROVIDERS[p]);
     const providersToRun = (activeProviderKeys.length > 0 ? activeProviderKeys : ['nguonc', 'kkphim', 'vsmov'])
       .map((k) => ALL_PROVIDERS[k]);
 
-    // CHẠY SONG SONG BẤT ĐỒNG BỘ
+    // CHẠY SONG SONG BẤT ĐỒNG BỘ với Promise.allSettled
     const results = await Promise.allSettled(
       providersToRun.map((provider) => provider.getStreams(payload))
     );
@@ -610,7 +621,31 @@ router.get('/stream/:type/:id.json', async (req, res) => {
     const mergedStreams = [];
     for (const r of results) {
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
-        mergedStreams.push(...r.value);
+        for (const item of r.value) {
+          if (!item || typeof item !== 'object') continue;
+
+          // Standardize and sanitize per R3 Stremio Stream Protocol
+          const sanitized = {
+            name: item.name || 'VIP Movies 🎬',
+            title: item.title ? String(item.title).replace(/#/g, '') : 'VIP Server',
+            behaviorHints: {
+              notSupported: false,
+              bingeGroup: item.behaviorHints?.bingeGroup || `stream-${slug || imdbId || 'main'}`,
+              ...(item.behaviorHints || {}),
+            },
+          };
+
+          // Strict exclusivity: url (In-App Direct Play) vs externalUrl (Embed Player Fallback)
+          if (item.url) {
+            sanitized.url = item.url;
+            delete sanitized.externalUrl;
+            mergedStreams.push(sanitized);
+          } else if (item.externalUrl) {
+            sanitized.externalUrl = item.externalUrl;
+            delete sanitized.url;
+            mergedStreams.push(sanitized);
+          }
+        }
       }
     }
 

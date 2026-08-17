@@ -3,32 +3,32 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/providers/kkphim.js
- *  Mô-đun KKPhim chuẩn đặc tả API phimapi.com (100% Official Endpoints)
+ *  KKPhim Provider Module (100% Official Endpoints: phimapi.com)
  *
- *  Endpoints:
- *    - IMDb:        GET https://phimapi.com/imdb/title/${imdbId}
- *    - Tim kiem:    GET https://phimapi.com/v1/api/tim-kiem?keyword=${kw}&limit=${limit}
- *    - Chi tiet:    GET https://phimapi.com/phim/${slug}
- *    - Moi cap nhat:GET https://phimapi.com/danh-sach/phim-moi-cap-nhat?page=${page}
- *    - Danh sach:   GET https://phimapi.com/v1/api/danh-sach/${type}?page=${page}
- *    - The loai:    GET https://phimapi.com/v1/api/the-loai/${genreSlug}?page=${page}
- *    - Quoc gia:    GET https://phimapi.com/v1/api/quoc-gia/${countrySlug}?page=${page}
+ *  Features:
+ *  - 5-second axios timeout for high resilience & zero blocking
+ *  - Direct IMDb lookup -> fallback Cinemeta title & year search
+ *  - Multi-server support: Vietsub, Thuyết Minh, Lồng Tiếng
+ *  - R3 Stremio Stream Protocol compliance:
+ *    * In-App Direct Play: HLS Proxy (url only, NO externalUrl)
+ *    * External Web Browser Play: Embed Player (externalUrl only, NO url)
  * ============================================================
  */
 
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
+const { getCachedCinemeta } = require('../lib/cinemeta');
 
 const PROVIDER_ID    = 'kkphim';
-const PROVIDER_LABEL = 'VIP 2 • KKPhim';
+const PROVIDER_LABEL = 'KKPhim';
 const BASE_API       = 'https://phimapi.com';
 const IMAGE_CDN      = 'https://phimimg.com';
 const KK_UA          = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-// ─── Axios Client ───────────────────────────────────────────────
+// ─── Axios Client (5s Timeout) ───────────────────────────────────
 const http = axios.create({
   baseURL: BASE_API,
-  timeout: 12000,
+  timeout: 5000,
   headers: {
     'User-Agent': KK_UA,
     Accept: 'application/json',
@@ -47,6 +47,59 @@ function formatImageUrl(url) {
 function encodeBase64(str) {
   if (!str) return '';
   return Buffer.from(str, 'utf8').toString('base64url');
+}
+
+/**
+ * Similarity and year score matching
+ */
+function scoreMatch(item, title, year) {
+  if (!item || !title) return 0;
+  const normalize = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const target = normalize(title);
+  const nameNorm = normalize(item.name);
+  const originNorm = normalize(item.origin_name);
+  const slugNorm = normalize(String(item.slug || '').replace(/-/g, ' '));
+
+  let score = 0;
+  if (nameNorm === target || originNorm === target || slugNorm === target) {
+    score = 1.0;
+  } else if (
+    nameNorm.includes(target) ||
+    originNorm.includes(target) ||
+    target.includes(nameNorm) ||
+    target.includes(originNorm)
+  ) {
+    score = 0.8;
+  } else {
+    const targetWords = new Set(target.split(' ').filter(Boolean));
+    const words = [...new Set([...nameNorm.split(' '), ...originNorm.split(' ')])].filter(Boolean);
+    const common = words.filter((w) => targetWords.has(w)).length;
+    score = targetWords.size > 0 ? (common / targetWords.size) * 0.7 : 0;
+  }
+
+  if (year && item.year) {
+    const itemYear = parseInt(item.year, 10);
+    const targetYear = parseInt(year, 10);
+    if (!isNaN(itemYear) && !isNaN(targetYear)) {
+      if (itemYear === targetYear) {
+        score += 0.25;
+      } else if (Math.abs(itemYear - targetYear) <= 1) {
+        score += 0.1;
+      } else {
+        score -= 0.2;
+      }
+    }
+  }
+
+  return score;
 }
 
 function mapCatalogMeta(item, forceType = null) {
@@ -91,7 +144,6 @@ async function getByImdb(imdbId) {
       return result;
     }
   } catch (err) {
-    // IMDb lookup might 404 on phimapi if not mapped yet
     console.warn(`[KKPhim/getByImdb] ${imdbId}: ${err.message}`);
   }
   return null;
@@ -199,7 +251,6 @@ async function getCatalog(type, page = 1, extra = {}) {
       const raw = res.data?.items || [];
       items = raw.map((i) => mapCatalogMeta(i));
     } else {
-      // Map Stremio types / custom list slugs
       let listType = type;
       if (type === 'movie') listType = 'phim-le';
       else if (type === 'series') listType = 'phim-bo';
@@ -221,41 +272,62 @@ async function getCatalog(type, page = 1, extra = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  5. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, season, episode, slug, proxyBase })
+//  5. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
   let imdbId = arg1;
   let slug = null;
+  let year = null;
+  let genres = null;
+
   if (typeof arg1 === 'object' && arg1 !== null) {
-    imdbId    = arg1.imdbId;
-    title     = arg1.title;
-    type      = arg1.type;
-    season    = arg1.season;
-    episode   = arg1.episode;
-    slug      = arg1.slug;
-    proxyBase = arg1.proxyBase;
+    imdbId    = arg1.imdbId || null;
+    title     = arg1.title || null;
+    type      = arg1.type || 'movie';
+    year      = arg1.year || null;
+    genres    = arg1.genres || null;
+    season    = arg1.season != null ? arg1.season : null;
+    episode   = arg1.episode != null ? arg1.episode : null;
+    slug      = arg1.slug || null;
+    proxyBase = arg1.proxyBase || '';
   }
+
+  // Check cached Cinemeta for year if missing
+  if (!year && imdbId) {
+    const cachedCine = getCachedCinemeta(type, imdbId);
+    if (cachedCine?.year) {
+      year = cachedCine.year;
+    }
+  }
+
   try {
     let movieData = null;
 
-    // Bước 1: Tra cứu trực tiếp IMDb
+    // Bước 1: Tra cứu trực tiếp IMDb qua API phimapi
     if (imdbId) {
       movieData = await getByImdb(imdbId);
     }
 
-    // Fallback: Tra cứu qua slug nếu có
+    // Bước 2: Fallback tra cứu qua slug nếu có
     if (!movieData && slug) {
       movieData = await getDetail(slug);
     }
 
-    // Fallback: Tìm kiếm theo title
+    // Bước 3: Fallback tìm kiếm theo canonical title & match year
     if (!movieData && title) {
-      const searchResults = await search(title, 5);
+      const searchResults = await search(title, 10);
       if (searchResults.length > 0) {
-        // Find best match
-        const best = searchResults[0];
-        if (best.slug) {
-          movieData = await getDetail(best.slug);
+        let bestItem = null;
+        let bestScore = -1;
+        for (const item of searchResults) {
+          const score = scoreMatch(item, title, year);
+          if (score > bestScore) {
+            bestScore = score;
+            bestItem = item;
+          }
+        }
+        if (bestItem && bestItem.slug && bestScore >= 0.5) {
+          movieData = await getDetail(bestItem.slug);
           if (movieData && imdbId) {
             imdbCache.set(`kkphim:imdb:${imdbId}`, movieData, 86400);
           }
@@ -268,17 +340,17 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     }
 
     const { movie, episodes } = movieData;
-    const isMovie = type === 'movie' || movie.type === 'single' || (episodes.length === 1 && episodes[0]?.server_data?.length === 1);
-    const targetEpStr = !isMovie && episode != null ? String(episode) : null;
+    const isMovie = type === 'movie' || movie?.type === 'single' || (episodes.length === 1 && episodes[0]?.server_data?.length === 1);
+    const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
 
     const streams = [];
     const baseRef = 'https://phimapi.com/';
 
-    // Bước 2: Duyệt mảng episodes qua từng server
+    // Bước 4: Duyệt tất cả các server (Vietsub, Thuyết Minh, Lồng Tiếng)
     for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
       const server = episodes[sIdx];
       const rawServerName = server.server_name || `Server #${sIdx + 1}`;
-      const cleanServerName = rawServerName.replace(/#/g, '').trim();
+      const cleanServerName = rawServerName.replace(/#/g, '').trim() || `Server ${sIdx + 1}`;
       const serverData = server.server_data || [];
 
       if (!serverData.length) continue;
@@ -307,9 +379,9 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
 
       if (!targetEp) continue;
 
-      const epLabel = targetEp.name && targetEp.name.toUpperCase() !== 'FULL' ? ` [Tập ${targetEp.name}]` : '';
+      const epLabel = targetEp.name && String(targetEp.name).toUpperCase() !== 'FULL' ? ` [Tập ${targetEp.name}]` : '';
 
-      // Bước 3: Tạo danh sách stream chuẩn Stremio
+      // 1. In-App Direct Play (HLS Proxy) — MUST NOT have externalUrl
       if (targetEp.link_m3u8) {
         const streamUrl = proxyBase
           ? `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${encodeBase64(baseRef)}`
@@ -317,25 +389,24 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
 
         streams.push({
           name: 'VIP Movies 🎬',
-          title: `[VIP 2 • KKPhim] ${cleanServerName}${epLabel} Full HD (HLS Proxy)\n⚡ Server VIP • Ổn định 100%`,
+          title: `[VIP • KKPhim] ${cleanServerName}${epLabel} (HLS Proxy)\n⚡ Phát trực tiếp trong App`,
           url: streamUrl,
           behaviorHints: {
             notSupported: false,
-            bingeGroup: `kkphim-${movie.slug || 'stream'}`,
+            bingeGroup: `kkphim-${movie?.slug || 'stream'}`,
           },
         });
       }
 
-      // Embed Fallback
+      // 2. External Web Browser Play (Embed Player Fallback) — MUST NOT have url
       if (targetEp.link_embed) {
         streams.push({
           name: 'VIP Movies 🎬',
-          title: `[VIP 2 • KKPhim] ${cleanServerName}${epLabel} Full HD\n📺 Embed Player (Dự phòng)`,
-          url: targetEp.link_embed,
+          title: `[Dự phòng • KKPhim] ${cleanServerName}${epLabel} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`,
           externalUrl: targetEp.link_embed,
           behaviorHints: {
             notSupported: false,
-            bingeGroup: `kkphim-${movie.slug || 'stream'}`,
+            bingeGroup: `kkphim-${movie?.slug || 'stream'}`,
           },
         });
       }

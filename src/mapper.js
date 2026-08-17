@@ -45,12 +45,35 @@ function extractGenres(category) {
   return g.list.map((item) => item.name).filter(Boolean);
 }
 
-function extractYear(category) {
-  if (!category) return null;
-  const g = findCategoryGroup(category, 'Năm');
-  if (!g || !g.list || !g.list.length) return null;
-  const year = parseInt(g.list[0].name, 10);
-  return isNaN(year) ? null : year;
+function extractYear(val) {
+  if (!val && val !== 0) return null;
+  if (typeof val === 'number') {
+    return val >= 1800 && val <= 2100 ? val : null;
+  }
+  if (typeof val === 'string') {
+    const match = val.match(/\b(19\d\d|20\d\d)\b/);
+    if (match) return parseInt(match[1], 10);
+    const num = parseInt(val, 10);
+    return !isNaN(num) && num >= 1800 && num <= 2100 ? num : null;
+  }
+  if (typeof val === 'object') {
+    const g = findCategoryGroup(val, 'Năm');
+    if (g && g.list && g.list.length) {
+      const year = parseInt(g.list[0].name, 10);
+      if (!isNaN(year) && year >= 1800 && year <= 2100) return year;
+    }
+    if (val.year) {
+      return extractYear(val.year);
+    }
+    if (val.name) {
+      const m = String(val.name).match(/\b(19\d\d|20\d\d)\b/);
+      if (m) return parseInt(m[1], 10);
+    }
+    if (val.releaseInfo) {
+      return extractYear(val.releaseInfo);
+    }
+  }
+  return null;
 }
 
 function extractCountry(category) {
@@ -58,6 +81,67 @@ function extractCountry(category) {
   const g = findCategoryGroup(category, 'Quốc gia');
   if (!g || !g.list || !g.list.length) return null;
   return g.list.map((i) => i.name).join(', ');
+}
+
+function cleanTitle(title) {
+  if (!title || typeof title !== 'string') return '';
+  return title
+    .replace(/[\[\(].*?[\]\)]/g, ' ')
+    .replace(/[\-_:\.\/]/g, ' ')
+    .replace(/\b(19\d\d|20\d\d)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function toSlug(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function extractSeasonEpisode(str) {
+  if (!str) return { season: null, episode: null };
+  const s = String(str);
+  const mSe = s.match(/s(\d+)\s*e(\d+)/i) || s.match(/season\s*(\d+).*?episode\s*(\d+)/i);
+  if (mSe) {
+    return { season: parseInt(mSe[1], 10), episode: parseInt(mSe[2], 10) };
+  }
+  const mEp = s.match(/(?:t[aậ]p|ep|episode)\s*(\d+)/i) || s.match(/\b(\d+)\b/);
+  if (mEp) {
+    return { season: 1, episode: parseInt(mEp[1], 10) };
+  }
+  return { season: null, episode: null };
+}
+
+function isM3u8Url(url) {
+  if (!url || typeof url !== 'string') return false;
+  return url.includes('.m3u8') || url.includes('/hls/') || url.includes('playlist');
+}
+
+function normalizeServerName(serverName, defaultName = 'Server 1') {
+  if (!serverName || typeof serverName !== 'string') return defaultName;
+  return serverName.replace(/#/g, '').replace(/\s+/g, ' ').trim() || defaultName;
+}
+
+function encodeBase64(str) {
+  if (!str) return '';
+  return Buffer.from(str, 'utf8').toString('base64url');
+}
+
+function decodeBase64(str) {
+  if (!str) return '';
+  try {
+    return Buffer.from(str, 'base64url').toString('utf8');
+  } catch {
+    return '';
+  }
 }
 
 function mapCatalogItem(item, forceType = null) {
@@ -356,6 +440,10 @@ module.exports = {
   makeId,
   extractSlug,
   detectType,
+  findCategoryGroup,
+  extractGenres,
+  extractYear,
+  extractCountry,
   mapCatalogItem,
   mapDetailMeta,
   buildStreams,
@@ -364,4 +452,12 @@ module.exports = {
   formatEpisodeTitle,
   buildVideos,
   scoreSimilarity,
+  unpackDeanEdwards,
+  cleanTitle,
+  toSlug,
+  extractSeasonEpisode,
+  isM3u8Url,
+  normalizeServerName,
+  encodeBase64,
+  decodeBase64,
 };
