@@ -1,14 +1,11 @@
-## 2026-08-17T08:33:18Z
+## 2026-08-17T15:01:05Z
+You are Challenger 2 for Milestone 1 (HLS Proxy & Full Segment Rewriter R1).
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m1_2
 
-You are Challenger 2 for Milestone 1 (KKPhim Provider In-App Stream Format).
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m1_2
-The original user request is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-The project plan is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-Worker handoff report is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m1_2/handoff.md
-The project root is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
+Adversarially challenge M3U8 playlist rewriting in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/routes/hls.js:
+1. Test complex playlists: Master playlists with multiple resolutions (up to 4K 3840x2160), audio renditions (#EXT-X-MEDIA:TYPE=AUDIO), subtitles (#EXT-X-MEDIA:TYPE=SUBTITLES), encryption keys (#EXT-X-KEY with IV and URI), initialization segments (#EXT-X-MAP).
+2. Verify all generated URLs point to proper proxy endpoints (/hls/manifest.m3u8, /hls/segment.ts, /hls/key) with valid Base64URL params.
+3. Verify live stream chunk download against /hls/segment.ts.
 
-Perform stress and edge-case empirical verification on `src/providers/kkphim.js`:
-1. Test movie streams (`type: 'movie'`), series streams (`type: 'series'`, different seasons/episodes), multi-server responses, empty server data, malformed API payloads.
-2. Verify that under NO circumstance is `externalUrl` returned.
-3. Verify that `baseRef` is encoded as `https://player.phimapi.com/`.
-4. Report test results and output your verdict in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m1_2/handoff.md`: `APPROVE` or `REQUEST_CHANGES`. Send a completion message.
+State your verdict (APPROVE or REQUEST_CHANGES) in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m1_2/handoff.md and report back.

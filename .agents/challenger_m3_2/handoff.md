@@ -1,116 +1,81 @@
-# Challenger 2 Handoff Report — Milestone 3
-
-**Agent Role**: Challenger 2 (Empirical Challenger / Critic / Specialist)  
-**Milestone**: Milestone 3 (E2E Stream Playback Test & Self-Debug Loop)  
-**Verdict**: **APPROVE**  
-**Timestamp**: 2026-08-17T15:57:30+07:00  
-
----
+# Milestone 3 Challenger 2 Empirical Handoff Report: 22 Standard K20 Catalogs & Routing Verification
 
 ## 1. Observation
 
-### Observation 1.1: Base Playback Test Execution
-Direct execution of `node tests/test_kkphim_playback.js`:
-- Binds to ephemeral port (e.g. `57394`, `58031`).
-- **Test Case 1 (Stream Generation)**: Resolved `[VIP • KKPhim] Vietsub Full HD (HLS Proxy)`, `name: "VIP Movies 🎬"`, URL: `http://127.0.0.1:<PORT>/hls/manifest.m3u8?url=...&ref=...`, `externalUrl: undefined`. Returned HTTP 200.
-- **Test Case 2 (Manifest Proxy Verification)**: Fetched manifest from proxy with anti-403 headers (`Referer: https://player.phimapi.com/`, `Origin: https://player.phimapi.com`). Verified `#EXTM3U`, `Content-Type: application/vnd.apple.mpegurl`, `Access-Control-Allow-Origin: *`, and sub-manifest rewriting to `/hls/ts`. Returned HTTP 200.
-- **Test Case 3 (Segment Binary Delivery)**: Downloaded MPEG-TS segment through `/hls/ts` proxy. Returned HTTP 200, `video/mp2t`, `Access-Control-Allow-Origin: *`, buffer size 946,204 bytes (924 KB), sync byte `0x47` validated at offset 0 and 188.
-- Execution time: ~1.24s.
-- Clean teardown: `[Teardown] Ephemeral test server on port <PORT> closed cleanly.`
+- **Environment & Codebase State**:
+  - `src/manifest.js`: Contains `ALL_CATALOGS` declaring exactly 22 standard K20 catalogs across all 7 providers (`vsmov: 2`, `kkphim: 4`, `nguonc: 4`, `stp: 4`, `hh3d: 3`, `yan: 3`, `clbpx: 2`). All catalogs declare `type: 'movie'` or `'series'`, valid names, and `extra` parameters supporting `search` and `skip`. `BASE_MANIFEST.idPrefixes` includes prefixes for all 7 providers (`vsmov:`, `vsmov_`, `kkphim:`, `kkphim_`, `nguonc:`, `nguonc_`, `stp:`, `stp_`, `hh3d:`, `hh3d_`, `yan:`, `yan_`, `clbpx:`, `clbpx_`, `tt`).
+  - `src/routes/manifest.js`: Properly handles `/manifest.json` and `/:config/manifest.json` without truncating path segments or causing downstream 404s.
+  - `src/handlers.js`: Declares explicit routes for:
+    - `router.get('/catalog/:type/:id/:extra.json', handleCatalog)`
+    - `router.get('/catalog/:type/:id.json', handleCatalog)`
+    - `router.get('/:config/catalog/:type/:id/:extra.json', handleCatalog)`
+    - `router.get('/:config/catalog/:type/:id.json', handleCatalog)`
+    - Maps all 22 catalog IDs correctly in `getCatTypeFromCatalogId` and `getProviderFromCatalogId`.
+    - Sanitizes `extra` parameters via `parseExtra()`, handling both raw (`search=...`) and URL-encoded (`search%3D...`) forms.
+    - Implements universal 404 prevention: `handleCatalog` catches all errors and returns HTTP 200 `{ metas: [] }`.
 
-### Observation 1.2: In-Process and Subprocess Concurrency Stress Testing
-Tested concurrent execution via `tests/challenger_m3_2_concurrency_and_edge.test.js` and dedicated CLI stress runners:
-1. **In-Process Concurrency**: 5 concurrent invocations of `runKKPhimPlaybackE2E()` within a single Node.js runtime completed in **1447ms** with 0 errors. All 5 instances allocated distinct ephemeral ports simultaneously.
-2. **Subprocess Concurrency (5 processes)**: 5 simultaneous child processes spawned executing `node tests/test_kkphim_playback.js` completed in **1586ms** on ports `[57892, 57893, 57894, 57895, 57896]`.
-3. **High Concurrency Burst (10 processes)**: 10 simultaneous child processes spawned executing `node tests/test_kkphim_playback.js` completed in **2155ms** on ports `['57943', '57944', '57945', '57946', '57947', '57948', '57949', '57950', '57951', '57956']` (10 unique ports, 0 collisions, 100% pass).
-
-### Observation 1.3: Ephemeral Port Collision & Socket Teardown
-- `tests/test_kkphim_playback.js:65-68` uses `app.listen(0, '127.0.0.1')` to dynamically request an OS-assigned ephemeral port.
-- Clean shutdown is guaranteed via `finally { server.close(); }` on line 328.
-- Verified that on normal termination and simulated runtime exception, `server.close()` immediately terminates listening sockets and releases the port (verified active requests fail with `ECONNREFUSED` / `ECONNRESET`). Zero dangling listener processes remain.
-
-### Observation 1.4: Edge Case Error Conditions & Fault Injection
-Empirical stress suite `tests/challenger_m3_2_concurrency_and_edge.test.js` executed 17 adversarial edge-case assertions (17/17 PASSED in 18.41s):
-- **Malformed & Corrupt Base64**: Empty parameters return HTTP 400. Corrupt base64 symbols (`!!!invalid!!!`, `==bad==padding==`, spaces, null bytes) do not crash the Express server and return HTTP 400/502 with CORS headers (`Access-Control-Allow-Origin: *`).
-- **Raw URL Fallback**: The proxy accepts raw `http://` / `https://` URLs in addition to Base64/Base64URL encodings.
-- **Upstream CDN Faults**:
-  - Upstream 403 Forbidden -> Proxy returns HTTP 502 with CORS headers.
-  - Upstream 404 Not Found -> Proxy returns HTTP 502 with CORS headers.
-  - Upstream Hung Socket / Timeout -> Proxy respects 15s axios timeout and returns HTTP 502 without hanging the process indefinitely.
-  - Upstream Connection Refused (`ECONNREFUSED`) -> Proxy returns HTTP 502.
-- **Advanced M3U8 Rewriting**:
-  - Handled Windows CRLF (`\r\n`) line endings accurately.
-  - Rewrote audio/subtitles `#EXT-X-MEDIA:TYPE=AUDIO,URI="..."` to proxy `/hls/manifest.m3u8`.
-  - Rewrote encrypted stream keys `#EXT-X-KEY:METHOD=AES-128,URI="..."` to `/hls/ts?...&is_key=1` and delivered binary key buffers with `application/octet-stream`.
-  - Rewrote initialization maps `#EXT-X-MAP:URI="..."` and low-latency `#EXT-X-PRELOAD-HINT`.
-- **KKPhim Provider Edge Cases**:
-  - Nonexistent IMDb ID (`tt9999999999`) and nonexistent slug return empty array `[]` without unhandled rejections.
-  - Out-of-bounds series episode numbers return empty array without crashing.
-
-### Observation 1.5: Syntax and Verification Suite
-- `node --check src/index.js && node --check src/routes/hls.js && node --check src/providers/kkphim.js`: Exited code 0 with zero syntax errors.
-- `node tests/m3_verification.test.js`: 39/39 assertions passed (100%).
-
----
+- **Empirical Execution Results**:
+  1. `node tests/verify_playback.js`:
+     - Result: `100% Success` (All 6 phases passed: Manifest verified, movie/series stream resolution, M3U8 traversal, real video segment binary download of `3,426,676 bytes` (> 3.3MB) with sync byte `0x47`, and HTTP 206 partial content range requests).
+  2. `node tests/test_routing_and_22_catalogs.js`:
+     - Result: `64 passed, 0 failed`.
+  3. `tests/challenger_m3_2_catalogs_empirical.js` (Independent Challenger Harness):
+     - Result: `163 passed, 0 failed`.
+     - Phase 1 (Manifest Structure): 22 catalogs verified across all 7 providers.
+     - Phase 2 (Root Query): 22/22 catalogs queried via `/catalog/:type/:id.json` returned HTTP 200 with valid `metas` array.
+     - Phase 3 (Config Query): 22/22 catalogs queried via `/:config/catalog/:type/:id.json` returned HTTP 200 with valid `metas` array.
+     - Phase 4 (Search Extra): Searches for `avatar`, `naruto`, and `one piece` tested across all providers in plain format, URL-encoded format, and config-prefixed format. All returned HTTP 200 `{ metas: [...] }`.
+     - Phase 5 (Pagination): `skip=10` and `skip=24` correctly parsed and executed with HTTP 200.
+     - Phase 6 (404 Prevention & Adversarial Edge Cases): Non-existent catalog ID (`/catalog/movie/non-existent-catalog-xyz-999.json`), search with 0 matches (`search=xyzzy_unfindable_query_99999`), corrupted extra string (`/&&&=invalid&==&&.json`), and malformed base64 token all returned HTTP 200 with safe empty array `{ metas: [] }`.
+     - Phase 7 (Concurrency Burst): 22 simultaneous parallel requests across all 22 catalogs succeeded with HTTP 200.
+  4. `node tests/e2e.test.js`:
+     - Result: `93 passed, 0 failed`.
+  5. `node tests/m3_verification.test.js`:
+     - Result: `39 passed, 0 failed`.
+  6. `npm test` (`node src/test.js`):
+     - Result: `50 passed, 0 failed`.
+  7. `node --check src/index.js && node --check src/manifest.js && node --check src/handlers.js && node --check src/config.js && node --check src/routes/manifest.js && node --check src/routes/hls.js`:
+     - Result: `0 syntax errors`.
 
 ## 2. Logic Chain
 
-1. **Premise 1 (R3 Concurrency & Ephemeral Port Resilience)**: `tests/test_kkphim_playback.js` binds to port `0`, delegating port selection to the OS TCP stack.
-   - *Observation Reference*: Obs 1.2 & 1.3 show 10 concurrent processes each acquired unique ephemeral ports with zero port collisions and 100% pass rate.
-2. **Premise 2 (Clean Teardown & Lifecycle Integrity)**: Sockets must be closed in the `finally` block to prevent port hoarding and socket leakage.
-   - *Observation Reference*: Obs 1.3 confirms `finally { server.close(); }` executes under all conditions (success or error), immediately freeing OS resources and returning `ECONNREFUSED` on subsequent connection attempts.
-3. **Premise 3 (HLS Proxy Robustness & Error Isolation)**: Edge cases (corrupt base64, upstream CDN 403/404/timeouts, malformed manifests) must be handled gracefully without crashing the server process or omitting CORS headers.
-   - *Observation Reference*: Obs 1.4 confirms 17/17 edge test cases passed, verifying CORS enforcement (`Access-Control-Allow-Origin: *`), proper HTTP status codes (400, 502), and streaming of MPEG-TS and AES-128 encryption keys.
-4. **Premise 4 (Stream Protocol Exclusivity)**: KKPhim in-app playback requires `url` pointing to `/hls/manifest.m3u8` and strict omission of `externalUrl`.
-   - *Observation Reference*: Obs 1.1 confirms `url` starts with `${proxyBase}/hls/manifest.m3u8`, `externalUrl` is `undefined`, and `notSupported` is `false`.
-
----
+1. **Catalog Completeness & Protocol Conformance**:
+   - Every one of the 22 required standard K20 catalogs is explicitly defined in `src/manifest.js` with its provider, category, type (`movie` or `series`), human-readable display title, and `extra` parameters.
+   - The manifest filtering logic in `buildManifest()` correctly includes all 22 catalogs under the default config, and selectively includes provider/category subsets when customized by user tokens.
+2. **Explicit Routing & Config Prefix Parity**:
+   - Both `/catalog/...` and `/:config/catalog/...` endpoints share identical handler logic through `handleCatalog`, ensuring that Stremio clients running with or without configuration tokens receive the exact same catalog contents.
+   - Stremio's varied URL formats (including `.json` suffix, plain `search=foo.json`, and percent-encoded `search%3Dfoo.json`) are completely handled by `parseExtra()`.
+3. **404 Prevention & Error Isolation**:
+   - All catalog queries are wrapped in a robust `try { ... } catch (err) { return sendJSON(res, { metas: [] }); }` block. Upstream provider downtime, 404s, or rate-limiting (HTTP 429) do not propagate error status codes to Stremio; the client always receives HTTP 200 with a valid Stremio metadata payload.
+4. **Playback & End-to-End Verification**:
+   - Real-world E2E verification (`verify_playback.js`) downloaded a 3.34MB TS chunk directly through `/hls/segment.ts` with HTTP 200, verifying that catalog items resolve to fully playable streams.
 
 ## 3. Caveats
 
-- **Upstream Network Latency**: Live CDN tests against `phimapi.com` / `phim1280.tv` depend on external internet connectivity. The test suite includes self-debug fallback mechanisms and mock upstream simulations to isolate upstream outages.
-- **No other caveats.** All test targets, edge conditions, and concurrency loads were verified empirically.
-
----
+- Upstream third-party APIs (e.g. `phimapi.com`, `phim.nguonc.com`, `vsmov.com`) may intermittently return HTTP 429 when subjected to rapid consecutive burst testing from the same IP. The addon handles this gracefully by returning empty arrays `{ metas: [] }` with HTTP 200 rather than crashing or returning 404/500 errors.
 
 ## 4. Conclusion
 
 **Verdict: APPROVE**
 
-Milestone 3 meets all requirements set forth in `PROJECT.md` and `ORIGINAL_REQUEST.md`:
-- `tests/test_kkphim_playback.js` passes all 3 test cases (Stream Generation, Manifest Proxy Rewriting, and Segment Binary Delivery) with 100% success.
-- Ephemeral port allocation is resilient under high concurrency with zero port collisions.
-- Teardown is completely clean with zero lingering processes or dangling listening sockets.
-- Proxy and provider error isolation handle malformed parameters and upstream faults with complete graceful degradation.
-
----
+Milestone 3 requirements (22 standard K20 catalogs, root and `/:config/` prefixed routing, search extra parsing, 404 prevention, and playback integration) are verified and operating correctly.
 
 ## 5. Verification Method
 
-To independently verify all findings, execute the following commands:
+To reproduce and independently verify these results, execute:
 
 ```bash
-# 1. Base E2E Playback Test (all 3 test cases)
-node tests/test_kkphim_playback.js
+# 1. Dedicated Milestone 3 Routing & 22 Catalogs Suite
+node tests/test_routing_and_22_catalogs.js
 
-# 2. Challenger 2 Empirical Concurrency & Edge-Case Stress Suite (17 assertions)
-node tests/challenger_m3_2_concurrency_and_edge.test.js
+# 2. Challenger 2 Full Empirical Catalog & Search Harness (163 assertions)
+node tests/challenger_m3_2_catalogs_empirical.js
 
-# 3. Milestone 3 Verification Suite
+# 3. R6 Playback Verification (Downloads real >50KB video TS chunk with HTTP 200)
+node tests/verify_playback.js
+
+# 4. Full Integration & E2E Test Suites
+npm test
+node tests/e2e.test.js
 node tests/m3_verification.test.js
-
-# 4. Multi-Process Concurrency Stress (10 parallel subprocesses)
-node -e "
-const { spawn } = require('child_process');
-const procs = Array.from({ length: 10 }, (_, i) => new Promise((resolve, reject) => {
-  const p = spawn(process.execPath, ['tests/test_kkphim_playback.js']);
-  p.on('close', code => code === 0 ? resolve() : reject(new Error('Process ' + (i+1) + ' failed')));
-}));
-Promise.all(procs).then(() => console.log('✅ 10 Concurrent Processes Succeeded 100%')).catch(console.error);
-"
-
-# 5. Syntax checks
-node --check src/index.js
-node --check src/routes/hls.js
-node --check src/providers/kkphim.js
 ```

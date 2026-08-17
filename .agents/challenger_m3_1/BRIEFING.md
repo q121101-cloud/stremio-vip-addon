@@ -1,58 +1,47 @@
-# BRIEFING — 2026-08-17T08:57:30Z
+# BRIEFING — 2026-08-17T20:22:35Z
 
 ## Mission
-Adversarial stress-testing and empirical playback validation of HLS proxy and KKPhim provider integration for Milestone 3.
+Empirically stress test Milestone 3 (Routing & 404 Prevention) for stremio-nguonc-addon: verify robust route handling, strict 404 prevention returning HTTP 200 with valid Stremio fallback JSON, and correct manifest with 22 catalogs across adversarial/edge routes.
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m3_1
-- Original parent: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Milestone: Milestone 3: E2E Stream Playback Test & Self-Debug Loop
+- Original parent: a2adf213-6fb8-4af8-9198-0d1e08577c8a
+- Milestone: Milestone 3 - Routing & 404 Prevention
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (report findings/bugs, or test scripts in tests/ if needed)
-- Empirical verification ONLY: must run verification code myself and inspect raw byte responses (e.g. sync byte 0x47, HTTP status 200).
-- Record all test scripts and output in handoff.md.
+- Review-only — do NOT modify implementation code directly; write test harnesses in tests/ or empirical runner scripts to verify.
+- Must independently verify all claims via empirical tests and execution.
 
 ## Current Parent
-- Conversation ID: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Updated: 2026-08-17T08:57:30Z
+- Conversation ID: a2adf213-6fb8-4af8-9198-0d1e08577c8a
+- Updated: not yet
 
 ## Review Scope
-- **Files reviewed**:
-  - `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/test_kkphim_playback.js`
-  - `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/routes/hls.js`
-  - `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/providers/kkphim.js`
-  - `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
-  - `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
-- **Review criteria**:
-  - Live stream playback robustness across multiple titles/slugs (e.g., cuu-mon, tan-thuoc, nhat-niem-vinh-hang, dau-pha-thuong-khung-phan-5, mai, pham-nhan-tu-tien).
-  - Proper HLS proxy rewriting of master playlists, media playlists, and segment URLs.
-  - Verification that proxy passes or mimics correct headers (Referer, User-Agent) preventing 403 Forbidden on CDNs (s1.phim1280.tv, s2.phim1280.tv, s3.phim1280.tv, s5.phim1280.tv, s6.kkphimplayer6.com, v7.kkphimplayer7.com).
-  - Validation of raw segment byte streams (MPEG-TS sync byte 0x47 at offset 0 & 188, size > 50KB).
-  - Error handling: non-existent slugs, malformed URLs, 404/500 upstream handling, bad proxy parameters.
+- **Files to review**: `src/index.js`, `src/manifest.js`, `src/routes/*`, `src/handlers.js`, `src/config.js`, `tests/*`, `PROJECT.md`, `ORIGINAL_REQUEST.md`
+- **Interface contracts**: Stremio Addon Protocol specification (HTTP 200 fallback `{ metas: [] }`, `{ meta: null }`, `{ streams: [] }`)
+- **Review criteria**: 404 prevention, adversarial routing resilience, manifest catalogs count & integrity, test coverage.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Hypothesis 1: Proxy might fail to rewrite relative paths in nested sub-playlists across different CDNs -> REJECTED (relative paths like `3500kb/hls/index.m3u8` correctly resolved to absolute URLs and proxied).
-  - Hypothesis 2: Segment fetching might return 403 Forbidden on KKPhim CDNs -> REJECTED (all 6 distinct CDNs returned HTTP 200 with anti-403 headers).
-  - Hypothesis 3: Segments might be corrupted HTML / 404 payloads -> REJECTED (all 9 inspected segments contained valid 0x47 sync bytes at byte 0 and byte 188 with valid buffer lengths 500KB - 1MB).
-  - Hypothesis 4: High-concurrency bursts might fail or deadlock -> REJECTED (30 concurrent manifest requests responded in 14ms via LRU cache).
-- **Vulnerabilities found**: None in core implementation.
-- **Untested angles**: DRM-protected streams (not applicable to KKPhim public HLS).
+  - Malformed routes (`/%20/manifest.json`, `/undefined/manifest.json`, `/null/manifest.json`, `/[object%20Object]/manifest.json`, `/%7B%7D/manifest.json`) fallback gracefully to default manifest. (PASSED)
+  - Non-existent catalog queries (`/catalog/movie/nonexistent.json`, `/catalog/movie/nonexistent/search=test.json`, `/:config/catalog/movie/nonexistent/skip=50.json`) return HTTP 200 `{ metas: [] }` rather than HTTP 404. (PASSED)
+  - Non-existent meta endpoints (`/meta/movie/invalid:id.json`, `/:config/meta/movie/invalid:id.json`) return HTTP 200 `{ meta: null }` rather than HTTP 404. (PASSED)
+  - Non-existent or invalid stream endpoints (`/stream/series/invalid:1:1.json`, `/:config/stream/series/invalid:1:1.json`) return HTTP 200 `{ streams: [] }` rather than HTTP 404. (PASSED)
+  - All 22 K20 standard catalogs are present on `/manifest.json` and respond with HTTP 200 `{ metas: Array }` on both root and config-prefixed routes. (PASSED)
+  - In-app stream objects strictly contain `url` and NO `externalUrl`. (PASSED)
+- **Vulnerabilities found**: None. All adversarial probing, fuzzing, and route permutations handled cleanly with HTTP 200 and compliant Stremio fallback JSON.
+- **Untested angles**: None within M3 scope.
 
 ## Loaded Skills
-None required.
+- None required
 
 ## Key Decisions Made
-- Executed `tests/test_kkphim_playback.js` (passed 3/3 test cases).
-- Executed comprehensive adversarial suite `tests/test_m3_adversarial_empirical.js` across 6 real slugs and 6 distinct CDNs (198/198 assertions passed).
-- Verified `node --check src/index.js` (zero syntax errors).
-- Issued final verdict: APPROVE.
+- Executed full test matrix: `npm test` (50 passed), `node tests/test_routing_and_22_catalogs.js` (64 passed), `node tests/m3_verification.test.js` (39 passed), `TEST_PORT=7422 node tests/e2e.test.js` (93 passed), `node tests/verify_playback.js` (100% success), and `node tests/test_m3_routing_404_adversarial.js` (192 passed).
+- Confirmed verdict: **APPROVE**.
 
 ## Artifact Index
-- `.agents/challenger_m3_1/progress.md` — Progress tracker
-- `.agents/challenger_m3_1/handoff.md` — Final handoff report
-- `tests/test_m3_adversarial_empirical.js` — Empirical Challenger adversarial test script
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m3_1/handoff.md` — Final challenge report and verdict.
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/test_m3_routing_404_adversarial.js` — Empirical Challenger 1 stress test suite.

@@ -28,11 +28,15 @@ function sendJSON(res, data) {
  * Tạo description động theo config
  */
 function buildDescription(config) {
-  const { providers, categories } = config;
+  const { providers = [], categories = [] } = config || {};
   const providerLabels = {
-    nguonc: 'NguonC',
+    vsmov:  'VSMOV 4K',
     kkphim: 'KKPhim',
-    vsmov:  'VsMov',
+    nguonc: 'NguonC',
+    stp:    'STP',
+    hh3d:   'HH3D',
+    yan:    'YAN',
+    clbpx:  'CLBPX',
   };
   const catLabels = {
     movie:  'Phim Lẻ',
@@ -41,16 +45,16 @@ function buildDescription(config) {
     cinema: 'Chiếu Rạp',
   };
 
-  const provStr = providers
+  const provStr = (Array.isArray(providers) ? providers : [])
     .filter((p) => VALID_PROVIDERS.includes(p))
     .map((p) => providerLabels[p] || p)
     .join(' • ');
 
-  const catStr = categories
+  const catStr = (Array.isArray(categories) ? categories : [])
     .map((c) => catLabels[c] || c)
     .join(', ');
 
-  return `Đang bật: ${provStr} — ${catStr}. Xem phim Vietsub & Thuyết Minh trên Stremio / Nuvio.`;
+  return `Đang bật: ${provStr || 'Tất cả nguồn'} — ${catStr || 'Tất cả danh mục'}. Xem phim Vietsub & Thuyết Minh trên Stremio / Nuvio.`;
 }
 
 /**
@@ -73,10 +77,10 @@ function resolveConfig(token, query) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  GET /manifest.json
+//  GET /manifest.json & GET /manifest
 //  GET /manifest.json?config=<token>&key=<apiKey>
 // ─────────────────────────────────────────────────────────────
-router.get('/manifest.json', (req, res) => {
+function handleManifest(req, res) {
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
   const baseUrl  = `${protocol}://${host}`;
@@ -101,12 +105,15 @@ router.get('/manifest.json', (req, res) => {
   const manifest = buildManifest(config, configUrl);
   manifest.description = buildDescription(config);
   sendJSON(res, manifest);
-});
+}
+
+router.get('/manifest.json', handleManifest);
+router.get('/manifest', handleManifest);
 
 // ─────────────────────────────────────────────────────────────
-//  GET /:config/manifest.json  (Base64URL token)
+//  GET /:config/manifest.json & GET /:config/manifest
 // ─────────────────────────────────────────────────────────────
-router.get('/:config/manifest.json', (req, res) => {
+function handleConfigManifest(req, res) {
   const token    = req.params.config;
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
@@ -127,16 +134,14 @@ router.get('/:config/manifest.json', (req, res) => {
   const manifest = buildManifest(config, configUrl);
   manifest.description = buildDescription(config);
 
-  // Bổ sung prefix-based stream/catalog URLs cho Stremio
-  // Stremio sẽ tự prepend /:config vào mọi request
   sendJSON(res, manifest);
-});
+}
+
+router.get('/:config/manifest.json', handleConfigManifest);
+router.get('/:config/manifest', handleConfigManifest);
 
 // ─────────────────────────────────────────────────────────────
-//  GET /:config/catalog/:type/:id.json  — proxy to handlers
-//  GET /:config/stream/:type/:id.json
-//  GET /:config/meta/:type/:id.json
-//  Middleware: attach decoded config to req then delegate
+//  Middleware: attach decoded config to req when /:config is present
 // ─────────────────────────────────────────────────────────────
 router.use('/:config', (req, res, next) => {
   const token = req.params.config;
@@ -144,8 +149,6 @@ router.use('/:config', (req, res, next) => {
 
   req.addonConfig = decodeConfig(token);
   req.configToken = token;
-  // Strip the config prefix from URL so downstream handlers see /catalog/..., etc.
-  req.url = req.url.replace(/^\/[^/]+/, '') || '/';
   next();
 });
 

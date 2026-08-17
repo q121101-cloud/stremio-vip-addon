@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Stremio Addon - src/manifest.js  (v1.4.0)
+ *  VIP Movies Stremio Addon - src/manifest.js  (v1.5.0)
  *  Định nghĩa manifest của addon theo chuẩn Stremio / Nuvio
  *  Hỗ trợ Dynamic Manifest theo config token & đa nguồn (NguonC, KKPhim, VsMov)
  * ============================================================
@@ -58,16 +58,16 @@ const COUNTRIES = [
 
 const GENRE_NAMES = GENRES.map((g) => g.name);
 
-// ─── Catalog Definitions Per Provider ────────────────────────
+// ─── Catalog Definitions Per Provider (22 K20 Standard Catalogs) ────────────────────────
 
 const ALL_CATALOGS = [
-  // ── 1. NguonC ───────────────────────────────────────────
+  // ── 1. VSMOV 4K (2 catalogs) ───────────────────────────
   {
-    provider: 'nguonc',
+    provider: 'vsmov',
     category: 'movie',
     type: 'movie',
-    id: 'nguonc-movie-latest',
-    name: '🎬 NguonC • Phim Lẻ Mới',
+    id: 'vsmov-4k',
+    name: '🌟 VSMOV • Phim 4K Ultra HD',
     extra: [
       { name: 'search', isRequired: false },
       { name: 'genre', isRequired: false, options: GENRE_NAMES },
@@ -76,44 +76,20 @@ const ALL_CATALOGS = [
     extraSupported: ['search', 'genre', 'skip'],
   },
   {
-    provider: 'nguonc',
-    category: 'series',
-    type: 'series',
-    id: 'nguonc-series-latest',
-    name: '📺 NguonC • Phim Bộ Mới',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'nguonc',
-    category: 'anime',
-    type: 'series',
-    id: 'nguonc-anime-latest',
-    name: '🐉 NguonC • Hoạt Hình & Anime',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'skip'],
-  },
-  {
-    provider: 'nguonc',
-    category: 'cinema',
+    provider: 'vsmov',
+    category: 'movie',
     type: 'movie',
-    id: 'nguonc-cinema-latest',
-    name: '🍿 NguonC • Phim Chiếu Rạp',
+    id: 'vsmov-thuyet-minh',
+    name: '🎙️ VSMOV • Thuyết Minh 4K',
     extra: [
       { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
       { name: 'skip', isRequired: false },
     ],
-    extraSupported: ['search', 'skip'],
+    extraSupported: ['search', 'genre', 'skip'],
   },
 
-  // ── 2. KKPhim ───────────────────────────────────────────
+  // ── 2. KKPhim (4 catalogs) ─────────────────────────────
   {
     provider: 'kkphim',
     category: 'movie',
@@ -142,54 +118,292 @@ const ALL_CATALOGS = [
   },
   {
     provider: 'kkphim',
-    category: 'anime',
-    type: 'series',
-    id: 'kkphim-anime-latest',
-    name: '🐉 KKPhim • Hoạt Hình & Anime',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'skip'],
-  },
-  {
-    provider: 'kkphim',
     category: 'cinema',
     type: 'movie',
     id: 'kkphim-cinema-latest',
     name: '🍿 KKPhim • Phim Chiếu Rạp',
     extra: [
       { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
       { name: 'skip', isRequired: false },
     ],
-    extraSupported: ['search', 'skip'],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'kkphim',
+    category: 'anime',
+    type: 'series',
+    id: 'kkphim-anime-latest',
+    name: '🐉 KKPhim • Hoạt Hình & Anime',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+
+  // ── 3. NguonC (4 catalogs) ────────────────────────────
+  {
+    provider: 'nguonc',
+    category: 'movie',
+    type: 'movie',
+    id: 'nguonc-movie-latest',
+    name: '🎬 NguonC • Phim Lẻ Mới',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'nguonc',
+    category: 'series',
+    type: 'series',
+    id: 'nguonc-series-latest',
+    name: '📺 NguonC • Phim Bộ Mới',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'nguonc',
+    category: 'cinema',
+    type: 'movie',
+    id: 'nguonc-cinema-latest',
+    name: '🍿 NguonC • Phim Chiếu Rạp',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'nguonc',
+    category: 'anime',
+    type: 'series',
+    id: 'nguonc-anime-latest',
+    name: '🐉 NguonC • Hoạt Hình & Anime',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+
+  // ── 4. STP - Sưu Tầm Phim (4 catalogs) ────────────────
+  {
+    provider: 'stp',
+    category: 'movie',
+    type: 'movie',
+    id: 'stp-au-my',
+    name: '🗽 STP • Phim Âu Mỹ Tuyển Chọn',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'stp',
+    category: 'movie',
+    type: 'movie',
+    id: 'stp-phim-le',
+    name: '🎬 STP • Phim Lẻ Đặc Sắc',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'stp',
+    category: 'series',
+    type: 'series',
+    id: 'stp-phim-bo',
+    name: '📺 STP • Phim Bộ Tuyển Chọn',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'stp',
+    category: 'series',
+    type: 'series',
+    id: 'stp-han-quoc',
+    name: '🇰🇷 STP • Phim Hàn Quốc (K-Drama)',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+
+  // ── 5. HH3D - Hoạt Hình 3D (3 catalogs) ───────────────
+  {
+    provider: 'hh3d',
+    category: 'movie',
+    type: 'movie',
+    id: 'hh3d-phim-le',
+    name: '🎬 HH3D • Hoạt Hình 3D Phim Lẻ',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'hh3d',
+    category: 'series',
+    type: 'series',
+    id: 'hh3d-phim-bo',
+    name: '📺 HH3D • Hoạt Hình 3D Phim Bộ',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'hh3d',
+    category: 'anime',
+    type: 'series',
+    id: 'hh3d-tien-hiep',
+    name: '⚔️ HH3D • Tiên Hiệp & Huyền Huyễn 3D',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+
+  // ── 6. YAN - Donghua & Anime (3 catalogs) ─────────────
+  {
+    provider: 'yan',
+    category: 'movie',
+    type: 'movie',
+    id: 'yan-phim-le',
+    name: '🎬 YAN • Donghua Phim Lẻ',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'yan',
+    category: 'series',
+    type: 'series',
+    id: 'yan-phim-bo',
+    name: '📺 YAN • Donghua Phim Bộ',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'yan',
+    category: 'anime',
+    type: 'series',
+    id: 'yan-dang-chieu',
+    name: '🔥 YAN • Donghua Đang Chiếu',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+
+  // ── 7. CLBPX - Câu Lạc Bộ Phim Xưa (2 catalogs) ───────
+  {
+    provider: 'clbpx',
+    category: 'series',
+    type: 'series',
+    id: 'clbpx-kiem-hiep',
+    name: '🗡️ CLBPX • Kiếm Hiệp Kim Dung',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'clbpx',
+    category: 'series',
+    type: 'series',
+    id: 'clbpx-hong-kong',
+    name: '🇭🇰 CLBPX • Phim Hồng Kông / TVB Kinh Điển',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
   },
 ];
 
 // ─── Base Manifest Object ─────────────────────────────────────
 
+const ALL_ID_PREFIXES = [
+  'vsmov:',
+  'vsmov_',
+  'kkphim:',
+  'kkphim_',
+  'nguonc:',
+  'nguonc_',
+  'stp:',
+  'stp_',
+  'hh3d:',
+  'hh3d_',
+  'yan:',
+  'yan_',
+  'clbpx:',
+  'clbpx_',
+  'tt',
+];
+
 const BASE_MANIFEST = {
   id: 'org.vipmovies.stremio.addon',
-  version: '1.4.0',
+  version: '1.5.0',
   name: 'VIP Movies 🎬',
   description:
-    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ NguonC, KKPhim, VsMov & IMDb. Cấu hình đa nguồn linh hoạt.',
+    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ VSMOV 4K, KKPhim, NguonC, STP, HH3D, YAN, CLBPX & IMDb. Cấu hình 22 Catalog K20 chuẩn quốc tế.',
   logo: 'https://i.imgur.com/3C9XQFP.png',
   resources: [
     'catalog',
     {
       name: 'meta',
       types: ['movie', 'series'],
-      idPrefixes: ['nguonc:', 'nguonc_', 'kkphim:', 'kkphim_', 'vsmov:', 'vsmov_', 'tt'],
+      idPrefixes: ALL_ID_PREFIXES,
     },
     {
       name: 'stream',
       types: ['movie', 'series'],
-      idPrefixes: ['nguonc:', 'nguonc_', 'kkphim:', 'kkphim_', 'vsmov:', 'vsmov_', 'tt'],
+      idPrefixes: ALL_ID_PREFIXES,
     },
   ],
   types: ['movie', 'series'],
-  idPrefixes: ['nguonc:', 'nguonc_', 'kkphim:', 'kkphim_', 'vsmov:', 'vsmov_', 'tt'],
+  idPrefixes: ALL_ID_PREFIXES,
   behaviorHints: {
     adult: false,
     p2p: false,
@@ -205,17 +419,23 @@ const BASE_MANIFEST = {
  * @returns {object} Stremio-compatible manifest
  */
 function buildManifest(config = DEFAULT_CONFIG, configBaseUrl = '') {
-  const { providers = DEFAULT_CONFIG.providers, categories = DEFAULT_CONFIG.categories } = config;
+  const {
+    providers = DEFAULT_CONFIG.providers,
+    categories = DEFAULT_CONFIG.categories,
+  } = config || {};
+
+  const safeProviders = Array.isArray(providers) && providers.length > 0 ? providers : DEFAULT_CONFIG.providers;
+  const safeCategories = Array.isArray(categories) && categories.length > 0 ? categories : DEFAULT_CONFIG.categories;
 
   // Lọc catalog theo provider + category được chọn
   const filteredCatalogs = ALL_CATALOGS.filter(
-    (cat) => providers.includes(cat.provider) && categories.includes(cat.category)
+    (cat) => safeProviders.includes(cat.provider) && safeCategories.includes(cat.category)
   );
 
   const catalogs =
     filteredCatalogs.length > 0
       ? filteredCatalogs.map(({ provider: _p, category: _c, ...rest }) => rest)
-      : ALL_CATALOGS.filter((c) => providers.includes(c.provider) || c.provider === 'nguonc')
+      : ALL_CATALOGS.filter((c) => safeProviders.includes(c.provider) || c.provider === 'nguonc' || c.provider === 'kkphim')
           .map(({ provider: _p, category: _c, ...rest }) => rest);
 
   const manifest = {
@@ -236,4 +456,4 @@ function buildManifest(config = DEFAULT_CONFIG, configBaseUrl = '') {
 /** Manifest mặc định */
 const MANIFEST = buildManifest(DEFAULT_CONFIG);
 
-module.exports = { MANIFEST, GENRES, COUNTRIES, GENRE_NAMES, ALL_CATALOGS, buildManifest };
+module.exports = { MANIFEST, GENRES, COUNTRIES, GENRE_NAMES, ALL_CATALOGS, buildManifest, ALL_ID_PREFIXES };

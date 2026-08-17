@@ -1,23 +1,20 @@
-# Progress — Milestone 3 Empirical Challenger
+# Progress — Challenger M3
 
-**Status**: Completed
-**Last visited**: 2026-08-17T08:57:30Z
+Last visited: 2026-08-17T20:22:30Z
+Status: Completed
 
-## Tasks
-- [x] Read incoming dispatch and initialize BRIEFING.md / progress.md
-- [x] Inspect source code: `src/routes/hls.js`, `src/providers/kkphim.js`, `tests/test_kkphim_playback.js`, `PROJECT.md`, `ORIGINAL_REQUEST.md`
-- [x] Run existing `tests/test_kkphim_playback.js`
-- [x] Develop adversarial test harness covering:
-  - Multi-slug live playback (`cuu-mon`, `tan-thuoc`, `nhat-niem-vinh-hang`, `dau-pha-thuong-khung-phan-5`, `mai`, `pham-nhan-tu-tien`)
-  - Multi-CDN segment binary verification (`s1.phim1280.tv`, `s2.phim1280.tv`, `s3.phim1280.tv`, `s5.phim1280.tv`, `s6.kkphimplayer6.com`, `v7.kkphimplayer7.com`)
-  - MPEG-TS sync byte `0x47` at offset 0 and 188 validation
-  - In-app stream protocol exclusivity (`url` present, `externalUrl` omitted/undefined)
-  - HLS proxy rewriting of master/media playlists and relative/absolute URLs
-  - CORS (`*`) and MIME type (`application/vnd.apple.mpegurl` / `video/mp2t`) enforcement
-  - Adversarial parameter edge cases (missing params -> 400, dead upstreams -> 502, OPTIONS preflight -> 204)
-  - Concurrency burst test (30 simultaneous manifest requests)
-  - Episode formatting & boundary checks
-- [x] Execute empirical tests against local server / live endpoints (198/198 assertions passed)
-- [x] Update BRIEFING.md with final attack surface & observations
-- [x] Write handoff report (`handoff.md`) with 5-Component Protocol
-- [x] Send completion message to parent agent
+## Steps
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] Read ORIGINAL_REQUEST.md and worker handoff.md
+- [x] Inspected codebase (`src/index.js`, `src/routes/*`, `src/manifest.js`, `src/handlers.js`, `src/config.js`)
+- [x] Executed existing test suites (`npm test`, `test_routing_and_22_catalogs.js`, `m3_verification.test.js`, `e2e.test.js`, `verify_playback.js`)
+- [x] Designed and executed adversarial stress test suite (`tests/test_m3_routing_404_adversarial.js`) covering 192 assertions:
+  - Adversarial manifest routes (`/%20/manifest.json`, `/undefined/manifest.json`, `/null/manifest.json`, `/[object%20Object]/manifest.json`, `/%7B%7D/manifest.json`)
+  - All 22 K20 standard catalogs verification across root and config prefixes
+  - Adversarial catalog routes with SQL injections, XSS, Unicode emojis, out-of-range pagination, malformed extra parameters
+  - Strict 404 prevention on all catalog, meta, and stream routes (root, valid config, invalid/adversarial config tokens)
+  - Stream protocol exclusivity (`url` only, no `externalUrl`)
+  - Configurator dashboard and health check routes
+- [x] Verified 100% pass across all empirical verification suites
+- [x] Updated BRIEFING.md
+- [x] Generated handoff.md with APPROVE verdict

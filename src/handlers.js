@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/handlers.js  (Engine v1.4.0)
+ *  VIP Movies Addon — src/handlers.js  (Engine v1.5.0)
  *  Stremio Addon Express Route Handlers
  *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov)
  *  - Dynamic Catalog & Meta Router
@@ -21,14 +21,22 @@ const { imdbCache, catalogCache, detailCache }  = require('./lib/cache');
 const { resolveCinemeta } = require('./lib/cinemeta');
 
 // ─── Providers ────────────────────────────────────────────────
-const providerNguonC = require('./providers/nguonc');
-const providerKKPhim = require('./providers/kkphim');
 const providerVsMov  = require('./providers/vsmov');
+const providerKKPhim = require('./providers/kkphim');
+const providerNguonC = require('./providers/nguonc');
+const providerSTP    = require('./providers/stp');
+const providerHH3D   = require('./providers/hh3d');
+const providerYAN    = require('./providers/yan');
+const providerCLBPX  = require('./providers/clbpx');
 
 const ALL_PROVIDERS = {
-  nguonc: providerNguonC,
-  kkphim: providerKKPhim,
   vsmov:  providerVsMov,
+  kkphim: providerKKPhim,
+  nguonc: providerNguonC,
+  stp:    providerSTP,
+  hh3d:   providerHH3D,
+  yan:    providerYAN,
+  clbpx:  providerCLBPX,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -48,11 +56,23 @@ function sendError(res, statusCode, message) {
 function parseExtra(extraParam) {
   if (!extraParam) return {};
   try {
-    const cleaned = extraParam.replace(/\.json$/, '');
+    let decoded = String(extraParam);
+    try { decoded = decodeURIComponent(decoded); } catch {}
+    if (decoded.includes('%')) {
+      try { decoded = decodeURIComponent(decoded); } catch {}
+    }
+    const cleaned = decoded.replace(/\.json$/i, '');
     const result = {};
     for (const part of cleaned.split('&')) {
-      const [key, ...valParts] = part.split('=');
-      if (key) result[decodeURIComponent(key)] = decodeURIComponent(valParts.join('='));
+      if (!part) continue;
+      const eqIdx = part.indexOf('=');
+      if (eqIdx !== -1) {
+        let rawKey = part.slice(0, eqIdx).trim();
+        let rawVal = part.slice(eqIdx + 1).trim();
+        try { rawKey = decodeURIComponent(rawKey); } catch {}
+        try { rawVal = decodeURIComponent(rawVal); } catch {}
+        if (rawKey) result[rawKey] = rawVal;
+      }
     }
     return result;
   } catch { return {}; }
@@ -60,12 +80,15 @@ function parseExtra(extraParam) {
 
 function skipToPage(skip) {
   const s = parseInt(skip, 10) || 0;
-  return Math.floor(s / 10) + 1;
+  return Math.max(1, Math.floor(s / 10) + 1);
 }
 
 function getConfig(req) {
   if (req.addonConfig) return req.addonConfig;
-  if (req.query.config) {
+  if (req.params && req.params.config) {
+    try { return decodeConfig(req.params.config); } catch {}
+  }
+  if (req.query && req.query.config) {
     try { return decodeConfig(req.query.config); } catch {}
   }
   return DEFAULT_CONFIG;
@@ -73,17 +96,55 @@ function getConfig(req) {
 
 function getProviderFromCatalogId(catalogId) {
   if (!catalogId) return 'nguonc';
+  const id = String(catalogId).toLowerCase().trim();
   for (const pid of Object.keys(ALL_PROVIDERS)) {
-    if (catalogId.startsWith(pid + '-') || catalogId.startsWith(pid + '_')) return pid;
+    if (id.startsWith(pid + '-') || id.startsWith(pid + '_') || id === pid) return pid;
   }
   return 'nguonc';
 }
 
 function getCatTypeFromCatalogId(catalogId) {
-  if (!catalogId) return null;
-  const parts = catalogId.replace(/_/g, '-').split('-');
-  if (parts.length >= 2) return parts[1]; // kkphim-[movie]-latest
-  return null;
+  if (!catalogId) return 'movie';
+  const id = String(catalogId).toLowerCase().trim();
+
+  // Specific mappings for all 22 standard catalogs + aliases
+  if (id === 'vsmov-4k') return '4k';
+  if (id === 'vsmov-thuyet-minh' || id === 'vsmov-tm') return 'thuyet-minh';
+  if (id === 'stp-au-my' || id === 'stp-western') return 'au-my';
+  if (id === 'stp-han-quoc' || id === 'stp-korean') return 'han-quoc';
+  if (id === 'stp-phim-le' || id === 'stp-single') return 'movie';
+  if (id === 'stp-phim-bo' || id === 'stp-series') return 'series';
+  if (id === 'hh3d-phim-le' || id === 'hh3d-single') return 'movie';
+  if (id === 'hh3d-phim-bo' || id === 'hh3d-series') return 'series';
+  if (id === 'hh3d-tien-hiep' || id === 'hh3d-donghua') return 'tien-hiep';
+  if (id === 'yan-phim-le' || id === 'yan-single') return 'movie';
+  if (id === 'yan-phim-bo' || id === 'yan-series') return 'series';
+  if (id === 'yan-dang-chieu' || id === 'yan-ongoing') return 'dang-chieu';
+  if (id === 'clbpx-kiem-hiep' || id === 'clbpx-wuxia') return 'kiem-hiep';
+  if (id === 'clbpx-hong-kong' || id === 'clbpx-tvb') return 'hong-kong';
+
+  if (id.includes('series') || id.includes('phim-bo')) return 'series';
+  if (id.includes('single') || id.includes('movie') || id.includes('phim-le')) return 'movie';
+  if (id.includes('cinema') || id.includes('chieu-rap')) return 'cinema';
+  if (id.includes('anime') || id.includes('hoat-hinh') || id.includes('donghua')) return 'anime';
+  if (id.includes('recent') || id.includes('latest')) return 'latest';
+
+  const parts = id.replace(/_/g, '-').split('-');
+  if (parts.length >= 2) return parts.slice(1).join('-');
+  return 'movie';
+}
+
+function withTimeout(promise, ms = 4000, label = 'Provider') {
+  let timer;
+  if (promise && typeof promise.catch === 'function') {
+    promise.catch(() => {});
+  }
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -250,7 +311,7 @@ router.get('/', (req, res) => {
       </div>
       <div class="live-badge">
         <span class="pulse-dot" aria-hidden="true"></span>
-        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.4.0
+        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.0
       </div>
     </header>
 
@@ -268,19 +329,19 @@ router.get('/', (req, res) => {
     </div>
 
     <div class="glass-card">
-      <div class="section-label">🌐 Chọn nguồn phim</div>
+      <div class="section-label">🌐 Chọn nguồn phim (7 Nguồn VIP)</div>
       <div class="provider-grid">
-        <div class="provider-card nguonc active" id="card-nguonc" onclick="toggleProvider('nguonc')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card vsmov active" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🎞️</div>
+            <div class="provider-icon">🌟</div>
             <div class="toggle-track" aria-hidden="true"></div>
           </div>
-          <div class="provider-name">NguonC</div>
-          <div class="provider-desc">phim.nguonc.com — Vietsub &amp; Thuyết Minh</div>
+          <div class="provider-name">VSMOV 4K</div>
+          <div class="provider-desc">vsmov.com — Master 4K Ultra HD &amp; Thuyết Minh</div>
           <div class="badge-row">
-            <span class="badge badge-purple">Vietsub</span>
+            <span class="badge badge-cyan">Master 4K</span>
             <span class="badge badge-green">Thuyết Minh</span>
-            <span class="badge badge-purple">IMDb</span>
+            <span class="badge badge-cyan">CDN VIP</span>
           </div>
         </div>
         <div class="provider-card kkphim active" id="card-kkphim" onclick="toggleProvider('kkphim')" role="checkbox" aria-checked="true" tabindex="0">
@@ -289,23 +350,72 @@ router.get('/', (req, res) => {
             <div class="toggle-track" aria-hidden="true"></div>
           </div>
           <div class="provider-name">KKPhim</div>
-          <div class="provider-desc">phimapi.com — Kho phim mở rộng</div>
+          <div class="provider-desc">phimapi.com — Đa máy chủ &amp; Kho phim mở rộng</div>
           <div class="badge-row">
             <span class="badge badge-pink">Vietsub</span>
-            <span class="badge badge-amber">HD</span>
+            <span class="badge badge-amber">Full HD</span>
             <span class="badge badge-pink">IMDb Direct</span>
           </div>
         </div>
-        <div class="provider-card vsmov active" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card nguonc active" id="card-nguonc" onclick="toggleProvider('nguonc')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">⚡</div>
+            <div class="provider-icon">🎞️</div>
             <div class="toggle-track" aria-hidden="true"></div>
           </div>
-          <div class="provider-name">VsMov</div>
-          <div class="provider-desc">vsmov.com — Tốc độ cao CDN</div>
+          <div class="provider-name">NguonC</div>
+          <div class="provider-desc">phim.nguonc.com — StreamC Vietsub &amp; Thuyết Minh</div>
           <div class="badge-row">
-            <span class="badge badge-cyan">4K CDN</span>
-            <span class="badge badge-cyan">Lồng Tiếng</span>
+            <span class="badge badge-purple">StreamC</span>
+            <span class="badge badge-green">Thuyết Minh</span>
+            <span class="badge badge-purple">IMDb</span>
+          </div>
+        </div>
+        <div class="provider-card stp active" id="card-stp" onclick="toggleProvider('stp')" role="checkbox" aria-checked="true" tabindex="0">
+          <div class="provider-top">
+            <div class="provider-icon">🗽</div>
+            <div class="toggle-track" aria-hidden="true"></div>
+          </div>
+          <div class="provider-name">STP</div>
+          <div class="provider-desc">suutamphim.org — Âu Mỹ Tuyển Chọn &amp; K-Drama</div>
+          <div class="badge-row">
+            <span class="badge badge-amber">Âu Mỹ Cinema</span>
+            <span class="badge badge-pink">K-Drama</span>
+          </div>
+        </div>
+        <div class="provider-card hh3d active" id="card-hh3d" onclick="toggleProvider('hh3d')" role="checkbox" aria-checked="true" tabindex="0">
+          <div class="provider-top">
+            <div class="provider-icon">⚔️</div>
+            <div class="toggle-track" aria-hidden="true"></div>
+          </div>
+          <div class="provider-name">HH3D</div>
+          <div class="provider-desc">hoathinh3d — Hoạt Hình 3D Trung Quốc &amp; Tiên Hiệp</div>
+          <div class="badge-row">
+            <span class="badge badge-cyan">3D Donghua</span>
+            <span class="badge badge-purple">Tiên Hiệp</span>
+          </div>
+        </div>
+        <div class="provider-card yan active" id="card-yan" onclick="toggleProvider('yan')" role="checkbox" aria-checked="true" tabindex="0">
+          <div class="provider-top">
+            <div class="provider-icon">🔥</div>
+            <div class="toggle-track" aria-hidden="true"></div>
+          </div>
+          <div class="provider-name">YAN</div>
+          <div class="provider-desc">yandonghua — Donghua &amp; Anime Đang Chiếu</div>
+          <div class="badge-row">
+            <span class="badge badge-pink">Donghua Mới</span>
+            <span class="badge badge-green">Tốc Độ Cao</span>
+          </div>
+        </div>
+        <div class="provider-card clbpx active" id="card-clbpx" onclick="toggleProvider('clbpx')" role="checkbox" aria-checked="true" tabindex="0">
+          <div class="provider-top">
+            <div class="provider-icon">🗡️</div>
+            <div class="toggle-track" aria-hidden="true"></div>
+          </div>
+          <div class="provider-name">CLBPX</div>
+          <div class="provider-desc">clbphimxua — Kiếm Hiệp Kim Dung &amp; TVB Kinh Điển</div>
+          <div class="badge-row">
+            <span class="badge badge-purple">Kim Dung</span>
+            <span class="badge badge-amber">TVB Hồng Kông</span>
           </div>
         </div>
       </div>
@@ -323,14 +433,14 @@ router.get('/', (req, res) => {
     </div>
 
     <div class="footer">
-      VIP Movies Addon v1.4.0 &bull; Powered by <span class="brand-highlight">Q121101</span>
+      VIP Movies Addon v1.5.0 &bull; Powered by <span class="brand-highlight">Q121101</span>
     </div>
   </div>
 
   <div class="floating-dock">
     <div class="dock-inner">
       <div class="status-bar">
-        <div class="status-text">Đang bật: <strong id="provider-count">3 nguồn</strong> &nbsp;·&nbsp; <strong id="category-count">2 danh mục</strong></div>
+        <div class="status-text">Đang bật: <strong id="provider-count">7 nguồn</strong> &nbsp;·&nbsp; <strong id="category-count">4 danh mục</strong></div>
         <div class="status-indicator"><span class="dot"></span>Config đã cập nhật</div>
       </div>
       <div class="apikey-row">
@@ -348,8 +458,9 @@ router.get('/', (req, res) => {
 
   <script>
     var _baseUrl = window.location.origin;
-    var _providers = new Set(['nguonc', 'kkphim', 'vsmov']);
-    var _categories = new Set(['movie', 'series']);
+    var _allProvidersList = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+    var _providers = new Set(['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx']);
+    var _categories = new Set(['movie', 'series', 'anime', 'cinema']);
     var _apiKey = '';
 
     function encodeConfigClient(providers, categories, apiKey) {
@@ -395,8 +506,8 @@ router.get('/', (req, res) => {
 
     function selectAll() {
       _categories = new Set(['movie','series','anime','cinema']);
-      _providers = new Set(['nguonc','kkphim','vsmov']);
-      ['nguonc','kkphim','vsmov'].forEach(function(id) {
+      _providers = new Set(_allProvidersList);
+      _allProvidersList.forEach(function(id) {
         var c = document.getElementById('card-'+id);
         if (c) { c.classList.add('active'); c.setAttribute('aria-checked','true'); }
       });
@@ -404,10 +515,11 @@ router.get('/', (req, res) => {
     }
 
     function selectNone() {
-      _categories = new Set(['movie']); _providers = new Set(['nguonc']);
-      ['nguonc','kkphim','vsmov'].forEach(function(id) {
+      _categories = new Set(['movie']); _providers = new Set(['vsmov', 'kkphim']);
+      _allProvidersList.forEach(function(id) {
         var c = document.getElementById('card-'+id);
-        if (c) { c.classList.toggle('active', id === 'nguonc'); c.setAttribute('aria-checked', id === 'nguonc' ? 'true' : 'false'); }
+        var isActive = (id === 'vsmov' || id === 'kkphim');
+        if (c) { c.classList.toggle('active', isActive); c.setAttribute('aria-checked', isActive ? 'true' : 'false'); }
       });
       updateState();
     }
@@ -446,45 +558,109 @@ router.get('/', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  ROUTE: GET /catalog/:type/:id.json
-//  ROUTE: GET /catalog/:type/:id/:extra.json
+//  CATALOG HANDLER & ROUTES
 // ─────────────────────────────────────────────────────────────
-router.get(
-  ['/catalog/:type/:id/:extra.json', '/catalog/:type/:id.json'],
-  async (req, res) => {
-    const { type, id, extra: extraParam } = req.params;
-    const extra = parseExtra(extraParam);
-    const searchQuery = extra.search || req.query.search || null;
-    const genreFilter = extra.genre  || req.query.genre  || null;
-    const skip        = extra.skip   || req.query.skip   || '0';
-    const page        = skipToPage(skip);
+async function handleCatalog(req, res) {
+  const rawId = req.params.id || '';
+  const rawType = req.params.type || 'movie';
+  const id = rawId.replace(/\.json$/i, '');
+  const type = rawType.replace(/\.json$/i, '');
+  const extraParam = req.params.extra || '';
 
-    console.log(`[Catalog] type=${type} id=${id} search=${searchQuery} genre=${genreFilter} page=${page}`);
+  const extra = parseExtra(extraParam);
+  const searchQuery = extra.search || req.query.search || null;
+  const genreFilter = extra.genre  || req.query.genre  || null;
+  const skip        = extra.skip   || req.query.skip   || '0';
+  const page        = skipToPage(skip);
+  const config      = getConfig(req);
 
-    try {
-      const providerId = getProviderFromCatalogId(id);
-      const catType    = getCatTypeFromCatalogId(id) || type;
-      const provider   = ALL_PROVIDERS[providerId] || providerNguonC;
+  console.log(`[Catalog] type=${type} id=${id} search=${searchQuery} genre=${genreFilter} page=${page}`);
 
-      const items = await provider.getCatalog(catType, page, {
-        search: searchQuery,
-        genre:  genreFilter,
-        skip,
-      });
+  try {
+    const isGenericSearch = !id || id === 'search' || id === 'all' || id === 'global' || id === 'top';
+    const providerId = getProviderFromCatalogId(id);
+    const catType    = getCatTypeFromCatalogId(id) || type;
+    const provider   = ALL_PROVIDERS[providerId];
 
-      sendJSON(res, { metas: items });
-    } catch (err) {
-      console.error(`[Catalog Error]`, err.message);
-      sendJSON(res, { metas: [] });
+    // If search query on generic endpoint or unrecognized catalog, fan out across active providers
+    if (searchQuery && (isGenericSearch || !provider)) {
+      const activeProviderKeys = (config.providers || []).filter((p) => ALL_PROVIDERS[p]);
+      const providersToRun = (activeProviderKeys.length > 0 ? activeProviderKeys : Object.keys(ALL_PROVIDERS))
+        .map((k) => ALL_PROVIDERS[k]);
+
+      const results = await Promise.allSettled(
+        providersToRun.map((p) =>
+          withTimeout(p.getCatalog(catType, page, { search: searchQuery, genre: genreFilter, skip }), 4000, p.name || 'CatalogProvider')
+        )
+      );
+
+      const combinedMetas = [];
+      const seenIds = new Set();
+      for (const r of results) {
+        if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+          for (const item of r.value) {
+            if (item && item.id && !seenIds.has(item.id)) {
+              seenIds.add(item.id);
+              combinedMetas.push({
+                ...item,
+                type: item.type || type || 'movie',
+              });
+            }
+          }
+        }
+      }
+      return sendJSON(res, { metas: combinedMetas });
     }
+
+    if (!provider) {
+      return sendJSON(res, { metas: [] });
+    }
+
+    const items = await withTimeout(
+      provider.getCatalog(catType, page, { search: searchQuery, genre: genreFilter, skip }),
+      4000,
+      provider.name || providerId
+    ).catch((err) => {
+      console.warn(`[Catalog Provider Error] ${providerId}:`, err.message);
+      return [];
+    });
+
+    const metas = (Array.isArray(items) ? items : []).map((item) => {
+      if (!item) return item;
+      return {
+        ...item,
+        type: item.type || type || 'movie',
+      };
+    });
+
+    return sendJSON(res, { metas });
+  } catch (err) {
+    console.error(`[Catalog Error]`, err.message);
+    return sendJSON(res, { metas: [] });
   }
-);
+}
+
+router.get('/catalog/:type/:id/:extra.json', handleCatalog);
+router.get('/catalog/:type/:id/:extra', handleCatalog);
+router.get('/catalog/:type/:id.json', handleCatalog);
+router.get('/catalog/:type/:id', handleCatalog);
+router.get('/:config/catalog/:type/:id/:extra.json', handleCatalog);
+router.get('/:config/catalog/:type/:id/:extra', handleCatalog);
+router.get('/:config/catalog/:type/:id.json', handleCatalog);
+router.get('/:config/catalog/:type/:id', handleCatalog);
 
 // ─────────────────────────────────────────────────────────────
-//  ROUTE: GET /meta/:type/:id.json
+//  META HANDLER & ROUTES
 // ─────────────────────────────────────────────────────────────
-router.get('/meta/:type/:id.json', async (req, res) => {
-  const { type, id } = req.params;
+async function handleMeta(req, res) {
+  const rawId = req.params.id || '';
+  const rawType = req.params.type || 'movie';
+  const id = rawId.replace(/\.json$/i, '');
+  const type = rawType.replace(/\.json$/i, '');
+
+  if (!id) {
+    return sendJSON(res, { meta: null });
+  }
 
   // If IMDb ID, let Cinemeta handle it
   if (/^tt\d+/i.test(id)) {
@@ -499,15 +675,32 @@ router.get('/meta/:type/:id.json', async (req, res) => {
   try {
     let meta = null;
 
-    // 1. KKPhim ID
-    if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
+    // 1. VSMOV ID
+    if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
+      const slug = id.replace(/^vsmov[_:]/, '');
+      const detail = await providerVsMov.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = {
+          id: `vsmov_${slug}`,
+          type: detail.movie.type === 'series' ? 'series' : 'movie',
+          name: detail.movie.name || detail.movie.origin_name || 'Không rõ tên',
+          poster: detail.movie.poster_url || detail.movie.thumb_url,
+          background: detail.movie.thumb_url || detail.movie.poster_url,
+          description: detail.movie.content ? String(detail.movie.content).replace(/<[^>]+>/g, '') : null,
+          year: detail.movie.year || null,
+          releaseInfo: detail.movie.year ? String(detail.movie.year) : null,
+        };
+      }
+    }
+    // 2. KKPhim ID
+    else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
       const slug = id.replace(/^kkphim[_:]/, '');
       const detail = await providerKKPhim.getDetail(slug);
       if (detail && detail.movie) {
         meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
       }
     }
-    // 2. NguonC ID
+    // 3. NguonC ID
     else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
       const slug = id.replace(/^nguonc[_:]/, '');
       const detail = await providerNguonC.getDetail(slug);
@@ -516,7 +709,40 @@ router.get('/meta/:type/:id.json', async (req, res) => {
         meta.id = id;
       }
     }
-    // 3. Fallback generic slug via NguonC or KKPhim
+    // 4. Specialized Providers (STP, HH3D, YAN, CLBPX)
+    else if (id.startsWith('stp:') || id.startsWith('stp_')) {
+      const slug = id.replace(/^stp[_:]/, '');
+      const detail = await providerSTP.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
+        meta.id = `stp_${slug}`;
+      }
+    }
+    else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
+      const slug = id.replace(/^hh3d[_:]/, '');
+      const detail = await providerHH3D.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
+        meta.id = `hh3d_${slug}`;
+      }
+    }
+    else if (id.startsWith('yan:') || id.startsWith('yan_')) {
+      const slug = id.replace(/^yan[_:]/, '');
+      const detail = await providerYAN.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
+        meta.id = `yan_${slug}`;
+      }
+    }
+    else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
+      const slug = id.replace(/^clbpx[_:]/, '');
+      const detail = await providerCLBPX.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
+        meta.id = `clbpx_${slug}`;
+      }
+    }
+    // 5. Fallback generic slug
     else {
       const slug = mapper.extractSlug(id);
       const detail = await providerNguonC.getDetail(slug);
@@ -535,21 +761,69 @@ router.get('/meta/:type/:id.json', async (req, res) => {
       return sendJSON(res, { meta });
     }
 
-    sendJSON(res, { meta: null });
+    return sendJSON(res, { meta: null });
   } catch (err) {
     console.error(`[Meta Error] id=${id}`, err.message);
-    sendJSON(res, { meta: null });
+    return sendJSON(res, { meta: null });
   }
-});
+}
 
-// ─────────────────────────────────────────────────────────────
-//  ROUTE: GET /stream/:type/:id.json
-//  BỘ GOM LUỒNG TỔNG HỢP: Chạy song song bất đồng bộ qua
-//  Promise.allSettled([kkphim.getStreams(...), nguonc.getStreams(...), vsmov.getStreams(...)])
-//  Đảm bảo mỗi tập phim luôn hiển thị 4–10 server tốc độ cao!
-// ─────────────────────────────────────────────────────────────
-router.get('/stream/:type/:id.json', async (req, res) => {
-  const { type, id } = req.params;
+router.get('/meta/:type/:id.json', handleMeta);
+router.get('/meta/:type/:id', handleMeta);
+router.get('/:config/meta/:type/:id.json', handleMeta);
+router.get('/:config/meta/:type/:id', handleMeta);
+
+const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+
+function getStreamPriority(stream) {
+  if (!stream) return 200;
+  const title = (stream.title || '').toLowerCase();
+  const name = (stream.name || '').toLowerCase();
+  const combined = `${name} ${title}`;
+
+  // 1. VSMOV 4K Ultra HD (VIP 1)
+  if (combined.includes('vsmov') && (combined.includes('4k') || combined.includes('ultra hd') || combined.includes('3840x2160'))) return 10;
+  // 2. VSMOV Thuyết Minh / Other (VIP 1)
+  if (combined.includes('vsmov') || combined.includes('vip 1')) return 20;
+  // 3. KKPhim Vietsub (VIP 2)
+  if ((combined.includes('kkphim') || combined.includes('vip 2')) && combined.includes('vietsub')) return 30;
+  // 4. KKPhim Thuyết Minh / Lồng Tiếng / Other (VIP 2)
+  if (combined.includes('kkphim') || combined.includes('vip 2')) return 40;
+  // 5. NguonC Vietsub (VIP 3)
+  if ((combined.includes('nguonc') || combined.includes('vip 3')) && combined.includes('vietsub')) return 50;
+  // 6. NguonC Thuyết Minh / Other (VIP 3)
+  if (combined.includes('nguonc') || combined.includes('vip 3')) return 60;
+  // 7. STP (Western & K-Drama)
+  if (combined.includes('stp') || combined.includes('suutamphim')) return 70;
+  // 8. HH3D (3D Donghua)
+  if (combined.includes('hh3d') || combined.includes('hoathinh3d')) return 80;
+  // 9. YAN (Donghua Ongoing)
+  if (combined.includes('yan') || combined.includes('yandonghua')) return 90;
+  // 10. CLBPX (Wuxia & TVB)
+  if (combined.includes('clbpx') || combined.includes('clbphimxua')) return 100;
+  return 200;
+}
+
+function normalizeStreamKey(stream) {
+  if (!stream || !stream.url || typeof stream.url !== 'string') return null;
+  const raw = stream.url.trim();
+  try {
+    const u = new URL(raw);
+    const targetUrl = u.searchParams.get('url');
+    if (targetUrl) {
+      return `target:${targetUrl}`;
+    }
+    return `url:${raw}`;
+  } catch {
+    return `url:${raw}`;
+  }
+}
+
+async function handleStream(req, res) {
+  const rawId = req.params.id || '';
+  const rawType = req.params.type || 'movie';
+  const id = rawId.replace(/\.json$/i, '');
+  const type = rawType.replace(/\.json$/i, '');
   const config = getConfig(req);
   const proxyBase = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`.replace(/\/$/, '');
 
@@ -572,7 +846,7 @@ router.get('/stream/:type/:id.json', async (req, res) => {
       season  = parts[1] ? parseInt(parts[1], 10) : null;
       episode = parts[2] ? parseInt(parts[2], 10) : null;
 
-      // Lấy canonical metadata qua Cinemeta
+      // Lấy canonical metadata qua Cinemeta (24h LRU cache)
       try {
         const cineMeta = await resolveCinemeta(type, imdbId);
         if (cineMeta) {
@@ -601,21 +875,62 @@ router.get('/stream/:type/:id.json', async (req, res) => {
       }
     } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
       const withoutPrefix = id.replace(/^vsmov[_:]/, '');
-      slug = withoutPrefix;
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        season = parseInt(parts[1], 10);
+        episode = parseInt(parts[2], 10);
+      }
+    } else if (id.startsWith('stp:') || id.startsWith('stp_')) {
+      const withoutPrefix = id.replace(/^stp[_:]/, '');
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        season = parseInt(parts[1], 10);
+        episode = parseInt(parts[2], 10);
+      }
+    } else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
+      const withoutPrefix = id.replace(/^hh3d[_:]/, '');
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        season = parseInt(parts[1], 10);
+        episode = parseInt(parts[2], 10);
+      }
+    } else if (id.startsWith('yan:') || id.startsWith('yan_')) {
+      const withoutPrefix = id.replace(/^yan[_:]/, '');
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        season = parseInt(parts[1], 10);
+        episode = parseInt(parts[2], 10);
+      }
+    } else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
+      const withoutPrefix = id.replace(/^clbpx[_:]/, '');
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        season = parseInt(parts[1], 10);
+        episode = parseInt(parts[2], 10);
+      }
     } else {
       slug = id;
     }
 
     const payload = { imdbId, type, title, year, genres, aliases, season, episode, slug, proxyBase };
 
-    // Lọc danh sách provider theo config người dùng
+    // Lọc danh sách provider theo config người dùng theo thứ tự ưu tiên
     const activeProviderKeys = (config.providers || []).filter((p) => ALL_PROVIDERS[p]);
-    const providersToRun = (activeProviderKeys.length > 0 ? activeProviderKeys : ['nguonc', 'kkphim', 'vsmov'])
+    const keysToUse = activeProviderKeys.length > 0 ? activeProviderKeys : PROVIDER_ORDER;
+    const providersToRun = keysToUse
+      .filter((k) => ALL_PROVIDERS[k])
       .map((k) => ALL_PROVIDERS[k]);
 
-    // CHẠY SONG SONG BẤT ĐỒNG BỘ với Promise.allSettled
+    // CHẠY SONG SONG BẤT ĐỒNG BỘ với Promise.allSettled & strict 4000ms timeout per provider
     const results = await Promise.allSettled(
-      providersToRun.map((provider) => provider.getStreams(payload))
+      providersToRun.map((provider) =>
+        withTimeout(provider.getStreams(payload), 4000, provider.name || provider.id || 'Provider')
+      )
     );
 
     const mergedStreams = [];
@@ -623,40 +938,52 @@ router.get('/stream/:type/:id.json', async (req, res) => {
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
         for (const item of r.value) {
           if (!item || typeof item !== 'object') continue;
+          if (!item.url || typeof item.url !== 'string' || !item.url.trim()) continue;
 
-          // Standardize and sanitize per R3 Stremio Stream Protocol
+          // Standardize and sanitize per Stremio Stream Protocol
           const sanitized = {
             name: item.name || 'VIP Movies 🎬',
             title: item.title ? String(item.title).replace(/#/g, '') : 'VIP Server',
+            url: String(item.url).trim(),
             behaviorHints: {
               notSupported: false,
               bingeGroup: item.behaviorHints?.bingeGroup || `stream-${slug || imdbId || 'main'}`,
               ...(item.behaviorHints || {}),
             },
           };
-
-          // Strict exclusivity: url (In-App Direct Play) vs externalUrl (Embed Player Fallback)
-          if (item.url) {
-            sanitized.url = item.url;
-            delete sanitized.externalUrl;
-            mergedStreams.push(sanitized);
-          } else if (item.externalUrl) {
-            sanitized.externalUrl = item.externalUrl;
-            delete sanitized.url;
-            mergedStreams.push(sanitized);
-          }
+          delete sanitized.externalUrl;
+          mergedStreams.push(sanitized);
         }
       }
     }
 
-    console.log(`[Stream Aggregator] id=${id} → Total ${mergedStreams.length} high-speed streams`);
+    // Sort streams: VSMOV 4K -> KKPhim -> NguonC -> Specialized
+    mergedStreams.sort((a, b) => getStreamPriority(a) - getStreamPriority(b));
 
-    sendJSON(res, { streams: mergedStreams });
+    // Deduplicate streams by normalized stream key
+    const seenKeys = new Set();
+    const uniqueStreams = [];
+    for (const stream of mergedStreams) {
+      const key = normalizeStreamKey(stream);
+      if (key && !seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueStreams.push(stream);
+      }
+    }
+
+    console.log(`[Stream Aggregator] id=${id} → Total ${uniqueStreams.length} high-speed streams`);
+
+    return sendJSON(res, { streams: uniqueStreams });
   } catch (err) {
     console.error(`[Stream Error] id=${id}`, err.message);
-    sendJSON(res, { streams: [] });
+    return sendJSON(res, { streams: [] });
   }
-});
+}
+
+router.get('/stream/:type/:id.json', handleStream);
+router.get('/stream/:type/:id', handleStream);
+router.get('/:config/stream/:type/:id.json', handleStream);
+router.get('/:config/stream/:type/:id', handleStream);
 
 // ─── Health check ─────────────────────────────────────────────
 router.get('/health', (req, res) => {

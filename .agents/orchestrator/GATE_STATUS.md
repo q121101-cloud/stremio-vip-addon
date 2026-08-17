@@ -1,35 +1,15 @@
-## Gate — Milestone 1 (Cinemeta Resolver & LRU Cache)
+# GATE STATUS — VIP Movies Addon Engine v1.5.0
 
-| Agent | Role | Verdict | Source |
-|---|---|---|---|
-| worker_m1 | teamwork_preview_worker | DONE (build passed) | handoff.md |
-| reviewer_m1_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| reviewer_m1_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| challenger_m1_1 | teamwork_preview_challenger | APPROVE | handoff.md |
-| challenger_m1_2 | teamwork_preview_challenger | REJECT (Uppercase IMDb ID normalization fix needed) | handoff.md |
-| auditor_m1 | teamwork_preview_auditor | CLEAN | handoff.md |
+| Milestone | Worker | Reviewer 1 | Reviewer 2 | Challenger 1 | Challenger 2 | Auditor | Gate Result |
+|---|---|---|---|---|---|---|---|
+| M1: HLS Proxy & Segment Rewriter | worker_m1_hls (DONE) | APPROVE | APPROVE | APPROVE | APPROVE | CLEAN | **PASS** |
+| M2: Multi-Provider Engine | worker_m2_remediation_2 (DONE) | APPROVE | APPROVE | APPROVE | N/A | CLEAN | **PASS** |
+| M3: Routing & 22 Catalogs | worker_m3_routing_catalogs (DONE) | APPROVE | APPROVE | APPROVE | APPROVE | CLEAN | **PASS** |
 
-Gate Result: **PASS WITH REFINEMENT** (Auditor CLEAN, Reviewers APPROVED, minor IMDb ID lowercasing refined in Milestone 3).
-
-## Gate — Milestone 3 (Stream Protocol Standardization & Aggregator Isolation)
-
-| Agent | Role | Verdict | Source |
-|---|---|---|---|
-| worker_m3 | teamwork_preview_worker | DONE (build passed) | handoff.md |
-| reviewer_m3_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| reviewer_m3_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| challenger_m3_1 | teamwork_preview_challenger | APPROVE (191/191 passed) | handoff.md |
-| challenger_m3_2 | teamwork_preview_challenger | APPROVE (43/43 passed) | handoff.md |
-| auditor_m3 | teamwork_preview_auditor | CLEAN | handoff.md |
-
-Gate Result: **PASS** (Auditor CLEAN, all Reviewers and Challengers APPROVED with 100% test pass rate).
-
-## Gate — Milestone 4 (Final Acceptance Verification, UI Validation & Git Deploy)
-
-| Agent | Role | Verdict | Source |
-|---|---|---|---|
-| worker_m4 | teamwork_preview_worker | DONE (367/367 tests passed, git commit created) | handoff.md |
-
-Gate Result: **PASS** (All acceptance criteria met, 100% test pass rate, git commit `8075ee5` recorded).
+### Milestone 3 Gate Evaluation
+- Reviewer 1 & 2: APPROVE (Routing mounting, 404 prevention, config decoding)
+- Challenger 1 & 2: APPROVE (Adversarial stress testing passed, 22 catalogs verified)
+- Auditor: CLEAN (0 hardcoding, authentic catalog declarations and provider mappings)
+- Gate Result: **PASS**
 
 

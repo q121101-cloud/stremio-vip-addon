@@ -1,54 +1,48 @@
-# BRIEFING — 2026-08-17T08:47:15Z
+# BRIEFING — 2026-08-17T15:33:00Z
 
 ## Mission
-Review Milestone 2 (HLS Proxy Anti-403 Optimization) in `src/routes/hls.js` against Requirement R2, verify correctness, security, edge cases, error handling, cache management, and run full test suites.
+Review Milestone 2 (Multi-Provider Architecture R2): examine 7 providers for error handling, network resilience, episode matching robustness, regex safety, and integrity violations, run provider & e2e test suites, and issue a verdict.
 
 ## 🔒 My Identity
-- Archetype: reviewer_and_adversarial_critic
+- Archetype: reviewer / critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m2_2
-- Original parent: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Milestone: M2 (HLS Proxy Anti-403 Optimization)
+- Original parent: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Milestone: Milestone 2 (Multi-Provider Architecture R2)
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Evidence-based review with independent verification and stress testing
-- Check integrity violations (hardcoded test results, facade implementations, bypassed tasks)
+- Actively check for integrity violations: hardcoded test results, facade implementations, bypassed tasks, fabricated logs/attestation
+- Follow 5-Component Handoff Protocol
 
 ## Current Parent
-- Conversation ID: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Updated: 2026-08-17T08:47:15Z
+- Conversation ID: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Updated: 2026-08-17T15:33:00Z
 
 ## Review Scope
-- **Files to review**: `src/routes/hls.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md (§R2)
-- **Review criteria**: Correctness, dynamic ref propagation, upstream anti-403 headers, playlist rewriting, segment streaming, error handling & timeout, caching, security/CORS/MIME, tests
+- **Files to review**: `src/providers/*`, `src/routes/hls.js`, `src/handlers.js`, `src/index.js`, `tests/*`, `ORIGINAL_REQUEST.md`
+- **Interface contracts**: Standard provider interface (`id`, `label`, `search`, `getDetail`, `getCatalog`, `getStreams`), zero `externalUrl` invariant, anti-403 Base64URL encapsulation
+- **Review criteria**: Correctness, resilience to timeout/network failure, episode matching robustness, regex safety, integrity, test verification
 
 ## Review Checklist
-- **Items reviewed**: `src/routes/hls.js`, `PROJECT.md`, `ORIGINAL_REQUEST.md`, `worker_m2/handoff.md`, `tests/empirical_m2_reviewer2.test.js`, `tests/test_live_kkphim_proxy.js`, `tests/e2e.test.js`
+- **Items reviewed**: All 7 providers (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`), `src/handlers.js`, `src/routes/hls.js`, `tests/m2_providers.test.js`, `tests/verify_playback.js`, `tests/e2e.test.js`, `tests/m2_challenger_empirical.test.js`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims verified with unit, integration, and live network tests.
+- **Unverified claims**: None. All test outputs and stream downloads independently verified.
 
 ## Attack Surface
-- **Hypotheses tested**:
-  1. Dynamic `ref` propagation with Base64URL vs raw vs protocol-less domain -> PASS
-  2. Fallback to `SOURCE_REFERERS` when `ref` is omitted -> PASS
-  3. Master & media playlist tag rewriting (`EXT-X-STREAM-INF`, `EXTINF`, `EXT-X-MEDIA`, `EXT-X-KEY`, `EXT-X-MAP`, `EXT-X-PART`, `EXT-X-PRELOAD-HINT`) -> PASS
-  4. Segment streaming binary pipe, CORS (`*`), and MIME (`video/mp2t` / `application/octet-stream`) -> PASS
-  5. Error handling on 400, 404, 500, network timeouts -> PASS
-  6. LRU Cache hit avoiding duplicate upstream requests -> PASS
-  7. Live end-to-end playback of KKPhim HLS stream (`cuu-mon` -> 946KB TS segment) -> PASS
+- **Hypotheses tested**: 
+  - Timeout resilience: Verified 5000ms timeout across all providers and `Promise.allSettled` isolation in stream aggregation.
+  - Regex ReDoS: Verified regex safety with `escapeRegExp` in all episode matching routines.
+  - Stream Protocol compliance: Verified strict zero `externalUrl` invariant and in-app HLS Proxy URL generation.
+  - Real Video TS Chunk Download: Verified 3.42MB binary segment download with MPEG-TS sync byte 0x47 and HTTP Range 206 support.
 - **Vulnerabilities found**: None.
 - **Untested angles**: None.
 
 ## Key Decisions Made
-- Confirmed full compliance with Requirement R2 and issued explicit verdict APPROVE.
+- Confirmed full compliance with Milestone 2 requirements and issued APPROVE verdict.
 
 ## Artifact Index
-- `.agents/reviewer_m2_2/DISPATCH.md` — Incoming dispatch log
-- `.agents/reviewer_m2_2/BRIEFING.md` — Agent state memory
-- `.agents/reviewer_m2_2/progress.md` — Progress tracker
-- `.agents/reviewer_m2_2/handoff.md` — Final review handoff report
-- `tests/empirical_m2_reviewer2.test.js` — Empirical test harness (15 tests)
-- `tests/test_live_kkphim_proxy.js` — Live stream end-to-end verification script
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m2_2/DISPATCH.md` — Dispatch log
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m2_2/progress.md` — Progress log
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m2_2/handoff.md` — Final review handoff report

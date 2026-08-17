@@ -9,8 +9,10 @@
  */
 
 const http = require('http');
+const app = require('./index');
 
-const BASE_URL = `http://localhost:${process.env.PORT || 7000}`;
+let BASE_URL = `http://127.0.0.1:${process.env.PORT || 7000}`;
+let ephemeralServer = null;
 let passed = 0;
 let failed = 0;
 
@@ -51,9 +53,16 @@ function assert(condition, message) {
 
 // ─── Tests ────────────────────────────────────────────────────
 async function runTests() {
+  // Start ephemeral server if port 7000 isn't already our target
+  ephemeralServer = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const port = ephemeralServer.address().port;
+  BASE_URL = `http://127.0.0.1:${port}`;
+
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║         🧪  NguonC Addon - Integration Tests         ║');
+  console.log('║         🧪  VIP Movies Addon - Integration Tests     ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log(`📡 Base URL: ${BASE_URL}`);
   console.log('');
@@ -67,18 +76,19 @@ async function runTests() {
       res.headers['access-control-allow-origin'] === '*',
       'CORS header: Access-Control-Allow-Origin: *'
     );
-    assert(res.body.id === 'org.nguonc.stremio.addon', `Manifest ID đúng`);
+    assert(res.body.id === 'org.vipmovies.stremio.addon' || res.body.id === 'org.nguonc.stremio.addon', `Manifest ID đúng`);
     assert(Array.isArray(res.body.resources), 'resources là mảng');
-    assert(res.body.resources.includes('catalog'), 'resources có catalog');
-    assert(res.body.resources.includes('meta'), 'resources có meta');
-    assert(res.body.resources.includes('stream'), 'resources có stream');
+    const resourceNames = res.body.resources.map((r) => (typeof r === 'string' ? r : r?.name));
+    assert(resourceNames.includes('catalog'), 'resources có catalog');
+    assert(resourceNames.includes('meta'), 'resources có meta');
+    assert(resourceNames.includes('stream'), 'resources có stream');
     assert(Array.isArray(res.body.types), 'types là mảng');
     assert(res.body.types.includes('movie'), 'types có movie');
     assert(res.body.types.includes('series'), 'types có series');
     assert(Array.isArray(res.body.catalogs), 'catalogs là mảng');
     assert(res.body.catalogs.length >= 2, 'Có ít nhất 2 catalog');
     assert(Array.isArray(res.body.idPrefixes), 'idPrefixes là mảng');
-    assert(res.body.idPrefixes.includes('nguonc:'), 'idPrefixes có "nguonc:"');
+    assert(res.body.idPrefixes.some((p) => p.includes('nguonc')), 'idPrefixes có "nguonc"');
   } catch (err) {
     console.log(`  ❌ Lỗi: ${err.message}`);
     failed++;
@@ -93,7 +103,7 @@ async function runTests() {
     assert(Array.isArray(res.body.metas), '"metas" là mảng');
     if (res.body.metas.length > 0) {
       const first = res.body.metas[0];
-      assert(first.id && first.id.startsWith('nguonc:'), 'ID có prefix "nguonc:"');
+      assert(first.id && (first.id.includes('nguonc') || first.id.includes('vsmov') || first.id.includes('kkphim')), 'ID có provider prefix');
       assert(first.type === 'movie', 'Type là "movie"');
       assert(first.name, 'Có trường name');
       assert(first.poster, 'Có trường poster');
@@ -111,7 +121,7 @@ async function runTests() {
     assert(Array.isArray(res.body.metas), '"metas" là mảng');
     if (res.body.metas.length > 0) {
       const first = res.body.metas[0];
-      assert(first.id && first.id.startsWith('nguonc:'), 'ID có prefix "nguonc:"');
+      assert(first.id && (first.id.includes('nguonc') || first.id.includes('vsmov') || first.id.includes('kkphim')), 'ID có provider prefix');
       assert(first.type === 'series', 'Type là "series"');
     }
   } catch (err) {
@@ -244,8 +254,9 @@ async function runTests() {
   } else {
     console.log(`║  ⚠️  Có ${failed} test(s) thất bại.`.padEnd(55) + '║');
   }
-  console.log('╚══════════════════════════════════════════════════════╝');
-  console.log('');
+  if (ephemeralServer) {
+    try { ephemeralServer.close(); } catch {}
+  }
 
   process.exit(failed > 0 ? 1 : 0);
 }

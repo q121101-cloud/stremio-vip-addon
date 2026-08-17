@@ -1,19 +1,20 @@
 ## Current Status
-Last visited: 2026-08-17T03:48:45Z
+Last visited: 2026-08-18T03:22:45Z
+- [x] Initialized DISPATCH.md, BRIEFING.md, and Heartbeat Cron
+- [x] Phase 0: Survey codebase and requirements (3 parallel Explorers completed)
+- [x] Phase 1: Create PROJECT.md, TEST_INFRA.md, GATE_STATUS.md, DEAD_ENDS.md
+- [x] Phase 2: Dispatched Dual Tracks (E2E Test Writer + M1 HLS Worker)
+- [x] Milestone 1: HLS Proxy & Segment Rewriter R1 — GATE PASSED
+- [x] Milestone 2: Multi-Provider Architecture R2 — GATE PASSED (Iteration 2)
+- [x] Milestone 3: Routing, 404 Prevention & 22 Catalogs R3, R4 — GATE PASSED
+- [ ] Milestone 4: Fail-Safe Stream Aggregator R5 — In Progress
+- [ ] Milestone 5: E2E Playback Verification & Final Gate R6 — Ready for Gen 2
+- [ ] Milestone 6: UI, Versioning & Deployment R7 — Ready for Gen 2
+
+## Succession Event
+- Succession executed: Generation 2 active.
 
 ## Iteration Status
-Current iteration: 2 / 32
-
-- [x] Received dispatch and recorded ORIGINAL_REQUEST.md
-- [x] Initialized BRIEFING.md and progress.md
-- [x] Phase 0: Survey codebase with 3 parallel Explorers
-- [x] Establish PROJECT.md (Architecture, Feature Inventory, Milestones, Contracts)
-- [x] Milestone Execution & E2E Testing Track
-  - [x] E2E Testing Track completed (`TEST_READY.md` published)
-  - [x] Milestone 1 (R1: Cinemeta Resolver & LRU Cache) Gate Passed
-  - [x] Milestone 2 (R2: Multi-Provider Isolation) Gate Passed
-  - [x] Milestone 3 (R3: Stream Protocol Standardization & Aggregator Isolation) Gate Passed
-  - [x] Milestone 4 (R4: Acceptance Verification & Deploy) Gate Passed
-- [x] Final Verification & Deployment (Git Commit `8075ee5` recorded on `main`)
+Current iteration: 5 / 32
 
 

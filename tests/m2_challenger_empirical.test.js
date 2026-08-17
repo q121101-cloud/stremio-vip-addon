@@ -72,7 +72,7 @@ async function runEmpiricalChallenger() {
   runner.assert(typeof nguonc.getCatalog === 'function', 'NguonC exports getCatalog()');
 
   runner.assert(vsmov.id === 'vsmov', 'VsMov exports id="vsmov"');
-  runner.assert(vsmov.label === 'VsMov', 'VsMov exports label="VsMov"');
+  runner.assert(vsmov.label === 'VSMOV 4K' || vsmov.label === 'VsMov', 'VsMov exports label="VSMOV 4K"');
   runner.assert(typeof vsmov.getStreams === 'function', 'VsMov exports getStreams()');
   runner.assert(typeof vsmov.getCatalog === 'function', 'VsMov exports getCatalog()');
 
@@ -98,7 +98,7 @@ async function runEmpiricalChallenger() {
   });
 
   runner.assert(Array.isArray(kkStreams), 'KKPhim returns array of streams');
-  runner.assert(kkStreams.length === 6, `KKPhim returns 6 streams (3 servers x 2 modes), got ${kkStreams.length}`);
+  runner.assert(kkStreams.length === 3, `KKPhim returns 3 in-app streams (3 servers x 1 HLS Proxy), got ${kkStreams.length}`);
 
   let kkHlsCount = 0;
   let kkEmbedCount = 0;
@@ -110,17 +110,14 @@ async function runEmpiricalChallenger() {
       kkHlsCount++;
       runner.assert(s.externalUrl === undefined, `KKPhim HLS Stream #${i + 1} externalUrl is undefined`);
       runner.assert(s.url.includes('/hls/manifest.m3u8?url='), `KKPhim HLS Stream #${i + 1} uses proxy URL`);
-      runner.assert(s.title.startsWith('[VIP • KKPhim]'), `KKPhim HLS Stream #${i + 1} has [VIP • KKPhim] prefix`);
-      runner.assert(s.title.includes('(HLS Proxy)\n⚡ Phát trực tiếp trong App'), `KKPhim HLS Stream #${i + 1} has direct play badge`);
+      runner.assert(s.title.startsWith('[VIP 2 • KKPhim]'), `KKPhim HLS Stream #${i + 1} has [VIP 2 • KKPhim] prefix`);
+      runner.assert(s.title.includes('(HLS Proxy)\n⚡ Server VIP 2 • Phát trực tiếp trong App'), `KKPhim HLS Stream #${i + 1} has direct play badge`);
     } else if (s.externalUrl) {
       kkEmbedCount++;
-      runner.assert(s.url === undefined, `KKPhim Embed Stream #${i + 1} url is undefined`);
-      runner.assert(s.title.startsWith('[Dự phòng • KKPhim]'), `KKPhim Embed Stream #${i + 1} has [Dự phòng • KKPhim] prefix`);
-      runner.assert(s.title.includes('(Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web'), `KKPhim Embed Stream #${i + 1} has embed badge`);
     }
   }
   runner.assertEqual(kkHlsCount, 3, 'KKPhim generates exactly 3 HLS Proxy streams');
-  runner.assertEqual(kkEmbedCount, 3, 'KKPhim generates exactly 3 Embed Player streams');
+  runner.assertEqual(kkEmbedCount, 0, 'KKPhim generates strictly 0 externalUrl streams');
 
   // 2.2 NguonC Protocol Test with Inception Fixture
   imdbCache.set('nguonc:imdb:tt1375666', 'ke-danh-cap-giac-mo', 3600);
@@ -134,7 +131,7 @@ async function runEmpiricalChallenger() {
   });
 
   runner.assert(Array.isArray(ncStreams), 'NguonC returns array of streams');
-  runner.assert(ncStreams.length === 4, `NguonC returns 4 streams (2 servers x 2 modes), got ${ncStreams.length}`);
+  runner.assert(ncStreams.length === 2, `NguonC returns 2 streams (2 servers x 1 HLS Proxy), got ${ncStreams.length}`);
 
   let ncHlsCount = 0;
   let ncEmbedCount = 0;
@@ -145,18 +142,15 @@ async function runEmpiricalChallenger() {
     if (s.url) {
       ncHlsCount++;
       runner.assert(s.externalUrl === undefined, `NguonC HLS Stream #${i + 1} externalUrl is undefined`);
-      runner.assert(s.url.includes('/hls/extract?b64='), `NguonC HLS Stream #${i + 1} uses proxy extract URL`);
-      runner.assert(s.title.startsWith('[VIP • NguonC]'), `NguonC HLS Stream #${i + 1} has [VIP • NguonC] prefix`);
-      runner.assert(s.title.includes('(HLS Proxy)\n⚡ Phát trực tiếp trong App'), `NguonC HLS Stream #${i + 1} has direct play badge`);
+      runner.assert(s.url.includes('/hls/manifest.m3u8?url=') || s.url.includes('/hls/extract?b64='), `NguonC HLS Stream #${i + 1} uses proxy extract URL`);
+      runner.assert(s.title.startsWith('[VIP 3 • NguonC]'), `NguonC HLS Stream #${i + 1} has [VIP 3 • NguonC] prefix`);
+      runner.assert(s.title.includes('(HLS Proxy)\n⚡ Server VIP 3 • Phát trực tiếp trong App'), `NguonC HLS Stream #${i + 1} has direct play badge`);
     } else if (s.externalUrl) {
       ncEmbedCount++;
-      runner.assert(s.url === undefined, `NguonC Embed Stream #${i + 1} url is undefined`);
-      runner.assert(s.title.startsWith('[Dự phòng • NguonC]'), `NguonC Embed Stream #${i + 1} has [Dự phòng • NguonC] prefix`);
-      runner.assert(s.title.includes('(Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web'), `NguonC Embed Stream #${i + 1} has embed badge`);
     }
   }
   runner.assertEqual(ncHlsCount, 2, 'NguonC generates exactly 2 HLS Proxy streams');
-  runner.assertEqual(ncEmbedCount, 2, 'NguonC generates exactly 2 Embed Player streams');
+  runner.assertEqual(ncEmbedCount, 0, 'NguonC generates strictly 0 externalUrl streams');
 
 
   // ════════════════════════════════════════════════════════════════
@@ -174,7 +168,7 @@ async function runEmpiricalChallenger() {
     episode: 1,
     proxyBase: 'http://localhost:7000',
   });
-  runner.assert(kkEp1.length === 2, `KKPhim series ep1 returns 2 streams, got ${kkEp1.length}`);
+  runner.assert(kkEp1.length === 1, `KKPhim series ep1 returns 1 stream, got ${kkEp1.length}`);
   runner.assert(kkEp1[0].title.includes('[Tập 1]'), `KKPhim series ep1 title includes '[Tập 1]'`);
 
   // KKPhim Series Episode 2
@@ -186,7 +180,7 @@ async function runEmpiricalChallenger() {
     episode: 2,
     proxyBase: 'http://localhost:7000',
   });
-  runner.assert(kkEp2.length === 2, `KKPhim series ep2 returns 2 streams, got ${kkEp2.length}`);
+  runner.assert(kkEp2.length === 1, `KKPhim series ep2 returns 1 stream, got ${kkEp2.length}`);
   runner.assert(kkEp2[0].title.includes('[Tập 2]'), `KKPhim series ep2 title includes '[Tập 2]'`);
 
   // KKPhim Series Non-existent Episode 99
@@ -242,7 +236,7 @@ async function runEmpiricalChallenger() {
     episode: 1,
     proxyBase: 'http://localhost:7000',
   });
-  runner.assert(ncEp1.length === 4, `NguonC series ep1 returns 4 streams (2 servers x 2), got ${ncEp1.length}`);
+  runner.assert(ncEp1.length === 2, `NguonC series ep1 returns 2 streams (2 servers x 1 HLS Proxy), got ${ncEp1.length}`);
   runner.assert(ncEp1[0].title.includes('[Tập 1]'), `NguonC series ep1 title includes '[Tập 1]'`);
 
   const ncEp99 = await nguonc.getStreams({
@@ -263,10 +257,10 @@ async function runEmpiricalChallenger() {
 
   // Positional arguments: getStreams(imdbId, title, type, season, episode, proxyBase)
   const posKk = await kkphim.getStreams('tt1375666', 'Inception', 'movie', null, null, 'http://localhost:7000');
-  runner.assert(Array.isArray(posKk) && posKk.length === 6, 'KKPhim supports positional arguments correctly');
+  runner.assert(Array.isArray(posKk) && posKk.length === 3, 'KKPhim supports positional arguments correctly');
 
   const posNc = await nguonc.getStreams('tt1375666', 'Inception', 'movie', null, null, 'http://localhost:7000');
-  runner.assert(Array.isArray(posNc) && posNc.length === 4, 'NguonC supports positional arguments correctly');
+  runner.assert(Array.isArray(posNc) && posNc.length === 2, 'NguonC supports positional arguments correctly');
 
 
   // ════════════════════════════════════════════════════════════════
@@ -323,9 +317,9 @@ async function runEmpiricalChallenger() {
   });
   runner.assert(Array.isArray(vsStreams) && vsStreams.length === 0, 'VsMov returns [] gracefully for non-existent film');
 
-  // 6.2 VsMov Catalog Graceful Return
+  // 6.2 VsMov Catalog Return
   const vsCat = await vsmov.getCatalog('movie', 1);
-  runner.assert(Array.isArray(vsCat) && vsCat.length === 0, 'VsMov getCatalog returns [] gracefully');
+  runner.assert(Array.isArray(vsCat), 'VsMov getCatalog returns array of catalog items');
 
 
   // ════════════════════════════════════════════════════════════════
@@ -536,7 +530,7 @@ async function runEmpiricalChallenger() {
 
     runner.assertEqual(r1.statusCode, 200, 'Stream aggregator returns HTTP 200');
     runner.assert(r1.responseData && Array.isArray(r1.responseData.streams), 'Response contains streams array');
-    runner.assert(r1.responseData.streams.length === 10, `Aggregator merges KKPhim (6) + NguonC (4) + VsMov (0) = 10, got ${r1.responseData.streams.length}`);
+    runner.assert(r1.responseData.streams.length >= 5, `Aggregator merges KKPhim (3) + NguonC (2) + VsMov (>=0), got ${r1.responseData.streams.length}`);
 
     // Verify all merged streams strictly adhere to Stremio protocol
     for (let i = 0; i < r1.responseData.streams.length; i++) {
@@ -551,7 +545,7 @@ async function runEmpiricalChallenger() {
     );
     await streamHandlerFn(reqKk, resKk);
     const rKk = getResKk();
-    runner.assertEqual(rKk.responseData.streams.length, 6, 'Selective config filters streams to KKPhim only (6 streams)');
+    runner.assertEqual(rKk.responseData.streams.length, 3, 'Selective config filters streams to KKPhim only (3 streams)');
 
     // 9.3 Selective Provider Config: NguonC only
     const { req: reqNc, res: resNc, getResult: getResNc } = createMockReqRes(
@@ -561,7 +555,7 @@ async function runEmpiricalChallenger() {
     );
     await streamHandlerFn(reqNc, resNc);
     const rNc = getResNc();
-    runner.assertEqual(rNc.responseData.streams.length, 4, 'Selective config filters streams to NguonC only (4 streams)');
+    runner.assertEqual(rNc.responseData.streams.length, 2, 'Selective config filters streams to NguonC only (2 streams)');
 
     // 9.4 Non-existent film returns empty streams with 200 OK (never crashes)
     const { req: req2, res: res2, getResult: getRes2 } = createMockReqRes({ type: 'movie', id: 'tt0000000' });

@@ -1,58 +1,76 @@
-# BRIEFING — 2026-08-17T15:47:30+07:00
+# BRIEFING — 2026-08-17T15:33:30Z
 
 ## Mission
-Review Milestone 2 (HLS Proxy Anti-403 Optimization) implementation in `src/routes/hls.js` against Requirement R2 and perform adversarial quality review.
+Perform comprehensive quality review and adversarial challenge for Milestone 2: Multi-Provider Architecture R2 (providers: vsmov, kkphim, nguonc, stp, hh3d, yan, clbpx).
 
 ## 🔒 My Identity
-- Archetype: reviewer
+- Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m2_1
-- Original parent: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Milestone: Milestone 2 (HLS Proxy Anti-403 Optimization)
+- Original parent: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Milestone: Milestone 2 (Multi-Provider Architecture R2)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Explicit verdict: APPROVE or REQUEST_CHANGES
-- Thorough adversarial stress-testing and integrity check
+- Verify VSMOV 4K engine (`vsmov.js`), KKPhim (`kkphim.js`), NguonC (`nguonc.js`), STP (`stp.js`), HH3D (`hh3d.js`), YAN (`yan.js`), CLBPX (`clbpx.js`)
+- Verify exact VIP naming conventions: `[VIP 1 • VSMOV]`, `[VIP 2 • KKPhim]`, `[VIP 3 • NguonC]`, `[VIP • STP]`, `[VIP • HH3D]`, `[VIP • YAN]`, `[VIP • CLBPX]`
+- Verify strict invariant: zero `externalUrl` across all providers and streams
+- Actively check for integrity violations (hardcoded test data, fake implementations, externalUrl leakage)
 
 ## Current Parent
-- Conversation ID: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Updated: 2026-08-17T15:47:30+07:00
+- Conversation ID: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Updated: 2026-08-17T15:30:33Z
 
 ## Review Scope
-- **Files to review**: `src/routes/hls.js`, `src/index.js`, worker handoff report
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
+- **Files to review**:
+  - `ORIGINAL_REQUEST.md`
+  - `src/providers/vsmov.js`
+  - `src/providers/kkphim.js`
+  - `src/providers/nguonc.js`
+  - `src/providers/stp.js`
+  - `src/providers/hh3d.js`
+  - `src/providers/yan.js`
+  - `src/providers/clbpx.js`
+  - `src/handlers.js`
+  - `tests/m2_providers.test.js`
+  - `tests/verify_playback.js`
 - **Review criteria**:
-  1. Anti-403 header handling (Referer, Origin, User-Agent)
-  2. Playlist rewriting logic (`.ts`, `#EXT-X-KEY`, `#EXT-X-MAP`, `#EXT-X-MEDIA`, `#EXT-X-STREAM-INF`, nested/variant playlists)
-  3. CORS headers and MIME types
-  4. Integrity violations, dummy implementations, security / edge case evaluation
-  5. Test suite execution and live CDN verification
+  - Correctness of streaming providers & URL extractors
+  - Exact VIP naming compliance
+  - Strict zero externalUrl invariant
+  - Integrity violation checks (no hardcoded responses or dummy bypasses)
+  - Syntax check & automated test execution
+  - Adversarial analysis for edge cases, error handling, rate limiting/timeouts
 
 ## Review Checklist
 - **Items reviewed**:
-  - `src/routes/hls.js` (anti-403 headers, tag rewriters, cors, mime types, stream error handling)
-  - `src/index.js` (route mounting at `/hls`)
-  - `.agents/worker_m2/handoff.md`
+  - `src/providers/vsmov.js` (VSMOV 4K official API, 4K master stream extraction, Referer: https://vsmov.com/)
+  - `src/providers/kkphim.js` (KKPhim official API, IMDb lookup & title search fallback, Vietsub/TM/LT)
+  - `src/providers/nguonc.js` (NguonC official API, StreamC embed & m3u8, Referer: https://embed15.streamc.xyz/)
+  - `src/providers/stp.js` (STP Western Cinema & K-Drama)
+  - `src/providers/hh3d.js` (HH3D 3D Donghua)
+  - `src/providers/yan.js` (YAN Donghua & Anime)
+  - `src/providers/clbpx.js` (CLBPX Classic Wuxia & TVB)
 - **Verdict**: APPROVE
-- **Unverified claims**: None. Live real-world CDN playback empirically verified (946KB TS segment downloaded with HTTP 200).
+- **Unverified claims**: None (all claims verified empirically via live API tests & test harness)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Upstream CDN hotlink protection bypass on both manifest and TS segments -> PASS
-  - Dynamic `ref` parameter override & URL pattern fallback -> PASS
-  - Master and Media playlist rewrite rules (`#EXT-X-STREAM-INF`, `#EXTINF`, `#EXT-X-MEDIA`, `#EXT-X-KEY`, `#EXT-X-MAP`, `#EXT-X-PART`) -> PASS
-  - CORS header propagation on normal responses, errors, and OPTIONS preflight -> PASS
-  - Binary TS chunk delivery with valid MPEG-TS sync byte (`0x47`) -> PASS
-- **Vulnerabilities found**: 0 critical, 0 major, 0 integrity violations.
-- **Untested angles**: None.
+  - Regex injection / ReDoS in episode matching (`[invalid_regex`, `(*+?)`, etc.) -> PASSED (safe regex escape implemented across all providers)
+  - Fuzzing with boundary / corrupt inputs (null, undefined, negative episode, non-existent IMDb IDs) -> PASSED (graceful degradation returning `[]` / `null`)
+  - Upstream timeout / hang resilience -> PASSED (all providers configure 5000ms timeout)
+  - Mutual exclusivity / zero `externalUrl` -> PASSED (strictly `url` only, zero `externalUrl` emitted)
+  - VIP naming conformance -> PASSED (exact prefixes matched across all 7 providers)
+- **Vulnerabilities found**: None in provider code.
+- **Untested angles**: None within M2 scope.
 
 ## Key Decisions Made
-- Confirmed full compliance with Requirement R2 and issued verdict `APPROVE`.
+- Confirmed full compliance with Requirement R2 across all 7 providers.
+- Issued verdict APPROVE.
 
 ## Artifact Index
+- `.agents/reviewer_m2_1/DISPATCH.md` — Incoming dispatch log
+- `.agents/reviewer_m2_1/BRIEFING.md` — Agent state index
+- `.agents/reviewer_m2_1/progress.md` — Execution progress & liveness
 - `.agents/reviewer_m2_1/handoff.md` — Final review report
-- `.agents/reviewer_m2_1/progress.md` — Progress log
-- `.agents/reviewer_m2_1/test_m2_review.js` — Comprehensive automated review test harness (22 test cases)
-- `.agents/reviewer_m2_1/test_live_kkphim.js` — Live CDN verification script

@@ -49,7 +49,7 @@ async function testLiveKKPhim() {
     let targetSegmentUrl = null;
 
     for (const line of lines) {
-      if (line.startsWith('http://') && line.includes('/hls/ts')) {
+      if (line.startsWith('http://') && (line.includes('/hls/segment.ts') || line.includes('/hls/ts'))) {
         targetSegmentUrl = line;
         break;
       }
@@ -60,7 +60,7 @@ async function testLiveKKPhim() {
         assert.strictEqual(subRes.status, 200);
         const subLines = subRes.data.split('\n').map((l) => l.trim()).filter(Boolean);
         for (const sLine of subLines) {
-          if (sLine.startsWith('http://') && sLine.includes('/hls/ts')) {
+          if (sLine.startsWith('http://') && (sLine.includes('/hls/segment.ts') || sLine.includes('/hls/ts'))) {
             targetSegmentUrl = sLine;
             break;
           }
@@ -79,7 +79,7 @@ async function testLiveKKPhim() {
     });
     assert.strictEqual(segRes.status, 200);
     assert.strictEqual(segRes.headers['access-control-allow-origin'], '*');
-    assert.strictEqual(segRes.headers['content-type'], 'video/mp2t');
+    assert.ok((segRes.headers['content-type'] || '').toLowerCase().includes('video/mp2t'), `Expected video/mp2t, got ${segRes.headers['content-type']}`);
     assert.ok(segRes.data.length > 50000, `Segment buffer size must be > 50KB, got ${segRes.data.length} bytes`);
     console.log(`Successfully received valid TS segment: ${segRes.data.length} bytes (HTTP 200)`);
 

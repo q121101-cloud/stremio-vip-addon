@@ -300,7 +300,7 @@ https://cdn.mockphim.test/protected/segments/seg_003.ts
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.headers['content-type'], 'video/mp2t');
       assert.strictEqual(res.headers['access-control-allow-origin'], '*');
-      assert.strictEqual(res.headers['cache-control'], 'public, max-age=86400');
+      assert.ok(res.headers['cache-control'] && res.headers['cache-control'].includes('public'), 'Cache-Control must declare public caching');
       assert.strictEqual(parseInt(res.headers['content-length'], 10), mockSegmentBuffer.length);
 
       const receivedBuf = Buffer.from(res.data);

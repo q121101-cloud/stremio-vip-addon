@@ -1,59 +1,59 @@
-# BRIEFING — 2026-08-17T08:56:30Z
+# BRIEFING — 2026-08-17T20:21:40Z
 
 ## Mission
-Forensic audit of Milestone 3: E2E Stream Playback Test & Self-Debug Loop for stremio-nguonc-addon.
+Forensic integrity audit for Milestone 3 (Routing & 22 Catalogs K20 Standard). Verify code authenticity, genuine provider routing, config handling, and test veracity.
 
 ## 🔒 My Identity
 - Archetype: forensic_auditor
 - Roles: critic, specialist, auditor
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_m3
-- Original parent: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Target: Milestone 3: E2E Stream Playback Test & Self-Debug Loop
+- Original parent: a2adf213-6fb8-4af8-9198-0d1e08577c8a
+- Target: Milestone 3 (Routing & 22 Catalogs K20 Standard)
 
 ## 🔒 Key Constraints
 - Audit-only — do NOT modify implementation code
 - Trust NOTHING — verify everything independently
-- Check for hardcoded test results, mocked binary buffers, dummy test passes, fabricated data, or shortcuts
-- Verify live upstream server connections, real manifests, and real TS chunks
+- Check for hardcoded responses, static arrays posing as live scrapers, facade implementations, or fake verification strings
+- ORIGINAL_REQUEST.md always takes precedence
 
 ## Current Parent
-- Conversation ID: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Updated: 2026-08-17T08:56:30Z
+- Conversation ID: a2adf213-6fb8-4af8-9198-0d1e08577c8a
+- Updated: 2026-08-17T20:21:40Z
 
 ## Audit Scope
-- **Work product**: `tests/test_kkphim_playback.js` and associated source files (`src/providers/kkphim.js`, `src/routes/hls.js`, `src/handlers.js`)
+- **Work product**: `src/routes/manifest.js`, `src/manifest.js`, `src/config.js`, `src/handlers.js`, `src/index.js`, and associated test suites
 - **Profile loaded**: General Project
 - **Audit type**: forensic integrity check
-- **Integrity mode**: Development Mode (per ORIGINAL_REQUEST.md)
+
+## Attack Surface
+- **Hypotheses tested**:
+  - Check if 22 catalogs are static mock arrays: REJECTED (catalogs map to live upstream provider endpoints).
+  - Check if config decoding/encoding is a facade: REJECTED (supports Base64URL, Base64, JSON, URI-encoded JSON, URLSearchParams).
+  - Check if 404 search prevention works authentically: CONFIRMED (safe try/catch and fallback empty array responses with HTTP 200).
+  - Check if /:config/ route prefixes work without stripping path segments: CONFIRMED.
+- **Vulnerabilities found**: None in Milestone 3 deliverable.
+- **Untested angles**: Live external upstream rate limiting (handled gracefully by timeout & error boundaries).
+
+## Loaded Skills
+- None loaded
 
 ## Audit Progress
 - **Phase**: reporting
 - **Checks completed**:
-  1. Constraint verification against ORIGINAL_REQUEST.md & PROJECT.md
-  2. Pre-populated artifact and log check (`find . -name '*.log' -o -name '*result*' -o -name '*output*'`) -> 0 found
-  3. Static code analysis & mock inspection for `test_kkphim_playback.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `src/handlers.js` -> 0 mocks / 0 facades
-  4. Behavioral test execution of `node tests/test_kkphim_playback.js` -> 100% pass across all 3 test cases
-  5. Independent empirical upstream inspection (phimapi.com -> s1.phim1280.tv master m3u8 -> variant sub-manifest -> TS binary segment of 946,204 bytes with 0x47 sync byte)
-  6. Phase 2 Mode-specific flagging (Development mode) -> 0 violations
+  - Read ORIGINAL_REQUEST.md and Worker M3 handoff.md
+  - Static source code analysis across all target files
+  - Verification of 22 catalogs K20 standard mapping to provider functions
+  - Verification of config encoding/decoding/filtering logic
+  - Execution of test suites (`npm test`, `test_routing_and_22_catalogs.js`, `m3_verification.test.js`, `e2e.test.js`, `verify_playback.js`, `challenger_m3_2_concurrency_and_edge.test.js`)
+  - Absence of hardcoded test outputs, pre-populated logs, or facade implementations
 - **Checks remaining**: None
-- **Findings so far**: CLEAN — 100% genuine implementation and live E2E verification
-
-## Attack Surface
-- **Hypotheses tested**:
-  - H1: Test script mocks HTTP requests with dummy buffer -> REFUTED. Script starts real Express server, makes real axios network calls to phimapi.com and s1.phim1280.tv.
-  - H2: Proxy fakes manifest rewriting -> REFUTED. Manifest rewriting parses live m3u8 lines and encodes live upstream URLs in Base64URL.
-  - H3: Segment proxy returns fabricated dummy bytes -> REFUTED. Real MPEG-TS chunk streamed from upstream CDN (946,204 bytes, MPEG-TS sync byte 0x47 at byte 0 and byte 188).
-- **Vulnerabilities found**: None in Milestone 3 deliverable (`tests/test_kkphim_playback.js`).
-- **Untested angles**: None within M3 scope.
-
-## Loaded Skills
-None
+- **Findings so far**: CLEAN
 
 ## Key Decisions Made
-- Confirmed verdict: CLEAN. Full integrity verification passed.
+- Confirmed Milestone 3 code is authentic, functional, and fully adheres to all K20 catalog, routing, and 404 prevention specifications.
+- Verdict: CLEAN.
 
 ## Artifact Index
-- DISPATCH.md — Dispatch log
-- BRIEFING.md — Persistent working state
-- progress.md — Audit execution progress
-- handoff.md — Final audit verdict and report
+- DISPATCH.md — Assignment instructions
+- progress.md — Audit execution log
+- handoff.md — Final Forensic Audit Report

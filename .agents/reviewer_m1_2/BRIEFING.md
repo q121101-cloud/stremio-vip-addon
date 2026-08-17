@@ -1,53 +1,61 @@
-# BRIEFING — 2026-08-17T08:35:30Z
+# BRIEFING — 2026-08-17T22:04:00Z
 
 ## Mission
-Independently review `src/providers/kkphim.js` against Requirement R1 for Milestone 1 (KKPhim Provider In-App Stream Format) with quality assessment and adversarial challenge.
+Adversarial & Quality Review of Milestone 1 (HLS Proxy & Full Segment Rewriter R1) in src/routes/hls.js.
 
 ## 🔒 My Identity
-- Archetype: reviewer_and_adversarial_critic
+- Archetype: Reviewer & Adversarial Critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_2
-- Original parent: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Milestone: Milestone 1 (KKPhim Provider In-App Stream Format)
+- Original parent: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Milestone: Milestone 1 (HLS Proxy & Full Segment Rewriter R1)
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Check for integrity violations (hardcoded test results, facade implementations, shortcuts, fake verifications)
-- Verify `src/providers/kkphim.js` conformance to Stremio Stream Protocol, R1 requirements, Base64URL encoding, no externalUrl
-- Write review to handoff.md with verdict APPROVE or REQUEST_CHANGES
+- Thoroughly check integrity violations, facade implementations, test cheating
+- Stress-test M3U8 rewriting edge cases, Referer headers, Range seeking, and error handling
 
 ## Current Parent
-- Conversation ID: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Updated: 2026-08-17T08:35:30Z
+- Conversation ID: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Updated: 2026-08-17T22:04:00Z
 
 ## Review Scope
-- **Files to review**: `src/providers/kkphim.js`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`
-- **Review criteria**: Correctness, robustness, edge case handling, Stremio Stream Protocol conformance, anti-cheat / integrity check
+- **Files to review**:
+  - `src/routes/hls.js`
+  - `ORIGINAL_REQUEST.md`
+  - Related test files: `tests/test_hls_worker_m1.js`, `tests/verify_playback.js`, `tests/test_hls_adversarial_m1_2.js`
+- **Interface contracts**: HLS RFC 8216 compliance, Express proxy endpoints, HTTP Range requests, CORS, upstream referer spoofing
+- **Review criteria**: correctness, edge-case coverage, security/integrity, streaming robustness, error handling
 
 ## Review Checklist
-- **Items reviewed**: `src/providers/kkphim.js`, `tests/e2e.test.js`, `tests/fixtures.js`, `PROJECT.md`, `ORIGINAL_REQUEST.md`
+- **Items reviewed**:
+  - `src/routes/hls.js` line-by-line review
+  - `tests/test_hls_worker_m1.js` execution
+  - `tests/verify_playback.js` execution
+  - `tests/test_hls_adversarial_m1_2.js` created and executed
+  - Integrity violation checks (no hardcoded fixtures, real stream piping)
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims independently verified via syntax checks, E2E tests, and custom adversarial test suites.
+- **Unverified claims**: None
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Movie server name sanitization (stripping `#`, handling missing/empty names)
-  - Multi-stage series episode matching (padded digits, word boundaries, slug vs name, index fallback, out-of-bounds requests)
-  - Strict absence of `externalUrl` property across all stream objects
-  - Base64URL encoding fidelity without `+`, `/`, `=` corruption
-  - Polymorphic function signatures (object vs positional vs IMDb ID string)
-- **Vulnerabilities found**: None in `src/providers/kkphim.js`.
-- **Untested angles**: Live external network calls to `phimapi.com` in sandboxed network environment (handled gracefully with caching and mock fixtures).
+  - Upstream CDN Referer spoofing & regex pattern matching (KKPhim, VSMOV, NguonC, StreamC, specialized CDNs) -> PASS
+  - Master M3U8 rewriting (4K, I-Frames, audio renditions, subtitle renditions, quoted/unquoted URIs) -> PASS
+  - Media M3U8 rewriting (EXT-X-KEY, EXT-X-MAP, EXT-X-PART, EXT-X-PRELOAD-HINT, relative & absolute URLs, disguised .png/.bin) -> PASS
+  - Key proxying (/hls/key) 16-byte AES-128 binary payload integrity -> PASS
+  - Segment proxying (/hls/segment.ts) >50KB delivery & 188-byte MPEG-TS packet sync (0x47) -> PASS
+  - HTTP Range 206 partial content seeking across byte offsets -> PASS
+  - Resilient error handling (400 on missing params, 502 on upstream 404/500/timeout, non-crashing) -> PASS
+- **Vulnerabilities found**: None blocking
+- **Untested angles**: None
 
 ## Key Decisions Made
-- Confirmed zero integrity violations in `src/providers/kkphim.js`.
-- Confirmed strict adherence to Requirement R1.
-- Issued verdict: `APPROVE`.
+- Confirmed full compliance with Milestone 1 R1 specifications and RFC 8216.
+- Issued APPROVE verdict.
 
 ## Artifact Index
-- `.agents/reviewer_m1_2/DISPATCH.md` — Received dispatch instructions
-- `.agents/reviewer_m1_2/BRIEFING.md` — Persistent briefing and review state
-- `.agents/reviewer_m1_2/progress.md` — Heartbeat progress tracker
-- `.agents/reviewer_m1_2/handoff.md` — Final review report and verdict
+- `.agents/reviewer_m1_2/BRIEFING.md` — persistent memory & state
+- `.agents/reviewer_m1_2/progress.md` — liveness heartbeat & task progress
+- `.agents/reviewer_m1_2/handoff.md` — final 5-component review & critique report
+- `tests/test_hls_adversarial_m1_2.js` — adversarial test harness

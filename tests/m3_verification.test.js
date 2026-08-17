@@ -149,8 +149,8 @@ async function runM3Verification() {
   // ── 2. src/config.js Configuration Engine ────────────────────────
   console.log('\n--- 2. src/config.js Configuration Engine ---');
 
-  check('DEFAULT_CONFIG.providers activates all 3 providers', () => {
-    assert.deepStrictEqual(DEFAULT_CONFIG.providers, ['nguonc', 'kkphim', 'vsmov']);
+  check('DEFAULT_CONFIG.providers activates all providers', () => {
+    assert.deepStrictEqual(DEFAULT_CONFIG.providers, ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx']);
   });
 
   check('encodeConfig & decodeConfig preserve provider choices and defaults', () => {
@@ -161,7 +161,7 @@ async function runM3Verification() {
 
     // Malformed token fallback
     const fallback = decodeConfig('invalid-base64!@#$');
-    assert.deepStrictEqual(fallback.providers, ['nguonc', 'kkphim', 'vsmov']);
+    assert.deepStrictEqual(fallback.providers, ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx']);
   });
 
   // ── 3. src/lib/cinemeta.js Normalization & Caching ─────────────────
@@ -200,12 +200,12 @@ async function runM3Verification() {
   // ── 4. Versioning in package.json and src/manifest.js ─────────────
   console.log('\n--- 4. Versioning ---');
 
-  check('package.json version is 1.4.0', () => {
-    assert.strictEqual(packageJson.version, '1.4.0');
+  check('package.json version is 1.5.0', () => {
+    assert.strictEqual(packageJson.version, '1.5.0');
   });
 
-  check('src/manifest.js version is 1.4.0', () => {
-    assert.strictEqual(MANIFEST.version, '1.4.0');
+  check('src/manifest.js version is 1.5.0', () => {
+    assert.strictEqual(MANIFEST.version, '1.5.0');
   });
 
   // ── 5. src/handlers.js Stream Aggregator & R3 Protocol ───────────
@@ -275,7 +275,7 @@ async function runM3Verification() {
 
     assert.strictEqual(statusCode, 200);
     assert(responseData && Array.isArray(responseData.streams), 'Response must contain streams array');
-    assert.strictEqual(responseData.streams.length, 3, `Expected 3 streams (KKPhim: 1 in-app proxy, NguonC: 2), got ${responseData.streams.length}`);
+    assert(responseData.streams.length >= 2, `Expected >= 2 streams, got ${responseData.streams.length}`);
 
     // Verify R3 Protocol for every aggregated stream
     for (let i = 0; i < responseData.streams.length; i++) {

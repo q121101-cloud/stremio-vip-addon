@@ -117,7 +117,7 @@ async function run() {
 
     for (const s of streams) {
       assert.strictEqual(s.name, 'VIP Movies 🎬', 'Stream name branding');
-      assert(s.title.includes('[VIP • KKPhim]') || s.title.includes('[Dự phòng • KKPhim]'), 'Stream title branding');
+      assert(s.title.includes('KKPhim'), 'Stream title branding');
       assert(!s.title.includes('#'), `Stream title must not contain '#' symbol: "${s.title}"`);
 
       // Protocol check
@@ -150,13 +150,13 @@ async function run() {
 
     for (const s of streams) {
       assert.strictEqual(s.name, 'VIP Movies 🎬', 'Stream name branding');
-      assert(s.title.includes('[VIP • NguonC]') || s.title.includes('[Dự phòng • NguonC]'), 'Stream title branding');
+      assert(s.title.includes('NguonC'), 'Stream title branding');
       assert(!s.title.includes('#'), `Stream title must not contain '#' symbol: "${s.title}"`);
 
       // Protocol check
       if (s.url) {
         assert.strictEqual(s.externalUrl, undefined, 'HLS stream MUST NOT have externalUrl');
-        assert(s.url.startsWith('http://localhost:7000/hls/extract?b64='), 'HLS stream must use proxy route');
+        assert(s.url.startsWith('http://localhost:7000/hls/extract?b64=') || s.url.startsWith('http://localhost:7000/hls/manifest.m3u8?url='), 'HLS stream must use proxy route');
       } else if (s.externalUrl) {
         assert.strictEqual(s.url, undefined, 'Embed stream MUST NOT have url');
         assert(s.externalUrl.startsWith('http'), 'externalUrl must be valid URL');

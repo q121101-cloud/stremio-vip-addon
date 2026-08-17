@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon v1.4.0 — Comprehensive E2E Test Suite
+ *  VIP Movies Addon v1.5.0 — Comprehensive E2E Test Suite
  *  Covers 4 Systematic Testing Tiers:
  *    - Tier 1: Feature Coverage (Category-Partition)
  *    - Tier 2: Boundary & Corner Cases (BVA)
@@ -20,12 +20,12 @@ const { TestRunner, startTestServer } = require('./helpers');
 const { FIXTURES } = require('./fixtures');
 
 const TEST_PORT = parseInt(process.env.TEST_PORT || '7412', 10);
-const runner = new TestRunner('VIP Movies Addon v1.4.0 — Full 4-Tier Test Suite');
+const runner = new TestRunner('VIP Movies Addon v1.5.0 — Full 4-Tier Test Suite');
 
 async function runTestSuite() {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║   🎬 VIP MOVIES STREMIO ADDON v1.4.0 — E2E TEST SUITE        ║');
+  console.log('║   🎬 VIP MOVIES STREMIO ADDON v1.5.0 — E2E TEST SUITE        ║');
   console.log('╚══════════════════════════════════════════════════════════════╝');
   console.log(`Node.js Version: ${process.version}`);
   console.log(`Test Port:       ${TEST_PORT}\n`);
@@ -250,7 +250,7 @@ async function runTestSuite() {
   try {
     const manRes = await axios.get(`${BASE_URL}/manifest.json`);
     runner.assertEqual(manRes.status, 200, 'GET /manifest.json returns HTTP 200');
-    runner.assertEqual(manRes.data.version, '1.4.0', 'Manifest version is 1.4.0');
+    runner.assertEqual(manRes.data.version, '1.5.0', 'Manifest version is 1.5.0');
     runner.assertEqual(manRes.data.id, 'org.vipmovies.stremio.addon', 'Manifest ID is org.vipmovies.stremio.addon');
     runner.assert(Array.isArray(manRes.data.catalogs) && manRes.data.catalogs.length > 0, `Manifest declares ${manRes.data.catalogs.length} catalogs`);
     runner.assert(Array.isArray(manRes.data.resources), 'Manifest declares resources array');
@@ -294,7 +294,7 @@ async function runTestSuite() {
     const healthRes = await axios.get(`${BASE_URL}/health`);
     runner.assertEqual(healthRes.status, 200, 'GET /health returns HTTP 200');
     runner.assertEqual(healthRes.data.status, 'ok', 'Health status is "ok"');
-    runner.assertEqual(healthRes.data.version, '1.4.0', 'Health version is 1.4.0');
+    runner.assertEqual(healthRes.data.version, '1.5.0', 'Health version is 1.5.0');
     runner.assert(healthRes.data.cache !== undefined, 'Health response includes cache statistics');
 
     const clearRes = await axios.post(`${BASE_URL}/admin/cache/clear`);
@@ -309,7 +309,7 @@ async function runTestSuite() {
     const uiRes = await axios.get(`${BASE_URL}/`);
     runner.assertEqual(uiRes.status, 200, 'GET / (Configurator Dashboard) returns HTTP 200');
     runner.assertIncludes(uiRes.data, 'VIP Movies', 'UI contains "VIP Movies" title');
-    runner.assertIncludes(uiRes.data, 'VIP Movies Addon v1.4.0', 'UI contains version "1.4.0" in footer');
+    runner.assertIncludes(uiRes.data, 'VIP Movies Addon v1.5.0', 'UI contains version "1.5.0" in footer');
     runner.assertIncludes(uiRes.data, '<span class="brand-highlight">Q121101</span>', 'UI contains glowing brand footer "<span class="brand-highlight">Q121101</span>"');
     runner.assertIncludes(uiRes.data, 'aurora', 'UI contains Cyber-Glassmorphism background effect');
   } catch (e) {

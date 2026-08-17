@@ -167,10 +167,10 @@ class TestRunner {
 async function startTestServer(port = 7399) {
   process.env.PORT = String(port);
   const app = require('../src/index.js');
-  // Allow server to bind and listen
-  await new Promise((resolve) => setTimeout(resolve, 800));
-  const baseUrl = `http://localhost:${port}`;
-  return { app, baseUrl, port };
+  const server = app.listen(port, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  const baseUrl = `http://127.0.0.1:${port}`;
+  return { app, server, baseUrl, port };
 }
 
 module.exports = {

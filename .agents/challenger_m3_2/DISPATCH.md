@@ -1,17 +1,17 @@
-## 2026-08-17T08:54:40Z
+## 2026-08-17T20:19:07Z
 <USER_REQUEST>
-You are Challenger 2 for Milestone 3: E2E Stream Playback Test & Self-Debug Loop.
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m3_2
+You are Challenger 2 for Milestone 3 (22 Catalogs K20 Standard & Streaming).
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m3_2
 
-Read:
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/test_kkphim_playback.js
+Read ORIGINAL_REQUEST.md at /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
+Read handoff report at /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3_routing_catalogs/handoff.md.
 
-Challenger Objectives:
-1. Stress test concurrency and ephemeral port resilience: execute `node tests/test_kkphim_playback.js` multiple times concurrently.
-2. Verify that port collisions do not happen and cleanup is 100% clean (no lingering open ports or hanging processes).
-3. Test edge case error conditions (e.g., malformed M3U8 URLs, bad base64 parameter decoding, upstream CDN timeout simulation).
-4. Record empirical findings and verdict (APPROVE or REQUEST_CHANGES) in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m3_2/handoff.md`.
-Send a message to parent when done.
+Your mission:
+Empirically test all 22 standard catalogs:
+1. Enumerate and query each of the 22 catalogs in `src/manifest.js` (both via root `/catalog/:type/:id.json` and via `/:config/catalog/:type/:id.json`).
+2. Verify that each catalog returns non-empty metas when queried (or safe empty array on network timeout).
+3. Test catalog search extra (`search=avatar`, `search=naruto`, `search=one+piece`) and verify correct response formatting.
+4. Run `node tests/verify_playback.js` and `node tests/test_routing_and_22_catalogs.js`.
+
+Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m3_2/handoff.md` with your verdict (APPROVE or REQUEST_CHANGES) and send a message back.
 </USER_REQUEST>

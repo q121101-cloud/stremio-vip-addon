@@ -2,19 +2,14 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/routes/hls.js
- *  HLS Proxy Router (tách từ index.js)
+ *  VIP Movies Addon — src/routes/hls.js (Engine v1.5.0)
+ *  HLS Proxy Router: Anti-403, Full Segment & Key Rewriter, HTTP Range 206
  *
  *  Routes:
- *    GET /hls/extract?b64=<embed_url_base64url>
- *    GET /hls/manifest.m3u8?b64=<m3u8_url>&ref=<referer>
- *    GET /hls/ts?b64=<segment_url>&ref=<referer>
- *
- *  Features:
- *  - Base64URL encoding (không bị URL mangling)
- *  - Per-source Referer injection
- *  - CORS headers bắt buộc trên mọi response
- *  - MIME override: video/mp2t cho mọi segment
+ *    GET /hls/extract?url=...&ref=...
+ *    GET /hls/manifest.m3u8?url=...&ref=...  (and /m3u8)
+ *    GET /hls/segment.ts?url=...&ref=...     (and /ts, /segment)
+ *    GET /hls/key?url=...&ref=...            (and /key.key)
  * ============================================================
  */
 
@@ -28,27 +23,26 @@ const { m3u8Cache }            = require('../lib/cache');
 // ─── Constants ─────────────────────────────────────────────────
 const HLS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-/**
- * Per-source Referer mapping
- * Detect nguồn từ URL → inject Referer phù hợp
- */
 const SOURCE_REFERERS = [
   { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
+  { pattern: /vsmov|streamvsmov|p25\.streamvsmov/i,        referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
   { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
-  { pattern: /vsmov|streamvs/i,                            referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
-  { pattern: /streamc\./i,                                 referer: 'https://streamc.online/',      origin: 'https://streamc.online' },
+  { pattern: /streamc\.|amass2\.top/i,                     referer: 'https://embed15.streamc.xyz/', origin: 'https://embed15.streamc.xyz' },
+  { pattern: /suutamphim|tvhay/i,                          referer: 'https://suutamphim.org/',      origin: 'https://suutamphim.org' },
+  { pattern: /hh3d|hoathinh3d/i,                           referer: 'https://hh3d.tv/',             origin: 'https://hh3d.tv' },
+  { pattern: /yanhh3d|yan/i,                               referer: 'https://yanhh3d.org/',         origin: 'https://yanhh3d.org' },
+  { pattern: /clbphimxua|clbpx/i,                          referer: 'https://clbphimxua.com/',      origin: 'https://clbphimxua.com' },
 ];
 
 const DEFAULT_REFERER = 'https://phim.nguonc.com/';
 
 /**
- * Xác định Referer & Origin từ URL hoặc ref param
+ * Determine Referer & Origin from URL or dynamic ref parameter
  */
 function getRefererHeaders(targetUrl, refParam) {
-  // Ưu tiên dynamic ref param nếu có
   if (refParam) {
     try {
-      let parsedRef = refParam;
+      let parsedRef = refParam.trim();
       if (!parsedRef.startsWith('http://') && !parsedRef.startsWith('https://')) {
         parsedRef = `https://${parsedRef}`;
       }
@@ -57,24 +51,22 @@ function getRefererHeaders(targetUrl, refParam) {
     } catch {}
   }
 
-  // Detect từ target URL
   for (const src of SOURCE_REFERERS) {
     if (src.pattern.test(targetUrl)) {
       return { referer: src.referer, origin: src.origin };
     }
   }
 
-  // Default
   try {
     const origin = new URL(targetUrl).origin;
-    return { referer: origin + '/', origin };
+    return { referer: `${origin}/`, origin };
   } catch {
     return { referer: DEFAULT_REFERER, origin: 'https://phim.nguonc.com' };
   }
 }
 
 /**
- * Bắt buộc CORS headers cho mọi HLS response
+ * Set CORS headers on response
  */
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin',  '*');
@@ -83,7 +75,7 @@ function setCorsHeaders(res) {
 }
 
 /**
- * Decode Base64URL / Base64 → string an toàn
+ * Decode Base64URL / Base64 -> plain URL string
  */
 function decodeB64(str) {
   if (!str) return null;
@@ -103,11 +95,10 @@ function decodeB64(str) {
 }
 
 /**
- * Resolve target URL from raw or base64 param
+ * Resolve parameter URL from raw string or base64url/base64
  */
 function resolveParamUrl(val) {
-  if (!val) return null;
-  if (typeof val !== 'string') return null;
+  if (!val || typeof val !== 'string') return null;
   const trimmed = val.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   const decoded = decodeB64(trimmed);
@@ -123,20 +114,17 @@ router.options('*', (req, res) => {
   res.status(204).end();
 });
 
-// ─────────────────────────────────────────────────────────────
-//  GET /hls/extract?url=<embed_url_base64url>
-//  Lazy extraction: fetch embed → extract m3u8 → redirect to /hls/manifest.m3u8
-// ─────────────────────────────────────────────────────────────
+// ─── GET /hls/extract ───────────────────────────────────────────
 router.get('/extract', async (req, res) => {
   setCorsHeaders(res);
-  let embedUrl = resolveParamUrl(req.query.embed || req.query.b64 || req.query.url);
+  const embedUrl = resolveParamUrl(req.query.embed || req.query.b64 || req.query.url);
   if (!embedUrl) return res.status(400).send('Missing embed url');
 
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
   try {
     const result = await extractM3u8FromEmbed(embedUrl);
-    if (!result) {
+    if (!result || !result.m3u8Url) {
       console.warn('[HLS/extract] Could not extract m3u8 from:', embedUrl.slice(0, 80));
       return res.status(502).send('Could not extract stream URL from embed');
     }
@@ -146,7 +134,6 @@ router.get('/extract', async (req, res) => {
     const b64Ref  = Buffer.from(embedUrl).toString('base64url');
 
     const proxyUrl = `${protoHost}/hls/manifest.m3u8?url=${b64M3u8}&ref=${b64Ref}`;
-    console.log(`[HLS/extract] ${embedUrl.slice(0, 60)} → ${m3u8Url.slice(0, 60)}`);
     res.redirect(302, proxyUrl);
   } catch (err) {
     console.error('[HLS/extract]', err.message);
@@ -154,27 +141,22 @@ router.get('/extract', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-//  GET /hls/manifest.m3u8?url=<url>&ref=<referer>
-//  Rewrite playlist proxy (Master → sub-playlist, sub-playlist → TS)
-// ─────────────────────────────────────────────────────────────
+// ─── GET /hls/manifest.m3u8 ─────────────────────────────────────
 router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
   setCorsHeaders(res);
   res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
   const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
 
-  const refParam  = resolveParamUrl(req.query.ref || req.query.referer);
+  const refParam = resolveParamUrl(req.query.ref || req.query.referer);
   const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
-  // Check m3u8 cache
   const cacheKey = `m3u8:${protoHost}:${targetUrl}`;
-  const cached   = m3u8Cache.get(cacheKey);
-
+  const cached = m3u8Cache.get(cacheKey);
   if (cached) {
-    console.log(`[HLS/manifest] Cache HIT: ${targetUrl.slice(0, 60)}`);
     return res.send(cached);
   }
 
@@ -200,21 +182,34 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
     let isNextSubPlaylist = false;
     let isNextSegment     = false;
 
-    const rewritten = String(r.data).split('\n').map((line) => {
+    const rewritten = String(r.data).split(/\r?\n/).map((line) => {
       const t = line.trim();
       if (!t) return line;
 
       if (t.startsWith('#')) {
+        // Master Playlist variant streams
         if (t.startsWith('#EXT-X-STREAM-INF') || t.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
           isNextSubPlaylist = true;
           isNextSegment = false;
+          if (t.includes('URI=')) {
+            return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+              const uri = qUri || unqUri;
+              const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
+              const b64Uri = Buffer.from(absUri).toString('base64url');
+              return `URI="${protoHost}/hls/manifest.m3u8?url=${b64Uri}&ref=${encodedRef}"`;
+            });
+          }
           return line;
         }
+
+        // Media Playlist segments
         if (t.startsWith('#EXTINF')) {
           isNextSegment = true;
           isNextSubPlaylist = false;
           return line;
         }
+
+        // Audio / Subtitles / Alternative Renditions
         if (t.startsWith('#EXT-X-MEDIA') && t.includes('URI=')) {
           return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
@@ -223,42 +218,41 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
             return `URI="${protoHost}/hls/manifest.m3u8?url=${b64Uri}&ref=${encodedRef}"`;
           });
         }
+
+        // Decryption Key Files (#EXT-X-KEY / #EXT-X-SESSION-KEY)
         if ((t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-SESSION-KEY')) && t.includes('URI=')) {
           return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Key = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/ts?url=${b64Key}&ref=${encodedRef}&is_key=1"`;
+            return `URI="${protoHost}/hls/key?url=${b64Key}&ref=${encodedRef}"`;
           });
         }
+
+        // fMP4 Initialization segment (#EXT-X-MAP)
         if (t.startsWith('#EXT-X-MAP') && t.includes('URI=')) {
           return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Map = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/ts?url=${b64Map}&ref=${encodedRef}"`;
+            return `URI="${protoHost}/hls/segment.ts?url=${b64Map}&ref=${encodedRef}"`;
           });
         }
-        if (t.startsWith('#EXT-X-PRELOAD-HINT') && t.includes('URI=')) {
-          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
-            const uri = qUri || unqUri;
-            const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
-            const b64Hint = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/ts?url=${b64Hint}&ref=${encodedRef}"`;
-          });
-        }
-        if (t.startsWith('#EXT-X-PART') && t.includes('URI=')) {
+
+        // Low-Latency HLS Preload hints & partial segments
+        if ((t.startsWith('#EXT-X-PRELOAD-HINT') || t.startsWith('#EXT-X-PART')) && t.includes('URI=')) {
           return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Part = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/ts?url=${b64Part}&ref=${encodedRef}"`;
+            return `URI="${protoHost}/hls/segment.ts?url=${b64Part}&ref=${encodedRef}"`;
           });
         }
+
         return line;
       }
 
-      // URI line
+      // URI Line
       const absUrl = t.startsWith('http') ? t : new URL(t, baseUrl.href).href;
       const b64Url = Buffer.from(absUrl).toString('base64url');
 
@@ -268,11 +262,10 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
       }
 
       isNextSegment = false;
-      return `${protoHost}/hls/ts?url=${b64Url}&ref=${encodedRef}`;
+      return `${protoHost}/hls/segment.ts?url=${b64Url}&ref=${encodedRef}`;
     }).join('\n');
 
-    // Cache rewritten playlist
-    m3u8Cache.set(cacheKey, rewritten);
+    m3u8Cache.set(cacheKey, rewritten, 300);
     res.send(rewritten);
   } catch (err) {
     console.error('[HLS/manifest]', err.message, targetUrl.slice(0, 80));
@@ -280,60 +273,100 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-//  GET /hls/ts?url=<segment_url>&ref=<referer>
-//  Segment pipe proxy — stream binary data
-// ─────────────────────────────────────────────────────────────
-router.get('/ts', async (req, res) => {
+// ─── GET /hls/segment.ts (and aliases /ts, /segment) ────────────
+router.get(['/segment.ts', '/ts', '/segment'], async (req, res) => {
   setCorsHeaders(res);
-
-  const isKey = req.query.is_key === '1';
-  if (isKey) {
-    res.setHeader('Content-Type', 'application/octet-stream');
-  } else {
-    res.setHeader('Content-Type', 'video/mp2t');
-  }
+  res.setHeader('Content-Type', req.query.is_key ? 'application/octet-stream' : 'video/MP2T');
+  res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=31536000, immutable');
 
   const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
 
-  const refParam  = resolveParamUrl(req.query.ref || req.query.referer);
+  const refParam = resolveParamUrl(req.query.ref || req.query.referer);
   const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
 
-  const isKeyUrl = isKey || targetUrl.includes('.key');
-  if (isKeyUrl && !isKey) {
-    res.setHeader('Content-Type', 'application/octet-stream');
+  const upstreamHeaders = {
+    'User-Agent': HLS_UA,
+    Referer: refererUrl,
+    Origin: origin,
+    Accept: '*/*',
+  };
+
+  // HTTP Range forwarding for seek support
+  if (req.headers.range) {
+    upstreamHeaders['Range'] = req.headers.range;
   }
 
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  try {
+    const upstreamRes = await axios({
+      url: targetUrl,
+      method: 'GET',
+      responseType: 'stream',
+      headers: upstreamHeaders,
+      timeout: 25000,
+      maxRedirects: 5,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+
+    res.status(upstreamRes.status);
+
+    if (upstreamRes.headers['content-range']) {
+      res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+    }
+    if (upstreamRes.headers['content-length']) {
+      res.setHeader('Content-Length', upstreamRes.headers['content-length']);
+    }
+    if (upstreamRes.headers['accept-ranges']) {
+      res.setHeader('Accept-Ranges', upstreamRes.headers['accept-ranges']);
+    } else {
+      res.setHeader('Accept-Ranges', 'bytes');
+    }
+
+    upstreamRes.data.pipe(res);
+    upstreamRes.data.on('error', (err) => {
+      console.error('[HLS/segment] Stream error:', err.message);
+      if (!res.headersSent) res.status(502).end();
+    });
+  } catch (err) {
+    console.error('[HLS/segment]', err.message, targetUrl.slice(0, 80));
+    if (!res.headersSent) res.status(502).send('HLS Segment Error');
+  }
+});
+
+// ─── GET /hls/key (and alias /key.key) ──────────────────────────
+router.get(['/key', '/key.key'], async (req, res) => {
+  setCorsHeaders(res);
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-store');
+
+  const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
+  if (!targetUrl) return res.status(400).send('Missing url');
+
+  const refParam = resolveParamUrl(req.query.ref || req.query.referer);
+  const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
 
   try {
     const r = await axios({
       url: targetUrl,
       method: 'GET',
-      responseType: 'stream',
+      responseType: 'arraybuffer',
       headers: {
         'User-Agent': HLS_UA,
         Referer: refererUrl,
         Origin: origin,
         Accept: '*/*',
       },
-      timeout: 25000,
+      timeout: 15000,
       maxRedirects: 5,
     });
 
     if (r.headers['content-length']) {
       res.setHeader('Content-Length', r.headers['content-length']);
     }
-
-    r.data.pipe(res);
-    r.data.on('error', (e) => {
-      console.error('[HLS/ts] Stream error:', e.message);
-      if (!res.headersSent) res.status(502).end();
-    });
+    res.send(Buffer.from(r.data));
   } catch (err) {
-    console.error('[HLS/ts]', err.message, targetUrl.slice(0, 80));
-    if (!res.headersSent) res.status(502).send('HLS Segment Error');
+    console.error('[HLS/key]', err.message, targetUrl.slice(0, 80));
+    if (!res.headersSent) res.status(502).send('Key proxy error');
   }
 });
 

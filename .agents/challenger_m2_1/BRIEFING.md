@@ -1,54 +1,59 @@
-# BRIEFING — 2026-08-17T08:48:00Z
+# BRIEFING — 2026-08-17T15:35:40Z
 
 ## Mission
-Perform empirical adversarial verification on `src/routes/hls.js` (HLS Proxy Anti-403 Optimization) for Milestone 2.
+Adversarially challenge and empirically test all 7 providers in src/providers/ for Milestone 2 (Multi-Provider Architecture R2).
 
 ## 🔒 My Identity
-- Archetype: challenger
+- Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m2_1
-- Original parent: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Milestone: Milestone 2 (HLS Proxy Anti-403 Optimization)
+- Original parent: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Milestone: Milestone 2 (Multi-Provider Architecture R2)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Adversarial challenge: write & execute empirical test harnesses
-- Do not trust claims or logs without reproduction
-- Maintain .agents/ only for metadata
+- Run empirical verification tests directly (do not trust unverified claims)
+- Verify edge cases (negative episode indices, malformed IDs, non-existent titles, out-of-bounds series seasons)
+- Verify NO stream object emits externalUrl
+- Verify live playback via node tests/verify_playback.js
 
 ## Current Parent
-- Conversation ID: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Updated: 2026-08-17T08:48:00Z
+- Conversation ID: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
+- Updated: 2026-08-17T15:35:40Z
 
 ## Review Scope
-- **Files to review**: `src/routes/hls.js`
-- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`, `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m2/handoff.md`
-- **Review criteria**: Master & sub-playlists rewrite, byte-range segments, URI encodings, malicious/relative URLs, AES key tags (`#EXT-X-KEY`), init map tags (`#EXT-X-MAP`), upstream anti-403 header injection, CORS headers, MIME types, streaming/piping behavior.
+- **Files reviewed**: `src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/stp.js`, `src/providers/hh3d.js`, `src/providers/yan.js`, `src/providers/clbpx.js`, `src/handlers.js`, `tests/verify_playback.js`
+- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md` (Requirement R2)
+- **Review criteria**: Robustness against malformed inputs, stream contract compliance (no externalUrl, url present), live playback execution, zero crash/unhandled rejection
+
+## Key Decisions Made
+- Executed `node tests/verify_playback.js`: PASSED (3.34 MB TS chunk, 0x47 sync byte, HTTP Range 206).
+- Verified zero `externalUrl` across all providers and aggregator: PASSED.
+- Authored and ran `tests/m2_challenger1_comprehensive.test.js` (404 test assertions).
+- Authored standalone reproduction script `tests/reproduce_m2_provider_bugs.js`.
+- Issued verdict: `REQUEST_CHANGES` due to blind search fallback in specialized providers, out-of-bounds season handling, and unhandled null/non-string TypeError vectors.
+
+## Artifact Index
+- `DISPATCH.md` — incoming instructions log
+- `progress.md` — liveness heartbeat
+- `handoff.md` — 5-component handoff report
+- `tests/m2_challenger1_comprehensive.test.js` — 404-test adversarial challenge suite
+- `tests/reproduce_m2_provider_bugs.js` — standalone empirical bug reproduction script
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - H1: Upstream anti-403 headers (Referer, Origin, Mac Chrome 126 UA) properly injected on KKPhim / NguonC / VsMov / StreamC CDNs. (Verified: PASS)
-  - H2: Dynamic `ref` parameter correctly prioritized over domain regex fallback. (Verified: PASS)
-  - H3: Master playlists rewrite `#EXT-X-STREAM-INF`, `#EXT-X-I-FRAME-STREAM-INF`, `#EXT-X-MEDIA` (audio & subtitle tracks) to `/hls/manifest.m3u8`. (Verified: PASS)
-  - H4: Media playlists rewrite `#EXTINF`, `#EXT-X-BYTERANGE`, `#EXT-X-KEY`, `#EXT-X-MAP`, `#EXT-X-PART`, `#EXT-X-PRELOAD-HINT` to `/hls/ts`. (Verified: PASS)
-  - H5: Encryption keys (`#EXT-X-KEY`, `#EXT-X-SESSION-KEY`, `.key`) receive `is_key=1` parameter and return `application/octet-stream`. (Verified: PASS)
-  - H6: Obfuscated TS chunks (upstream returning `image/png`) are strictly overridden to `video/mp2t`. (Verified: PASS)
-  - H7: CORS headers (`Access-Control-Allow-Origin: *`) enforced on all responses and OPTIONS wildcard preflight. (Verified: PASS)
-  - H8: Error conditions (missing parameters, upstream 403 hotlink block, upstream 500 error, malformed Base64) are handled safely without crashing. (Verified: PASS)
-- **Vulnerabilities found**: None. Implementation in `src/routes/hls.js` is robust and complete.
-- **Untested angles**: None.
+  1. Negative episode index handling (PASSED - correctly returns 0 streams)
+  2. Zero externalUrl emission (PASSED - 100% compliant)
+  3. Live binary playback verification (PASSED - 100% compliant)
+  4. Non-existent / adversarial title search fallback in specialized providers (FAILED - blind array indexing without score match)
+  5. Out-of-bounds season querying in series (FAILED - returns season 1 streams)
+  6. Null `extra` argument in `getCatalog` and non-string `slug` in `getDetail` (FAILED - TypeError)
+- **Vulnerabilities found**:
+  1. Blind search fallback in `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`.
+  2. Missing season filtering when resolving series via IMDb ID.
+  3. Default argument failure when passing explicit `null` or non-string values.
+- **Untested angles**: None within Milestone 2 scope.
 
 ## Loaded Skills
-- None specified in dispatch
-
-## Key Decisions Made
-- Executed 21 empirical adversarial test cases in `tests/hls_challenger_empirical.test.js`.
-- All 21 assertions passed. Verdict: APPROVE.
-
-## Artifact Index
-- `.agents/challenger_m2_1/DISPATCH.md` — Initial dispatch
-- `.agents/challenger_m2_1/progress.md` — Liveness & task progress
-- `.agents/challenger_m2_1/BRIEFING.md` — Working memory
-- `tests/hls_challenger_empirical.test.js` — Empirical test harness (21 test cases)
-- `.agents/challenger_m2_1/handoff.md` — Final handoff report
+- None specified

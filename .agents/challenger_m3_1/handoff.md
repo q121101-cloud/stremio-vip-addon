@@ -1,142 +1,66 @@
-# Milestone 3 Empirical Challenger 1 Handoff Report
+# Milestone 3 Challenger 1 Handoff Report: Routing & 404 Prevention
 
-**Milestone**: Milestone 3: E2E Stream Playback Test & Self-Debug Loop  
-**Agent**: Challenger 1 (`challenger_m3_1`)  
 **Verdict**: **APPROVE**
 
----
-
 ## 1. Observation
+1. **Codebase Inspection**:
+   - `src/manifest.js`: Defines all 22 standard K20 catalogs across all 7 providers (`vsmov-4k`, `vsmov-thuyet-minh`, `kkphim-movie-latest`, `kkphim-series-latest`, `kkphim-cinema-latest`, `kkphim-anime-latest`, `nguonc-movie-latest`, `nguonc-series-latest`, `nguonc-cinema-latest`, `nguonc-anime-latest`, `stp-au-my`, `stp-phim-le`, `stp-phim-bo`, `stp-han-quoc`, `hh3d-phim-le`, `hh3d-phim-bo`, `hh3d-tien-hiep`, `yan-phim-le`, `yan-phim-bo`, `yan-dang-chieu`, `clbpx-kiem-hiep`, `clbpx-hong-kong`).
+   - `src/manifest.js`: `ALL_ID_PREFIXES` covers all 7 provider prefixes plus `tt` (`vsmov:`, `vsmov_`, `kkphim:`, `kkphim_`, `nguonc:`, `nguonc_`, `stp:`, `stp_`, `hh3d:`, `hh3d_`, `yan:`, `yan_`, `clbpx:`, `clbpx_`, `tt`).
+   - `src/routes/manifest.js`: Mounts `/manifest.json` and `/:config/manifest.json`. Invalid or malformed tokens (such as `%20`, `undefined`, `null`, `[object Object]`, `{}`) gracefully fall back to the default manifest with HTTP 200.
+   - `src/handlers.js`: Registers explicit routes for both root and `/:config/` prefixed paths:
+     - `GET /catalog/:type/:id/:extra.json` and `GET /catalog/:type/:id.json`
+     - `GET /:config/catalog/:type/:id/:extra.json` and `GET /:config/catalog/:type/:id.json`
+     - `GET /meta/:type/:id.json` and `GET /:config/meta/:type/:id.json`
+     - `GET /stream/:type/:id.json` and `GET /:config/stream/:type/:id.json`
+   - `src/handlers.js`: Every route handler is wrapped in `try/catch` and returns standard Stremio JSON on empty or missing items:
+     - Catalog handler returns `{ metas: [] }` on missing/unknown catalog or query.
+     - Meta handler returns `{ meta: null }` on unknown slug/IMDb ID.
+     - Stream handler returns `{ streams: [] }` on unknown slug/IMDb ID.
+     - Stream objects strictly contain `url` for in-app HLS playback and have NO `externalUrl` property.
 
-Direct empirical observations, commands executed, and verified outputs:
-
-### 1.1 Baseline Test Suite Execution (`tests/test_kkphim_playback.js`)
-- **Command**: `node tests/test_kkphim_playback.js`
-- **Output**:
-  ```text
-  ╔══════════════════════════════════════════════════════════════════════════════╗
-  ║     🎬 VIP MOVIES: KKPHIM E2E STREAM PLAYBACK & SELF-DEBUG VERIFICATION     ║
-  ╚══════════════════════════════════════════════════════════════════════════════╝
-
-  ℹ️  Started local test server on ephemeral port: 57377
-  ℹ️  Proxy Base URL: http://127.0.0.1:57377
-
-  ▶ TEST CASE 1: Stream Generation for slug "cuu-mon"
-    Resolved Stream Object: {
-    name: 'VIP Movies 🎬',
-    title: '[VIP • KKPhim] Vietsub Full HD (HLS Proxy) ↵ ⚡ Server VIP • Phát trực tiếp trong App',
-    url: 'http://127.0.0.1:57377/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDky...',
-    hasExternalUrl: false,
-    bingeGroup: 'kkphim-cuu-mon'
-  }
-    ✅ PASS: Test Case 1 — Stream Generation verified (100% In-App Protocol Compliance)
-
-  ▶ TEST CASE 2: Manifest Proxy Verification & Anti-403 Rewriting
-    Fetching manifest from proxy: http://127.0.0.1:57377/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUxIdi9pbmRleC5tM3U4&ref=aHR0cHM6Ly9wbGF5ZXIucGhpbWFwaS5jb20v
-    Master Playlist detected. Traversing sub-manifest variant: http://127.0.0.1:57377/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDky...
-    ✅ PASS: Test Case 2 — Manifest Proxy verified (Resolved Segment URL: http://127.0.0.1:57377/hls/ts?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM...)
-
-  ▶ TEST CASE 3: Segment Playback Verification (Anti-403 & MPEG-TS Binary Buffer)
-    Fetching video segment through proxy: http://127.0.0.1:57377/hls/ts?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUx...
-    Received binary segment buffer: 946204 bytes (924 KB)
-    ✅ PASS: Test Case 3 — Segment Binary Delivery verified (Valid MPEG-TS Sync Byte 0x47 & 924 KB Buffer)
-
-  ╔══════════════════════════════════════════════════════════════════════════════╗
-  ║            🎉 ALL 3 KKPHIM PLAYBACK TEST CASES PASSED (100% VERIFIED)        ║
-  ╠══════════════════════════════════════════════════════════════════════════════╣
-  ║  Test Case 1 (Stream Generation):        PASSED (In-App Proxy URL, No externalUrl)║
-  ║  Test Case 2 (Manifest Proxy Rewriting): PASSED (HTTP 200, #EXTM3U, CORS *)      ║
-  ║  Test Case 3 (Segment Binary Delivery):  PASSED (HTTP 200, 946204 B, 0x47 Sync)║
-  ║  Total Execution Time:                   1.08s                                  ║
-  ╚══════════════════════════════════════════════════════════════════════════════╝
-  ```
-
-### 1.2 Multi-Slug & Multi-CDN Adversarial Test Suite (`tests/test_m3_adversarial_empirical.js`)
-- **Command**: `node tests/test_m3_adversarial_empirical.js`
-- **Output**:
-  - Total assertions: **198**
-  - Passed assertions: **198**
-  - Failed assertions: **0**
-  - Execution time: **4.29s**
-  - **Live Titles Verified**:
-    1. `cuu-mon` (Movie) → Upstream CDN `s1.phim1280.tv` → Segment size 946,204 B (924 KB), sync byte 0x47 at 0 & 188.
-    2. `tan-thuoc` (Series Ep 1, Vietsub & Thuyết Minh) → Upstream CDN `v7.kkphimplayer7.com` → Segment size 758,016 B (740 KB), sync byte 0x47 at 0 & 188.
-    3. `nhat-niem-vinh-hang` (Anime series Ep 1) → Upstream CDN `s3.phim1280.tv` → Segment size 1,049,416 B (1,025 KB), sync byte 0x47 at 0 & 188.
-    4. `dau-pha-thuong-khung-phan-5` (Anime series Ep 1, Vietsub & Thuyết Minh) → Upstream CDNs `s5.phim1280.tv` & `s6.kkphimplayer6.com` → Segment sizes 449,132 B & 459,284 B, sync byte 0x47 at 0 & 188.
-    5. `mai` (Movie) → Upstream CDN `s2.phim1280.tv` → Segment size 888,296 B (867 KB), sync byte 0x47 at 0 & 188.
-    6. `pham-nhan-tu-tien` (Anime series Ep 1, Vietsub & Thuyết Minh) → Upstream CDNs `s3.phim1280.tv` & `s6.kkphimplayer6.com` → Segment sizes 553,848 B & 972,712 B, sync byte 0x47 at 0 & 188.
-  - **Distinct CDNs empirically tested without 403 Forbidden**:
-    - `s1.phim1280.tv`
-    - `s2.phim1280.tv`
-    - `s3.phim1280.tv`
-    - `s5.phim1280.tv`
-    - `s6.kkphimplayer6.com`
-    - `v7.kkphimplayer7.com`
-  - **Total Live TS Video Segments Fetched & Validated**: 9 distinct streams.
-
-### 1.3 Boundary & Adversarial Tests Verified
-- `GET /hls/manifest.m3u8` (no params) → HTTP 400 Bad Request
-- `GET /hls/ts` (no params) → HTTP 400 Bad Request
-- `GET /hls/manifest.m3u8?url=<bad-host>` → HTTP 502 Bad Gateway (graceful failure, no crash)
-- `OPTIONS /hls/manifest.m3u8` → HTTP 204 No Content with `Access-Control-Allow-Origin: *` & `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`
-- Concurrency burst: 30 concurrent requests to `/hls/manifest.m3u8` completed in 14ms (via LRU cache hit).
-- In-App protocol exclusivity: 100% of KKPhim streams contain `url` and strictly omit `externalUrl`.
-- Title normalization: Zero `#` symbols present in any stream title across single and multi-server titles.
-- Episode parameter flexibility: supports integer numbers (`1`, `2`), formatted strings (`"01"`, `"tap-1"`, `"Tập 1"`), and out-of-bounds episode numbers gracefully return empty array without exceptions.
-
-### 1.4 Syntax Check Verification
-- **Command**: `node --check src/index.js && node --check src/routes/hls.js && node --check src/providers/kkphim.js && node --check tests/test_kkphim_playback.js`
-- **Output**: Clean exit code 0.
-
----
+2. **Empirical Adversarial Test Execution Results**:
+   - `node tests/test_m3_routing_404_adversarial.js`: **192 passed, 0 failed**
+     - Verified `/manifest.json` returns HTTP 200 with all 22 catalogs.
+     - Verified adversarial routes `/%20/manifest.json`, `/undefined/manifest.json`, `/null/manifest.json`, `/[object%20Object]/manifest.json`, `/%7B%7D/manifest.json` return HTTP 200 with valid Stremio manifest.
+     - Verified all 22 catalogs respond with HTTP 200 `{ metas: Array }` across both root and `/:config/` prefixed routes.
+     - Verified adversarial catalog routes (`/catalog/movie/nonexistent.json`, `/catalog/movie/nonexistent/search=test.json`, `/:config/catalog/movie/nonexistent/skip=50.json`, `/%20/catalog/movie/nonexistent/skip=50.json`, SQL injections, XSS payloads, Unicode emojis, out-of-range skip values) return HTTP 200 `{ metas: [] }` without any HTTP 404.
+     - Verified adversarial meta routes (`/meta/movie/invalid:id.json`, `/:config/meta/movie/invalid:id.json`, `/%20/meta/movie/invalid:id.json`, `/undefined/meta/movie/invalid:id.json`) return HTTP 200 `{ meta: null }`.
+     - Verified adversarial stream routes (`/stream/series/invalid:1:1.json`, `/:config/stream/series/invalid:1:1.json`, `/%20/stream/series/invalid:1:1.json`, `/undefined/stream/series/invalid:1:1.json`) return HTTP 200 `{ streams: [] }`.
+   - `node tests/test_routing_and_22_catalogs.js`: **64 passed, 0 failed**
+   - `node tests/m3_verification.test.js`: **39 passed, 0 failed**
+   - `npm test`: **50 passed, 0 failed**
+   - `TEST_PORT=7422 node tests/e2e.test.js`: **93 passed, 0 failed**
+   - `node tests/verify_playback.js`: **100% Success (HTTP 200, 3.42MB binary TS chunk download, HTTP 206 range seeking)**
 
 ## 2. Logic Chain
-
-1. **R1 In-App Protocol Compliance**:
-   - `src/providers/kkphim.js` lines 405-417 formats streams with `name: 'VIP Movies 🎬'`, title containing `[VIP • KKPhim]`, `Full HD (HLS Proxy)`, `⚡ Server VIP • Phát trực tiếp trong App`, and URL pointing to `${proxyBase}/hls/manifest.m3u8`.
-   - The stream object contains no `externalUrl` property, matching the Stremio in-app player contract.
-
-2. **R2 HLS Proxy Anti-403 & Playlist Rewriting**:
-   - `src/routes/hls.js` lines 35-74 dynamically detects upstream CDNs matching `/kkphimplayer|phim1280|phimapi\.com|kkphim/i` and attaches `Referer: https://player.phimapi.com/` and `Origin: https://player.phimapi.com`.
-   - Lines 203-272 parse and rewrite `#EXT-X-STREAM-INF` sub-playlists and `#EXTINF` segment URLs to pass through `/hls/manifest.m3u8` and `/hls/ts`.
-   - Lines 79-83 and 288-295 enforce `Access-Control-Allow-Origin: *`, `application/vnd.apple.mpegurl` on playlists, and `video/mp2t` on segments.
-
-3. **R3 Empirical Verification Across Multiple CDNs & Titles**:
-   - Live network tests against `s1.phim1280.tv`, `s2.phim1280.tv`, `s3.phim1280.tv`, `s5.phim1280.tv`, `s6.kkphimplayer6.com`, and `v7.kkphimplayer7.com` all returned HTTP 200 without any 403 Forbidden.
-   - All 9 fetched binary segments start with the standard MPEG-TS sync byte `0x47` (71) at offset 0 and offset 188, proving binary video delivery.
-
----
+1. **Observation 1 & 2** establish that the server registers all required Stremio endpoints with explicit route bindings for both root and config-prefixed paths.
+2. **Observation 2** confirms empirically that all adversarial and malformed paths (such as `/%20/manifest.json`, `/undefined/manifest.json`, `/catalog/movie/nonexistent.json`, `/catalog/movie/nonexistent/search=test.json`, `/:config/catalog/movie/nonexistent/skip=50.json`, `/meta/movie/invalid:id.json`, `/stream/series/invalid:1:1.json`) return HTTP 200 with standard fallback JSON (`{ metas: [] }`, `{ meta: null }`, `{ streams: [] }`).
+3. **Observation 2** confirms that `/manifest.json` returns HTTP 200 with all 22 catalogs declared across all 7 providers.
+4. **Observation 2** confirms that live stream responses strictly contain `url` and remove `externalUrl`.
+5. Therefore, the implementation satisfies all Milestone 3 requirements and Stremio Addon Protocol invariants.
 
 ## 3. Caveats
-
-- Upstream CDN network connectivity is required for live E2E playback testing.
-- No other caveats; all requirements R1, R2, R3, R4 have been empirically validated.
-
----
+- Upstream third-party API providers (e.g. KKPhim, NguonC, VSMOV) may return HTTP 404 or 429 when queried with synthetic or non-existent items; the addon server handles these upstream errors gracefully and converts them to HTTP 200 `{ metas: [] }`, `{ meta: null }`, or `{ streams: [] }` for the Stremio client.
 
 ## 4. Conclusion
-
-- **Verdict**: **APPROVE**
-- `tests/test_kkphim_playback.js` passes all 3 test cases 100%.
-- Empirical adversarial testing across 6 distinct real movie and series slugs and 6 distinct CDNs passes 198/198 assertions with zero errors.
-- Milestone 3 is fully verified and ready for Milestone 4 (Git deployment).
-
----
+Milestone 3 (Routing & 404 Prevention) is thoroughly verified and passes all stress tests, adversarial edge cases, and protocol requirements.
+**Verdict: APPROVE**.
 
 ## 5. Verification Method
-
-To independently verify all findings:
+To independently reproduce and verify:
 ```bash
-# 1. Run standard Milestone 3 E2E test script
-node tests/test_kkphim_playback.js
+# 1. Run Challenger 1 Adversarial Stress Test Suite (192 assertions)
+node tests/test_m3_routing_404_adversarial.js
 
-# 2. Run Empirical Challenger 1 Adversarial test suite
-node tests/test_m3_adversarial_empirical.js
+# 2. Run Dedicated Routing & 22 Catalogs Suite (64 assertions)
+node tests/test_routing_and_22_catalogs.js
 
-# 3. Run full project test suite
+# 3. Run Core M3 Stream Aggregator Suite (39 assertions)
 node tests/m3_verification.test.js
-node tests/e2e.test.js
 
-# 4. Run syntax verification
-node --check src/index.js
+# 4. Run E2E Test Suite (93 assertions)
+TEST_PORT=7422 node tests/e2e.test.js
+
+# 5. Run Playback Verification (Real TS Video Chunk Download)
+node tests/verify_playback.js
 ```

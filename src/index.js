@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Stremio Addon — src/index.js  (Engine v1.4.0)
+ *  VIP Movies Stremio Addon — src/index.js  (Engine v1.5.0)
  *  Entry point chính của server Express
  *
  *  Architecture:
@@ -93,37 +93,43 @@ app.use((err, req, res, _next) => {
 });
 
 // ─── Khởi động server ─────────────────────────────────────────
-const server = app.listen(PORT, HOST, () => {
-  const addonUrl    = `http://localhost:${PORT}`;
-  const manifestUrl = `${addonUrl}/manifest.json`;
-  const stremioUrl  = `stremio://localhost:${PORT}/manifest.json`;
+let server = null;
+if (require.main === module) {
+  server = app.listen(PORT, HOST, () => {
+    const addonUrl    = `http://localhost:${PORT}`;
+    const manifestUrl = `${addonUrl}/manifest.json`;
+    const stremioUrl  = `stremio://localhost:${PORT}/manifest.json`;
 
-  console.log('');
-  console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.4.0     ║');
-  console.log('╠══════════════════════════════════════════════════════╣');
-  console.log(`║  Server:      ${addonUrl.padEnd(39)}║`);
-  console.log(`║  Manifest:    ${manifestUrl.padEnd(39)}║`);
-  console.log(`║  HLS Proxy:   ${(addonUrl + '/hls/manifest.m3u8').padEnd(39)}║`);
-  console.log(`║  Providers:   NguonC | KKPhim | VsMov                ║`);
-  console.log('╠══════════════════════════════════════════════════════╣');
-  console.log(`║  Deep Link: ${stremioUrl.substring(0, 43)}║`);
-  console.log('╚══════════════════════════════════════════════════════╝');
-  console.log('');
-});
-
-// ─── Graceful shutdown ────────────────────────────────────────
-function gracefulShutdown(signal) {
-  console.log(`\n[Server] Nhận ${signal}, đang tắt...`);
-  server.close(() => {
-    console.log('[Server] Đã tắt server. Tạm biệt! 👋');
-    process.exit(0);
+    console.log('');
+    console.log('╔══════════════════════════════════════════════════════╗');
+    console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.5.0     ║');
+    console.log('╠══════════════════════════════════════════════════════╣');
+    console.log(`║  Server:      ${addonUrl.padEnd(39)}║`);
+    console.log(`║  Manifest:    ${manifestUrl.padEnd(39)}║`);
+    console.log(`║  HLS Proxy:   ${(addonUrl + '/hls/manifest.m3u8').padEnd(39)}║`);
+    console.log(`║  Providers:   NguonC | KKPhim | VsMov                ║`);
+    console.log('╠══════════════════════════════════════════════════════╣');
+    console.log(`║  Deep Link: ${stremioUrl.substring(0, 43)}║`);
+    console.log('╚══════════════════════════════════════════════════════╝');
+    console.log('');
   });
-  setTimeout(() => { console.error('[Server] Force exit'); process.exit(1); }, 10_000);
+
+  // ─── Graceful shutdown ────────────────────────────────────────
+  function gracefulShutdown(signal) {
+    console.log(`\n[Server] Nhận ${signal}, đang tắt...`);
+    if (server) {
+      server.close(() => {
+        console.log('[Server] Đã tắt server. Tạm biệt! 👋');
+        process.exit(0);
+      });
+    }
+    setTimeout(() => { console.error('[Server] Force exit'); process.exit(1); }, 10_000);
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 process.on('uncaughtException',   (err)         => console.error('[uncaughtException]', err));
 process.on('unhandledRejection',  (reason, p)   => console.error('[unhandledRejection]', reason));
 

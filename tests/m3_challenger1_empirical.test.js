@@ -446,9 +446,9 @@ async function runM3ChallengerSuite() {
   // ════════════════════════════════════════════════════════════════
   runner.section('Gate 5: Configuration, Manifest & Versioning Integrity');
 
-  runner.assertEqual(packageJson.version, '1.4.0', 'package.json version is 1.4.0');
-  runner.assertEqual(MANIFEST.version, '1.4.0', 'MANIFEST.version is 1.4.0');
-  runner.assertEqual(JSON.stringify(DEFAULT_CONFIG.providers), JSON.stringify(['nguonc', 'kkphim', 'vsmov']), 'DEFAULT_CONFIG.providers activates all 3 providers');
+  runner.assertEqual(packageJson.version, '1.5.0', 'package.json version is 1.5.0');
+  runner.assertEqual(MANIFEST.version, '1.5.0', 'MANIFEST.version is 1.5.0');
+  runner.assertEqual(JSON.stringify(DEFAULT_CONFIG.providers), JSON.stringify(['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx']), 'DEFAULT_CONFIG.providers activates all 7 providers');
 
   // Verify UI route
   const uiRouteLayer = handlers.stack.find((l) => l.route && l.route.path === '/');
@@ -460,7 +460,7 @@ async function runM3ChallengerSuite() {
     const uiResult = getUiRes();
     runner.assertEqual(uiResult.statusCode, 200, 'UI route returns HTTP 200');
     runner.assert(typeof uiResult.responseData === 'string', 'UI route returns HTML string');
-    runner.assert(uiResult.responseData.includes('VIP Movies Addon v1.4.0'), 'UI contains "VIP Movies Addon v1.4.0"');
+    runner.assert(uiResult.responseData.includes('VIP Movies Addon v1.5.0'), 'UI contains "VIP Movies Addon v1.5.0"');
     runner.assert(uiResult.responseData.includes('<span class="brand-highlight">Q121101</span>'), 'UI contains brand footer "<span class="brand-highlight">Q121101</span>"');
   }
 
@@ -474,7 +474,7 @@ async function runM3ChallengerSuite() {
     const hResult = getHRes();
     runner.assertEqual(hResult.statusCode, 200, '/health returns HTTP 200');
     runner.assertEqual(hResult.responseData.status, 'ok', '/health status is "ok"');
-    runner.assertEqual(hResult.responseData.version, '1.4.0', '/health version is 1.4.0');
+    runner.assertEqual(hResult.responseData.version, '1.5.0', '/health version is 1.5.0');
   }
 
 

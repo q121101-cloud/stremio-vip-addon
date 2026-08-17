@@ -1,57 +1,56 @@
-# BRIEFING — 2026-08-17T08:56:40Z
+# BRIEFING — 2026-08-17T20:21:00Z
 
 ## Mission
-Adversarial and quality review of Milestone 3: E2E Stream Playback Test & Self-Debug Loop.
+Adversarial quality review and verification for Milestone 3 (Routing, 404 Prevention & 22 Catalogs K20 Standard).
 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m3_2
-- Original parent: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Milestone: Milestone 3
+- Original parent: a2adf213-6fb8-4af8-9198-0d1e08577c8a
+- Milestone: Milestone 3 (Routing, 404 Prevention & 22 Catalogs K20 Standard)
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Objectively and adversarially review tests/test_kkphim_playback.js and full test suite
-- Check integrity violations (hardcoded mocks, facades, bypasses)
-- Verify MPEG-TS sync byte 0x47, packet alignment, buffer size > 50KB/100KB, CORS, MIME type, no externalUrl
+- Check integrity violations (hardcoded tests, dummy logic, shortcuts, fabricated verification)
+- Maintain adversarial mindset and check edge cases / failure modes
 
 ## Current Parent
-- Conversation ID: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Updated: 2026-08-17T08:56:40Z
+- Conversation ID: a2adf213-6fb8-4af8-9198-0d1e08577c8a
+- Updated: 2026-08-17T20:21:00Z
 
 ## Review Scope
-- **Files to review**:
-  - tests/test_kkphim_playback.js
-  - tests/e2e.test.js
-  - .agents/worker_m3/handoff.md
-  - PROJECT.md
-  - .agents/ORIGINAL_REQUEST.md
-  - src/providers/kkphim.js
-  - src/routes/hls.js
-- **Interface contracts**: PROJECT.md
-- **Review criteria**: Correctness, adversarial integrity, completeness, quality, MPEG-TS stream verification
+- **Files to review**: `src/config.js`, `src/manifest.js`, `src/routes/manifest.js`, `src/handlers.js`, `src/index.js`, `public/configure.html`, `public/app.js`
+- **Interface contracts**: `ORIGINAL_REQUEST.md`, `handoff.md` from worker_m3
+- **Review criteria**: Configuration parsing robustness (Base64URL, Base64, JSON, URI-encoded JSON, URLSearchParams), 22 catalogs K20 standard (7 providers, 4 categories, 22 valid combinations), provider/category toggles in buildManifest, 404 prevention, Configurator UI rendering.
 
 ## Review Checklist
-- **Items reviewed**: tests/test_kkphim_playback.js, tests/e2e.test.js, src/providers/kkphim.js, src/routes/hls.js, worker_m3/handoff.md
+- **Items reviewed**:
+  - `src/config.js`: Configuration parser handling Base64URL, Base64, JSON, URI-encoded JSON, URLSearchParams, and fallback safety.
+  - `src/manifest.js`: All 22 standard K20 catalogs defined across 7 providers, dynamic filtering by provider and category in `buildManifest`.
+  - `src/routes/manifest.js`: Clean handling of `/manifest.json` and `/:config/manifest.json` with no route mutation.
+  - `src/handlers.js`: Explicit routes for `/catalog`, `/:config/catalog`, `/meta`, `/:config/meta`, `/stream`, `/:config/stream`, `parseExtra` parsing, error catch boundaries returning HTTP 200 `{ metas: [] }`, `{ meta: null }`, `{ streams: [] }`, and Configurator UI rendering 7 providers & 4 categories.
+  - All test suites (`npm test`, `e2e.test.js`, `m3_verification.test.js`, `test_routing_and_22_catalogs.js`, `verify_playback.js`).
 - **Verdict**: APPROVE
-- **Unverified claims**: None (empirically tested across multiple live catalog slugs and verified MPEG-TS packet headers)
+- **Unverified claims**: None. All verified with real runtime execution.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Hardcoded test payload bypass hypothesis: REJECTED (Zero mock strings or slugs hardcoded in source, tested multiple random dynamic slugs)
-  - Fake TS buffer / dummy implementation hypothesis: REJECTED (Real binary stream piped, 924 KB - 1.5 MB buffers received with genuine 0x47 sync bytes)
-  - 403 Forbidden CDN hotlink block hypothesis: RESOLVED (Proxy injects anti-403 Referer/Origin headers, streaming chunks without CDN errors)
-  - Port collision & teardown leak hypothesis: RESOLVED (Ephemeral port 0 allocated, server closed in finally block)
-- **Vulnerabilities found**: None in production codebase or Milestone 3 deliverable.
+  - Tested malformed config tokens, garbage strings, null, undefined → safely falls back to default config without crash.
+  - Tested reserved keywords in `isConfigToken` (`manifest.json`, `catalog`, etc.) → properly rejected.
+  - Tested all 22 catalog combinations via `/catalog/:type/:id.json` and `/:config/catalog/:type/:id.json` → all returned HTTP 200.
+  - Tested URL-encoded search and genre parameters (`search%3D...`, `genre%3D...`) → properly parsed and returned HTTP 200.
+  - Tested non-existent catalog IDs and search queries with 0 results → returned HTTP 200 `{ metas: [] }` (no 404s).
+  - Tested Configurator UI HTML rendering → all 7 provider cards, 4 category pills, and brand signature confirmed.
+- **Vulnerabilities found**: None. Zero integrity violations, zero hardcoded facade logic.
 - **Untested angles**: None.
 
 ## Key Decisions Made
-- Confirmed full compliance with ORIGINAL_REQUEST §R3 and PROJECT.md Milestone 3.
+- Confirmed full compliance with Milestone 3 requirements and Stremio protocol.
 - Issued APPROVE verdict.
 
 ## Artifact Index
-- DISPATCH.md — record of incoming dispatch
-- BRIEFING.md — working memory
-- handoff.md — final review verdict and report
+- `.agents/reviewer_m3_2/DISPATCH.md` — Incoming dispatch log
+- `.agents/reviewer_m3_2/BRIEFING.md` — Persistent state and situational awareness
+- `.agents/reviewer_m3_2/handoff.md` — Final review report

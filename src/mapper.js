@@ -316,25 +316,36 @@ async function extractM3u8FromEmbed(embedUrl) {
     const scanPatterns = (text) => {
       if (!text) return null;
 
+      // Pattern 0: baseUrl + videoHash
+      const mBase = text.match(/baseUrl\s*=\s*["'`\x27]([^"'`\x27]+)["'`\x27]/i);
+      const mHash = text.match(/videoHash\s*=\s*["'`\x27]([^"'`\x27]+)["'`\x27]/i);
+      if (mBase && mHash) {
+        return `${mBase[1]}/stream/${mHash[1]}/master.m3u8`;
+      }
+
       // Pattern 1: file: "..."
-      const mFile = text.match(/file\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      const mFile = text.match(/file\s*:\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
       if (mFile) return mFile[1];
 
       // Pattern 2: source: "..."
-      const mSource = text.match(/source\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      const mSource = text.match(/source\s*:\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
       if (mSource) return mSource[1];
 
       // Pattern 3: (url|src|link|hls|stream) = "..." or : "..."
-      const mVar = text.match(/(?:url|src|link|source|hls|stream)\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      const mVar = text.match(/(?:url|src|link|source|hls|stream)\s*[:=]\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
       if (mVar) return mVar[1];
 
       // Pattern 4: General absolute http(s) m3u8 URL
-      const mAbs = text.match(/["'](https?:\/\/[^"']*\.m3u8[^"']*?)["']/i);
+      const mAbs = text.match(/["'`\x27](https?:\/\/[^"'`\x27\s]+\.m3u8[^"'`\x27\s]*?)["'`\x27]/i);
       if (mAbs) return mAbs[1];
 
       // Pattern 5: Relative m3u8 URL starting with /
-      const mRel = text.match(/["'](\/[^"']*\.m3u8[^"']*?)["']/i);
+      const mRel = text.match(/["'`\x27](\/[^"'`\x27\s]*\.m3u8[^"'`\x27\s]*?)["'`\x27]/i);
       if (mRel) return mRel[1];
+
+      // Pattern 6: Unquoted regex match
+      const mRaw = text.match(/https?:\/\/[a-zA-Z0-9_\-\./%]+\.m3u8[a-zA-Z0-9_\-\./%?=&]*/i);
+      if (mRaw) return mRaw[0];
 
       return null;
     };

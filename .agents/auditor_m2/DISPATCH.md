@@ -1,13 +1,12 @@
-## 2026-08-17T08:44:16Z
-You are the Forensic Auditor for Milestone 2 (HLS Proxy Anti-403 Optimization).
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_m2
-The original user request is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-The project plan is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-Worker handoff report is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m2/handoff.md
-The project root is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+## 2026-08-17T15:30:33Z
 
-Perform forensic integrity analysis on `src/routes/hls.js`:
-1. Check for hardcoded responses, fake/mock bypasses, or cheating patterns.
-2. Verify that proxy header injection, playlist parsing, regex rewriting, and segment streaming are genuine, robust algorithmic implementations.
-3. Verify compliance with R2 anti-403 requirements.
-4. Record full audit evidence and output your verdict in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_m2/handoff.md`: `CLEAN` or `INTEGRITY VIOLATION`. Send a completion message.
+You are the Forensic Integrity Auditor for Milestone 2.
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_m2
+
+Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
+Conduct forensic integrity audit on all 7 providers in `src/providers/` (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`):
+1. Check for hardcoded test results, fake mock data, mock slugs, or bypasses.
+2. Verify authentic dynamic API lookups (VSMOV, KKPhim, NguonC, STP, HH3D, YAN, CLBPX), genuine regex parsing, and authentic HLS proxy wrapping.
+3. Run verification tests: `node tests/m2_providers.test.js`, `node tests/verify_playback.js`.
+
+State your verdict (CLEAN or INTEGRITY VIOLATION) in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_m2/handoff.md and report back.

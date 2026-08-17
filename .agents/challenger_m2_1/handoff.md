@@ -1,121 +1,128 @@
-# Milestone 2 Challenger 1 Empirical Verification Report
+# Milestone 2 (Multi-Provider Architecture R2) — Challenger 1 Handoff Report
 
 ## 1. Observation
 
-### Source Code Inspection (`src/routes/hls.js`)
-- **User-Agent Header** (Line 29): Configured to `'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'`
-- **Provider & CDN Referer Mappings** (Lines 35-40):
+Direct empirical observations from executing tests against all 7 providers (`src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/stp.js`, `src/providers/hh3d.js`, `src/providers/yan.js`, `src/providers/clbpx.js`) and `tests/verify_playback.js`:
+
+### 1.1 Live Playback & Anti-403 Stream Delivery
+Command: `node tests/verify_playback.js`
+Result: Exited with code 0.
+- Manifest and route verification: HTTP 200 OK.
+- In-app stream resolution: Movie (`kkphim:cuu-mon`) & Series (`tt0903747:1:1`).
+- M3U8 Master & Variant playlist rewriting to `/hls/manifest.m3u8` and `/hls/segment.ts`: HTTP 200 OK.
+- Binary TS Segment Download: Downloaded **3,426,676 bytes (3.34 MB)** with HTTP 200, Content-Type `video/MP2T`, and confirmed MPEG-TS sync byte `0x47` at boundary 188.
+- HTTP Range Request: HTTP 206 Partial Content for bytes 0-1023 (1024 bytes).
+
+### 1.2 Zero `externalUrl` Invariant
+Across 404 test assertions in `tests/m2_challenger1_comprehensive.test.js` and all real media queries across all 7 providers:
+- **100% of stream objects strictly emit `url` and ZERO `externalUrl`**.
+- In every stream object `s`, `s.externalUrl === undefined` and `'externalUrl' in s === false`.
+
+### 1.3 Negative Episode Index Handling
+- When querying `episode = -1`, `-10`, `"-1"`, `"-999"`: all 7 providers correctly evaluate `if (!isNaN(epNum) && epNum <= 0) targetEp = null;` and return `[]` streams without throwing or accidentally serving episode 1.
+
+### 1.4 Identified Vulnerabilities & Failures (43 / 404 tests failed)
+
+#### Vulnerability A: Blind Search Fallback in Specialized Providers (`stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`)
+- Code locations:
+  * `src/providers/stp.js:214-222`
+  * `src/providers/hh3d.js:200-207`
+  * `src/providers/yan.js:200-207`
+  * `src/providers/clbpx.js:205-212`
+- Code snippet in all 4 providers:
   ```javascript
-  const SOURCE_REFERERS = [
-    { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
-    { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
-    { pattern: /vsmov|streamvs/i,                            referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
-    { pattern: /streamc\./i,                                 referer: 'https://streamc.online/',      origin: 'https://streamc.online' },
-  ];
+  if (!movieData && title) {
+    const searchItems = await search(title, 1);
+    if (searchItems.length > 0) {
+      const best = searchItems[0];
+      if (best && best.slug) {
+        movieData = await getDetail(best.slug);
+      }
+    }
+  }
   ```
-- **Dynamic `ref` Prioritization** (Lines 47-58): `getRefererHeaders(targetUrl, refParam)` checks `refParam` first, automatically prepends `https://` if protocol is missing, extracts `new URL(parsedRef).origin`, and falls back to regex matching against `SOURCE_REFERERS`.
-- **CORS & Preflight** (Lines 79-83, 121-124):
-  - Sets `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Headers: *`, `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`.
-  - Wildcard `OPTIONS *` route returns HTTP 204 with CORS headers.
-- **HLS M3U8 Tag Rewriter** (Lines 203-272):
-  - `#EXT-X-STREAM-INF` & `#EXT-X-I-FRAME-STREAM-INF`: Sets state `isNextSubPlaylist = true`, rewriting subsequent variant URIs to `/hls/manifest.m3u8?url=...&ref=...`.
-  - `#EXT-X-MEDIA`: Rewrites both audio and subtitle track URIs to `/hls/manifest.m3u8?url=...&ref=...`.
-  - `#EXT-X-KEY` & `#EXT-X-SESSION-KEY`: Rewrites AES encryption key URIs to `/hls/ts?url=...&ref=...&is_key=1`.
-  - `#EXT-X-MAP`: Rewrites fMP4 initialization map URIs to `/hls/ts?url=...&ref=...`.
-  - `#EXT-X-PART` & `#EXT-X-PRELOAD-HINT`: Rewrites Low-Latency HLS partial chunk URIs to `/hls/ts?url=...&ref=...`.
-  - `#EXTINF` & segment lines: Rewrites TS media chunks (both relative and absolute) to `/hls/ts?url=...&ref=...`.
-- **MIME Type Enforcement & Stream Piping** (Lines 163, 287-338):
-  - Manifest route sets `Content-Type: application/vnd.apple.mpegurl; charset=utf-8`.
-  - Segment route sets `Content-Type: video/mp2t` (or `application/octet-stream` if `is_key=1` or `.key`), overriding CDN dummy content types (such as `image/png`).
-  - Pipes upstream binary stream to response with `r.data.pipe(res)` and attaches error listeners.
+- **Observed Behavior**: When querying an adversarial, non-existent, or out-of-domain title (e.g. `title = '(*+?)'`), the upstream API returns whatever default/unrelated search items it has. Unlike `vsmov.js` (which uses `scoreMatch` and requires score >= 0.45) and `kkphim.js` / `nguonc.js` (which require score >= 0.5), `stp.js`, `hh3d.js`, `yan.js`, and `clbpx.js` blindly accept `searchItems[0]` without checking similarity, and return streams for completely unrelated media.
+- Reproduction: Running `node tests/reproduce_m2_provider_bugs.js` returned 1 stream each from STP, HH3D, YAN, and CLBPX for `title = '(*+?)'`.
 
-### Empirical Test Execution (`tests/hls_challenger_empirical.test.js`)
-- Executed 21 empirical adversarial test cases covering master playlists, nested sub-playlists, byte-range segments, DRM encryption keys, initialization maps, dynamic referer precedence, CORS preflight, parameter encodings, cache hit behavior, reverse proxy forwarded headers, and error handling.
-- Command: `node tests/hls_challenger_empirical.test.js`
-- Test Output:
-  ```
-  ╔═════════════════════════════════════════════════════════════════════════════╗
-  ║   ⚔️  VIP MOVIES ADDON — M2 EMPIRICAL CHALLENGER: HLS PROXY ANTI-403         ║
-  ║   Empirical verification of src/routes/hls.js with Mock CDN & Adversarial   ║
-  ╚═════════════════════════════════════════════════════════════════════════════╝
+#### Vulnerability B: Out-of-Bounds & Negative Season Queries Matching Season 1
+- Code locations:
+  * `src/providers/kkphim.js:329-331`
+  * `src/providers/nguonc.js:289-296`
+  * `src/providers/stp.js:205-212`
+  * `src/providers/hh3d.js:191-198`
+  * `src/providers/yan.js:191-198`
+  * `src/providers/clbpx.js:196-203`
+  * `src/providers/vsmov.js:421-424`
+- **Observed Behavior**: When a series is requested by IMDb ID (e.g. `tt0903747` Breaking Bad) with `season = 99999` and `episode = 1`, `getByImdb` resolves the series entry and filters only `episode = 1`. Because the season number is not validated against the entry (many Vietnamese APIs host seasons as separate entries or only season 1), the provider returns Season 1 Episode 1 rather than rejecting the out-of-bounds season with `[]`.
 
-  --- Section 1: CORS & Preflight Verification ---
-    ✅ PASS: OPTIONS preflight wildcard request returns 204 with CORS headers
+#### Vulnerability C: Unhandled Null / Non-String TypeError Exceptions
+- Code locations:
+  * `src/providers/vsmov.js:323`, `kkphim.js:225`, `nguonc.js:188`, `stp.js:115`, `hh3d.js:113`, `yan.js:113`, `clbpx.js:114`
+    ```javascript
+    async function getCatalog(type, page = 1, extra = {}) {
+      const { search: searchQuery, genre: genreFilter } = extra;
+    ```
+    When called with explicit `null` (e.g. `getCatalog('4k', 1, null)`), JS default argument `extra = {}` is not triggered, throwing:
+    `TypeError: Cannot destructure property 'search' of 'extra' as it is null.`
+  * `src/providers/kkphim.js:202`, `nguonc.js:166`, `stp.js:92`, `hh3d.js:91`, `yan.js:91`, `clbpx.js:92`
+    ```javascript
+    async function getDetail(slug) {
+      if (!slug) return null;
+      const cleanSlug = slug.replace(/^kkphim[_:]/, '');
+    ```
+    When called with a non-string value (e.g. `123`, `false`, `{}`), `slug.replace` throws:
+    `TypeError: slug.replace is not a function.`
 
-  --- Section 2: Master Playlist Rewriting & Tag Parsing ---
-    ✅ PASS: Master playlist rewrites stream variants, i-frames, audio, and subtitles to proxy URLs
-
-  --- Section 3: Media Sub-Playlist, Key, Map & Segment Rewriting ---
-    ✅ PASS: Media sub-playlist rewrites segments, AES-128 keys, init maps, and low-latency parts
-
-  --- Section 4: Upstream Anti-403 Header Injection Invariants ---
-    ✅ PASS: Upstream headers match KKPhim anti-403 specs (Referer, Origin, Chrome 126 Macintosh UA)
-    ✅ PASS: Automatic regex detection for KKPhim CDN patterns when ref is omitted
-    ✅ PASS: NguonC, VsMov and StreamC CDN domain pattern detection
-
-  --- Section 5: Segment Streaming & MIME Type Overrides ---
-    ✅ PASS: Segment proxy /hls/ts streams binary data and forces video/mp2t MIME type despite upstream image/png
-    ✅ PASS: Key proxy /hls/ts with is_key=1 returns application/octet-stream
-
-  --- Section 6: Parameter Encodings & Query Formats ---
-    ✅ PASS: Accepts both Base64URL, standard Base64, and raw plaintext URLs in ?url and ?b64
-
-  --- Section 7: Adversarial Resiliency & Error Handling ---
-    ✅ PASS: Missing url parameter returns HTTP 400 Bad Request
-    ✅ PASS: Upstream 403 Forbidden returns HTTP 502 without crashing server
-    ✅ PASS: Upstream 500 Internal Error returns HTTP 502 without crashing server
-    ✅ PASS: Malformed base64 / non-url input handled gracefully with error status
-    ✅ PASS: m3u8 caching returns cached content on identical request without second upstream fetch
-    ✅ PASS: Forwarded headers (x-forwarded-proto & x-forwarded-host) respected for reverse proxies
-
-  --- Section 8: Advanced Stress & Edge Cases ---
-    ✅ PASS: Rewrites multi-audio, multi-subtitle renditions with unquoted and quoted URIs
-    ✅ PASS: Rewrites DRM Session Key (#EXT-X-SESSION-KEY) tag properly
-    ✅ PASS: Dynamic ref query parameter overrides domain pattern and handles protocol prepend
-    ✅ PASS: Resolves complex relative paths with dot segments (../../segments/01.ts)
-    ✅ PASS: Key rotation with multiple #EXT-X-KEY tags throughout media playlist
-    ✅ PASS: /hls/extract route resolves embed URL and redirects 302 to /hls/manifest.m3u8
-
-  ================================================================
-  📊 SUMMARY: 21 PASSED, 0 FAILED
-  EMPIRICAL CHALLENGER VERDICT: ✅ APPROVE
-  ================================================================
-  ```
-- Command: `node --check src/routes/hls.js && node --check src/index.js` -> Exited with code 0 (Pass).
+---
 
 ## 2. Logic Chain
 
-1. *Anti-403 Hotlinking Bypass Verification*:
-   - Modern upstream CDNs (`*.kkphimplayer*.com`, `*.phim1280.tv`, `*.phimapi.com`) reject hotlinked requests with HTTP 403 Forbidden unless requests include `Referer: https://player.phimapi.com/`, matching Origin, and standard desktop Chrome UA.
-   - Section 4 verified that requests dispatched to KKPhim CDNs inject `Referer: https://player.phimapi.com/`, `Origin: https://player.phimapi.com`, and `User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36`.
-   - Section 8 verified that dynamic `ref` parameter correctly overrides pattern matching and safely extracts origin even when protocol is omitted.
+1. **Premise 1**: Providers must operate resiliently as isolated units. An adversarial input or search query for a non-existent title must never serve streams for an unrelated movie.
+2. **From Observation 1.4 (Vulnerability A)**: `stp.js`, `hh3d.js`, `yan.js`, and `clbpx.js` do not calculate title similarity scores when falling back to title search. They directly take `searchItems[0]`. Thus, any query with a non-existent or adversarial title causes the provider to return stream URLs for whatever first item the upstream search endpoint returned.
+3. **From Observation 1.4 (Vulnerability B)**: When `season` is passed (e.g. season 99999), providers perform direct IMDb lookup and extract episode `1` without checking if the season exists on the resolved entry, serving wrong season data.
+4. **From Observation 1.4 (Vulnerability C)**: Passing `extra = null` or non-string parameters causes uncaught `TypeError` crashes in `getCatalog` and `getDetail`.
+5. **Conclusion**: While R6 live playback, M3U8/TS segment proxying, and the zero `externalUrl` invariant are fully working, the 4 specialized providers lack title similarity matching, season validation is missing, and input destructuring throws on `null`. Therefore, changes are requested.
 
-2. *Full HLS Tag Rewriting & Propagation*:
-   - HLS playback requires that all subsidiary URLs (nested master playlists, media playlists, TS chunks, AES-128 keys, init maps, audio/subtitle tracks) route through the proxy while retaining the upstream authentication referer token (`ref`).
-   - Sections 2, 3, and 8 verified that `#EXT-X-STREAM-INF`, `#EXT-X-I-FRAME-STREAM-INF`, `#EXT-X-MEDIA` (audio/subs), `#EXT-X-KEY`, `#EXT-X-SESSION-KEY`, `#EXT-X-MAP`, `#EXT-X-PART`, and `#EXT-X-PRELOAD-HINT` are accurately parsed and rewritten with Base64URL-encoded targets and encoded `ref` parameters.
-
-3. *CORS & MIME Type Conformance*:
-   - Native Stremio players and browser web players enforce cross-origin resource sharing policies and inspect Content-Type headers.
-   - Sections 1 and 5 verified that `Access-Control-Allow-Origin: *` is returned on all endpoints (including OPTIONS preflight, error responses, and successful streams), that playlist responses return `application/vnd.apple.mpegurl; charset=utf-8`, and that TS segments strictly override upstream `image/png` obfuscation to return `video/mp2t`.
-
-4. *Resiliency & Fault Tolerance*:
-   - Section 7 verified that upstream 403 Forbidden, 500 Internal Error, malformed Base64 inputs, and missing parameters are handled gracefully with standard HTTP 400 / 502 error codes without throwing unhandled exceptions or crashing the Node process.
+---
 
 ## 3. Caveats
-- No caveats. All 21 empirical adversarial test cases passed with 100% success rate across all required features and edge cases.
 
-## 4. Conclusion
-Milestone 2 implementation in `src/routes/hls.js` satisfies all requirements and interface contracts defined in `PROJECT.md` and `ORIGINAL_REQUEST.md`.
+- In `src/handlers.js`, provider queries are wrapped in `Promise.allSettled()`, which prevents provider-level crashes from breaking the global Express server. However, individual provider functions should remain internally safe when invoked directly or via CLI/test runners.
+- The zero `externalUrl` invariant and live binary TS chunk delivery (>50KB with HTTP 200 & sync byte 0x47) are 100% verified and operating properly.
 
-**Verdict: `APPROVE`**
+---
+
+## 4. Conclusion & Verdict
+
+**Verdict**: **`REQUEST_CHANGES`**
+
+### Required Action Items:
+1. **Implement `scoreMatch` in Specialized Providers**:
+   In `stp.js`, `hh3d.js`, `yan.js`, and `clbpx.js`, implement similarity score matching (requiring `score >= 0.45` or `0.5`) before selecting `bestItem` from search results, matching the robust behavior in `vsmov.js` and `kkphim.js`.
+2. **Add Safe Destructuring & Type Guards**:
+   In `getCatalog`, use `const { search: searchQuery, genre: genreFilter } = extra || {};`.
+   In `getDetail`, add `if (!slug || typeof slug !== 'string') return null;`.
+   In `search`, ensure string conversion and type guards before calling `.trim()`.
+3. **Validate Series Season Matching**:
+   In `getStreams`, verify that requested season indices are validated against series metadata before serving episode streams.
+
+---
 
 ## 5. Verification Method
-Run the following commands from the project root:
-```bash
-# 1. Syntax check
-node --check src/routes/hls.js
-node --check src/index.js
 
-# 2. Run Milestone 2 Empirical Challenger Test Suite (21 test cases)
-node tests/hls_challenger_empirical.test.js
+To independently reproduce all observations and verify the reported findings:
+
+```bash
+# 1. Run Live Playback Verification (R6)
+node tests/verify_playback.js
+
+# 2. Run Standalone Bug Reproduction Script (Empirical Proof of Vulnerabilities A, B, C)
+node tests/reproduce_m2_provider_bugs.js
+
+# 3. Run Comprehensive 404-Assertion Adversarial Test Suite
+node tests/m2_challenger1_comprehensive.test.js
 ```
+
+### Invalidation Conditions:
+- If `node tests/reproduce_m2_provider_bugs.js` returns 0 streams for bogus titles like `(*+?)`, Vulnerability A is resolved.
+- If `vsmov.getCatalog('4k', 1, null)` and `kkphim.getDetail(123)` return arrays/null without throwing TypeError, Vulnerability C is resolved.

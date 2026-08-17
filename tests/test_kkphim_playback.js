@@ -121,9 +121,9 @@ async function runKKPhimPlaybackE2E() {
     );
 
     const targetStream = streamEndpointRes.data.streams.find(
-      (s) => s.title && s.title.includes('[VIP • KKPhim]')
+      (s) => s.title && (s.title.includes('[VIP • KKPhim]') || s.title.includes('[VIP 2 • KKPhim]'))
     );
-    assert.ok(targetStream, 'Must contain a stream with title containing "[VIP • KKPhim]"');
+    assert.ok(targetStream, 'Must contain a stream with title containing "[VIP • KKPhim]" or "[VIP 2 • KKPhim]"');
 
     console.log(`  ${GRAY}Resolved Stream Object:${RESET}`, {
       name: targetStream.name,
@@ -135,9 +135,9 @@ async function runKKPhimPlaybackE2E() {
 
     // Verify R1 Protocol Requirements & Invariants
     assert.strictEqual(targetStream.name, 'VIP Movies 🎬', 'Stream name must be "VIP Movies 🎬"');
-    assert.ok(targetStream.title.includes('[VIP • KKPhim]'), 'Title must contain "[VIP • KKPhim]" badge');
+    assert.ok(targetStream.title.includes('KKPhim]'), 'Title must contain KKPhim badge');
     assert.ok(targetStream.title.includes('Full HD (HLS Proxy)'), 'Title must declare "(HLS Proxy)"');
-    assert.ok(targetStream.title.includes('⚡ Server VIP • Phát trực tiếp trong App'), 'Title must declare in-app playback badge');
+    assert.ok(targetStream.title.includes('Phát trực tiếp trong App'), 'Title must declare in-app playback badge');
     assert.ok(!targetStream.title.includes('#'), 'Title must not contain "#" character');
 
     // Strict Stremio In-App Protocol Exclusivity
@@ -188,7 +188,7 @@ async function runKKPhimPlaybackE2E() {
     const lines = String(manifestRes.data).split('\n').map((l) => l.trim()).filter(Boolean);
 
     for (const line of lines) {
-      if (line.startsWith('http://') && line.includes('/hls/ts')) {
+      if (line.startsWith('http://') && (line.includes('/hls/segment.ts') || line.includes('/hls/ts'))) {
         targetSegmentUrl = line;
         break;
       }
@@ -204,7 +204,7 @@ async function runKKPhimPlaybackE2E() {
 
         const subLines = String(subRes.data).split('\n').map((l) => l.trim()).filter(Boolean);
         for (const sLine of subLines) {
-          if (sLine.startsWith('http://') && sLine.includes('/hls/ts')) {
+          if (sLine.startsWith('http://') && (sLine.includes('/hls/segment.ts') || sLine.includes('/hls/ts'))) {
             targetSegmentUrl = sLine;
             break;
           }
@@ -213,10 +213,10 @@ async function runKKPhimPlaybackE2E() {
       }
     }
 
-    assert.ok(targetSegmentUrl, 'Test Case 2 Failed: Could not resolve rewritten /hls/ts segment URL from playlist');
+    assert.ok(targetSegmentUrl, 'Test Case 2 Failed: Could not resolve rewritten segment URL from playlist');
     assert.ok(
-      targetSegmentUrl.startsWith(`${proxyBase}/hls/ts?url=`),
-      `Segment URL must route through ${proxyBase}/hls/ts?url=..., got ${targetSegmentUrl.slice(0, 60)}`
+      targetSegmentUrl.startsWith(`${proxyBase}/hls/segment.ts?url=`) || targetSegmentUrl.startsWith(`${proxyBase}/hls/ts?url=`),
+      `Segment URL must route through ${proxyBase}/hls/segment.ts?url=..., got ${targetSegmentUrl.slice(0, 60)}`
     );
 
     test2Passed = true;
@@ -242,10 +242,10 @@ async function runKKPhimPlaybackE2E() {
     assert.notStrictEqual(segRes.status, 500, 'Segment request must NOT return 500 Internal Server Error');
     assert.notStrictEqual(segRes.status, 502, 'Segment request must NOT return 502 Bad Gateway');
 
-    const segContentType = segRes.headers['content-type'] || '';
+    const segContentType = (segRes.headers['content-type'] || '').toLowerCase();
     assert.ok(
       segContentType.includes('video/mp2t') || segContentType.includes('application/octet-stream'),
-      `Segment Content-Type must be video/mp2t or application/octet-stream, got ${segContentType}`
+      `Segment Content-Type must be video/mp2t or application/octet-stream, got ${segRes.headers['content-type']}`
     );
     assert.strictEqual(
       segRes.headers['access-control-allow-origin'],

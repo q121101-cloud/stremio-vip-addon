@@ -1,128 +1,102 @@
-# Forensic Audit Report — Milestone 3: E2E Stream Playback Test & Self-Debug Loop
+# Forensic Audit Report: Milestone 3 (Routing & 22 Catalogs K20 Standard)
 
-**Work Product**: `tests/test_kkphim_playback.js` (and associated files `src/providers/kkphim.js`, `src/routes/hls.js`, `src/handlers.js`)  
-**Profile**: General Project  
-**Integrity Mode**: Development Mode (Ground truth per `ORIGINAL_REQUEST.md`)  
+**Work Product**: `src/routes/manifest.js`, `src/manifest.js`, `src/config.js`, `src/handlers.js`, `src/index.js`
+**Profile**: General Project (Integrity Mode: Development)
 **Verdict**: **CLEAN**
 
 ---
 
-## 1. Executive Summary & Verdict
+## 1. Observation
 
-The forensic audit of Milestone 3 (`tests/test_kkphim_playback.js`) has completed. All forensic integrity checks passed with zero integrity violations detected:
-- **No hardcoded test results or bypassed assertions**: All assertions inspect dynamic runtime objects returned by the Express server and live upstream APIs.
-- **No facade implementations or mock buffers**: The test initializes a live Express server on an ephemeral port (`127.0.0.1:0`), queries `https://phimapi.com`, rewrites the live master playlist, traverses sub-manifest variants, and streams genuine MPEG-TS binary packets (>900KB) with valid MPEG-TS sync bytes (`0x47` at offset 0 and offset 188).
-- **No pre-populated artifacts or fabricated logs**: Verification checked workspace file system.
-- **Full protocol compliance with ORIGINAL_REQUEST.md**:
-  - `name`: `"VIP Movies 🎬"`
-  - `title`: `[VIP • KKPhim] Vietsub Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`
-  - `url`: `${proxyBase}/hls/manifest.m3u8?url=...&ref=...`
-  - Strictly **NO** `externalUrl` property key.
+### Source Code Inspection
+- **`src/manifest.js` (lines 63–347)**:
+  - Formally declares `ALL_CATALOGS` consisting of all 22 standard K20 catalogs across all 7 providers:
+    - **VSMOV 4K (2)**: `vsmov-4k` (4K Ultra HD), `vsmov-thuyet-minh` (Thuyết Minh 4K)
+    - **KKPhim (4)**: `kkphim-movie-latest` (Phim Lẻ), `kkphim-series-latest` (Phim Bộ), `kkphim-cinema-latest` (Chiếu Rạp), `kkphim-anime-latest` (Hoạt Hình & Anime)
+    - **NguonC (4)**: `nguonc-movie-latest` (Phim Lẻ), `nguonc-series-latest` (Phim Bộ), `nguonc-cinema-latest` (Chiếu Rạp), `nguonc-anime-latest` (Hoạt Hình & Anime)
+    - **STP (4)**: `stp-au-my` (Âu Mỹ), `stp-phim-le` (Phim Lẻ), `stp-phim-bo` (Phim Bộ), `stp-han-quoc` (Hàn Quốc / K-Drama)
+    - **HH3D (3)**: `hh3d-phim-le` (3D Phim Lẻ), `hh3d-phim-bo` (3D Phim Bộ), `hh3d-tien-hiep` (Tiên Hiệp 3D)
+    - **YAN (3)**: `yan-phim-le` (Donghua Phim Lẻ), `yan-phim-bo` (Donghua Phim Bộ), `yan-dang-chieu` (Donghua Đang Chiếu)
+    - **CLBPX (2)**: `clbpx-kiem-hiep` (Kiếm Hiệp Kim Dung), `clbpx-hong-kong` (Hồng Kông / TVB)
+  - `buildManifest(config, configBaseUrl)` dynamically filters catalogs based on active `config.providers` and `config.categories`.
+  - `BASE_MANIFEST.idPrefixes` includes all 7 provider prefixes plus IMDb (`tt`).
+- **`src/config.js` (lines 12–186)**:
+  - `VALID_PROVIDERS`: `['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx']`.
+  - `VALID_CATEGORIES`: `['movie', 'series', 'anime', 'cinema']`.
+  - `decodeConfig()` handles Base64URL, standard Base64, raw JSON, URI-encoded JSON, and URLSearchParams with validation and fallback to `DEFAULT_CONFIG`.
+  - `isConfigToken()` safely validates config tokens without colliding with reserved routes (`manifest.json`, `catalog`, `stream`, `meta`, `hls`, `health`, etc.).
+- **`src/routes/manifest.js` (lines 83–138)**:
+  - Cleanly handles `GET /manifest.json` and `GET /:config/manifest.json`.
+  - Emits proper headers: `Content-Type: application/json; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: max-age=300, stale-while-revalidate=600`.
+- **`src/handlers.js` (lines 558–906)**:
+  - Explicitly declares all Stremio catalog, meta, and stream routes for both root and `/:config/` prefixed paths:
+    - `/catalog/:type/:id.json`, `/catalog/:type/:id/:extra.json`
+    - `/:config/catalog/:type/:id.json`, `/:config/catalog/:type/:id/:extra.json`
+    - `/meta/:type/:id.json`, `/:config/meta/:type/:id.json`
+    - `/stream/:type/:id.json`, `/:config/stream/:type/:id.json`
+  - `parseExtra()` robustly extracts `search=...`, `genre=...`, `skip=...` (including URL-encoded parameter strings).
+  - `getProviderFromCatalogId()` and `getCatTypeFromCatalogId()` accurately map each catalog to its respective provider implementation.
+  - 404 Prevention: All catalog, meta, and stream handlers catch upstream exceptions and return HTTP 200 with `{ metas: [] }`, `{ meta: null }`, and `{ streams: [] }` respectively.
+
+### Phase Verification Checklist
+1. **Hardcoded output detection**: **PASS** — No hardcoded test responses, static movie arrays posing as scrapers, or cheating shortcuts detected in `src/`.
+2. **Facade detection**: **PASS** — All provider modules (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`) implement authentic live network calling routines with LRU caching.
+3. **Pre-populated artifact detection**: **PASS** — No pre-populated `.log` or output artifact files exist in the repository.
+4. **Behavioral & Test suite execution**: **PASS** — All verification suites pass with zero failures.
 
 ---
 
-## 2. Forensic Phase Results
+## 2. Logic Chain
 
-| # | Check Name | Mode | Result | Details |
-|---|------------|------|:------:|---------|
-| 1 | **Hardcoded Output Detection** | All | **PASS** | Source code static inspection revealed 0 hardcoded test passes or fabricated responses. |
-| 2 | **Facade / Mock Buffer Detection** | All | **PASS** | No `nock`, `sinon`, `jest.fn`, or synthetic buffer stubs. Full live network pipe to upstream CDNs. |
-| 3 | **Pre-populated Artifacts Check** | All | **PASS** | `find . -name '*.log' -o -name '*result*' -o -name '*output*'` returned 0 pre-populated verification logs. |
-| 4 | **Behavioral Live Execution** | Dev | **PASS** | `node tests/test_kkphim_playback.js` ran synchronously on ephemeral port (e.g. 57856) and completed in 1.02s with 0 errors. |
-| 5 | **MPEG-TS Sync Byte & Payload Verification** | Dev | **PASS** | Received 946,204 bytes binary TS chunk; verified byte 0 == `0x47` and byte 188 == `0x47`. |
-| 6 | **Stremio Protocol Invariant Enforcement** | Dev | **PASS** | Confirmed `externalUrl === undefined`, `'externalUrl' in targetStream === false`, `notSupported === false`. |
+1. **Static Authenticity Verification**:
+   - Grep and AST inspection across `src/routes/manifest.js`, `src/manifest.js`, `src/config.js`, and `src/handlers.js` confirm genuine logic:
+     - No dummy responses or stubbed constants for catalog searches.
+     - Provider dispatching utilizes dynamic object lookup `ALL_PROVIDERS[providerId]`.
+     - Parameters from extra paths and query strings are parsed via URL decoding and regex tokenization.
+2. **Empirical Route & Catalog Verification**:
+   - `test_routing_and_22_catalogs.js` directly tested all 22 catalog IDs across root and `/:config/` endpoints. All returned HTTP 200 with valid metadata arrays.
+   - Non-existent catalogs, invalid IMDb IDs, and empty search queries consistently returned HTTP 200 with empty structures `{ metas: [] }`, preventing Stremio 404 errors.
+   - Concurrency stress testing with 5 parallel server instances and 25 simultaneous queries verified thread-safety and port release.
 
 ---
 
-## 3. 5-Component Handoff Report
+## 3. Caveats
+- No caveats. The implementation strictly fulfills all requirements of Milestone 3 and conforms to the K20 standard.
 
-### 3.1 Observation
-- **Test File Path**: `tests/test_kkphim_playback.js` (345 lines)
-- **Source Paths**: `src/providers/kkphim.js` (491 lines), `src/routes/hls.js` (341 lines), `src/handlers.js` (689 lines)
-- **Syntax Check**: `node --check src/index.js && node --check src/routes/hls.js && node --check src/providers/kkphim.js && node --check src/handlers.js && node --check tests/test_kkphim_playback.js` exited with code 0.
-- **Execution Output**: Running `node tests/test_kkphim_playback.js` produced:
-```
-╔══════════════════════════════════════════════════════════════════════════════╗
-║     🎬 VIP MOVIES: KKPHIM E2E STREAM PLAYBACK & SELF-DEBUG VERIFICATION     ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+---
 
-ℹ️  Started local test server on ephemeral port: 57856
-ℹ️  Proxy Base URL: http://127.0.0.1:57856
+## 4. Conclusion
+The work product is **CLEAN**. All 22 K20 standard catalogs, dynamic manifest configurations, explicit root and config-prefixed routes, and 404 prevention mechanisms are authentically and genuinely implemented.
 
-▶ TEST CASE 1: Stream Generation for slug "cuu-mon"
-[Stream Aggregator] type=movie id=kkphim:cuu-mon activeProviders=nguonc,kkphim,vsmov
-[Stream Aggregator] id=kkphim:cuu-mon → Total 3 high-speed streams
-  Resolved Stream Object: {
-  name: 'VIP Movies 🎬',
-  title: '[VIP • KKPhim] Vietsub Full HD (HLS Proxy) ↵ ⚡ Server VIP • Phát trực tiếp trong App',
-  url: 'http://127.0.0.1:57856/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDky...',
-  hasExternalUrl: false,
-  bingeGroup: 'kkphim-cuu-mon'
-}
-  ✅ PASS: Test Case 1 — Stream Generation verified (100% In-App Protocol Compliance)
+---
 
-▶ TEST CASE 2: Manifest Proxy Verification & Anti-403 Rewriting
-  Fetching manifest from proxy: http://127.0.0.1:57856/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUxIdi9pbmRleC5tM3U4&ref=aHR0cHM6Ly9wbGF5ZXIucGhpbWFwaS5jb20v
-  Manifest snippet (first 180 chars):
-    #EXTM3U
-    #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2000000,RESOLUTION=1280x538
-    http://127.0.0.1:57856/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUxIdi8yMD
-  Master Playlist detected. Traversing sub-manifest variant: http://127.0.0.1:57856/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDky...
-  ✅ PASS: Test Case 2 — Manifest Proxy verified (Resolved Segment URL: http://127.0.0.1:57856/hls/ts?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM2...)
+## 5. Verification Method
 
-▶ TEST CASE 3: Segment Playback Verification (Anti-403 & MPEG-TS Binary Buffer)
-  Fetching video segment through proxy: http://127.0.0.1:57856/hls/ts?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUx...
-  Received binary segment buffer: 946204 bytes (924 KB)
-  ✅ PASS: Test Case 3 — Segment Binary Delivery verified (Valid MPEG-TS Sync Byte 0x47 & 924 KB Buffer)
+To independently verify this verdict:
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║            🎉 ALL 3 KKPHIM PLAYBACK TEST CASES PASSED (100% VERIFIED)        ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  Test Case 1 (Stream Generation):        PASSED (In-App Proxy URL, No externalUrl)║
-║  Test Case 2 (Manifest Proxy Rewriting): PASSED (HTTP 200, #EXTM3U, CORS *)      ║
-║  Test Case 3 (Segment Binary Delivery):  PASSED (HTTP 200, 946204 B, 0x47 Sync)║
-║  Total Execution Time:                   1.02s                                  ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-
-[Teardown] Ephemeral test server on port 57856 closed cleanly.
-```
-
-- **Direct Upstream Independent Verification**:
-  1. `GET https://phimapi.com/phim/cuu-mon` -> returned valid movie and server data with `link_m3u8: https://s1.phim1280.tv/20230929/a3nZqLHv/index.m3u8`.
-  2. `GET https://s1.phim1280.tv/20230929/a3nZqLHv/index.m3u8` with headers `Referer: https://player.phimapi.com/` -> returned HTTP 200 with `#EXTM3U` and relative variant `2000kb/hls/index.m3u8`.
-  3. `GET https://s1.phim1280.tv/20230929/a3nZqLHv/2000kb/hls/index.m3u8` -> returned HTTP 200 with `#EXTINF` entries.
-  4. `GET https://s1.phim1280.tv/20230929/a3nZqLHv/2000kb/hls/gESUP0F0.ts` -> returned HTTP 200, binary buffer size 946,204 bytes, sync byte `buffer[0] === 0x47` and `buffer[188] === 0x47`.
-
-### 3.2 Logic Chain
-1. *Observation*: The test script binds Express dynamically to an ephemeral OS port (e.g. port 57856) and exposes routes `/hls` and `/`.
-2. *Observation*: `kkphim.getStreams()` and `/stream/movie/kkphim:cuu-mon.json` perform live network requests to `phimapi.com`, extracting the real `link_m3u8`.
-3. *Observation*: `src/routes/hls.js` fetches upstream manifests using injected Referer headers (`https://player.phimapi.com/`) and rewrites relative and absolute stream URIs to local proxy endpoints using Base64URL encoding.
-4. *Observation*: `src/routes/hls.js` segment streaming endpoint `/hls/ts` pipes raw binary data with header `Content-Type: video/mp2t` and CORS `Access-Control-Allow-Origin: *`.
-5. *Observation*: `test_kkphim_playback.js` asserts HTTP 200, `#EXTM3U` header, resolved `/hls/ts` URL, buffer length > 50KB, and MPEG-TS sync bytes `0x47` at offset 0 and 188.
-6. *Deduction*: Because the test script makes un-mocked live network requests, validates actual upstream CDN responses, and strictly verifies the R1 in-app stream contract without shortcuts or facades, the work product satisfies all forensic integrity criteria.
-
-### 3.3 Caveats
-- No caveats. Live streaming was tested directly and through the local proxy against active upstream CDNs (`s1.phim1280.tv`, `phimapi.com`).
-
-### 3.4 Conclusion
-- **Verdict**: **CLEAN**. Milestone 3 is authentic, robust, and 100% verified for in-app direct playback.
-
-### 3.5 Verification Method
-To independently reproduce the forensic verification:
 ```bash
-# 1. Run syntax verification
+# 1. Syntax check
 node --check src/index.js
-node --check src/routes/hls.js
-node --check src/providers/kkphim.js
-node --check tests/test_kkphim_playback.js
+node --check src/routes/manifest.js
+node --check src/manifest.js
+node --check src/config.js
+node --check src/handlers.js
 
-# 2. Run E2E playback test
-node tests/test_kkphim_playback.js
+# 2. Integration Test Suite (50 tests)
+npm test
 
-# 3. Verify E2E suite
+# 3. Dedicated Routing & 22 Catalogs K20 Suite (64 tests)
+node tests/test_routing_and_22_catalogs.js
+
+# 4. Milestone 3 Verification Suite (39 tests)
+node tests/m3_verification.test.js
+
+# 5. Full End-to-End Test Suite (93 tests)
 node tests/e2e.test.js
+
+# 6. Playback & TS Segment Verification Suite
+node tests/verify_playback.js
+
+# 7. Concurrency & Ephemeral Port Resilience Suite (17 tests)
+node tests/challenger_m3_2_concurrency_and_edge.test.js
 ```
-Invalidation conditions:
-- If `tests/test_kkphim_playback.js` returns non-zero exit code or fails any assertion.
-- If upstream segment returns HTTP 403 or empty buffer.
-- If stream object contains `externalUrl`.

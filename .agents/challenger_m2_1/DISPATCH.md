@@ -1,13 +1,14 @@
-## 2026-08-17T08:44:16Z
-You are Challenger 1 for Milestone 2 (HLS Proxy Anti-403 Optimization).
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m2_1
-The original user request is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-The project plan is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-Worker handoff report is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m2/handoff.md
-The project root is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+## 2026-08-17T15:30:33Z
 
-Perform adversarial empirical verification on `src/routes/hls.js`:
-1. Build test harnesses testing master playlists, nested sub-playlists, byte-range segments, URI encodings, malicious/relative URLs, AES key tags (`#EXT-X-KEY`), and initialization map tags (`#EXT-X-MAP`).
-2. Verify that upstream headers are correctly injected when fetching from KKPhim CDNs.
-3. Verify that CORS headers and MIME types are strictly returned.
-4. Report test results and output your verdict in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m2_1/handoff.md`: `APPROVE` or `REQUEST_CHANGES`. Send a completion message.
+<USER_REQUEST>
+You are Challenger 1 for Milestone 2 (Multi-Provider Architecture R2).
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m2_1
+
+Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
+Adversarially challenge all 7 providers in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/providers/:
+1. Write and run tests verifying edge cases: negative episode indices, malformed IDs, non-existent titles, out-of-bounds series seasons.
+2. Verify that NO stream object emits `externalUrl`.
+3. Verify live playback execution via `node tests/verify_playback.js`.
+
+State your verdict (APPROVE or REQUEST_CHANGES) in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_m2_1/handoff.md and report back.
+</USER_REQUEST>

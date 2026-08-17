@@ -1,20 +1,26 @@
-## 2026-08-17T08:54:40Z
-<USER_REQUEST>
-You are Reviewer 1 for Milestone 3: E2E Stream Playback Test & Self-Debug Loop.
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m3_1
+## 2026-08-17T20:19:07Z
+You are Reviewer 1 for Milestone 3 (Routing, 404 Prevention & 22 Catalogs K20 Standard).
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m3_1
 
-Read:
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3/handoff.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/test_kkphim_playback.js
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/providers/kkphim.js
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/routes/hls.js
+Read ORIGINAL_REQUEST.md at /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
+Read handoff report at /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3_routing_catalogs/handoff.md.
 
-Review Objectives:
-1. Verify `tests/test_kkphim_playback.js` fulfills all requirements of ORIGINAL_REQUEST §R3 and PROJECT.md.
-2. Execute `node tests/test_kkphim_playback.js` and verify output.
-3. Check code quality, robustness, ephemeral port handling, server teardown, error handling.
-4. Give a clear verdict (APPROVE or REQUEST_CHANGES) in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m3_1/handoff.md`.
-Send a message to parent when done.
-</USER_REQUEST>
+Examine code changes in:
+- `src/index.js`
+- `src/routes/manifest.js`
+- `src/manifest.js`
+- `src/config.js`
+- `src/handlers.js`
+
+Verify:
+1. Correct route mounting for both root and `/:config/` endpoints across manifest, catalog, meta, stream.
+2. 404 prevention: empty queries, non-existent catalog IDs, and failed provider calls return HTTP 200 `{ metas: [] }` / `{ meta: null }` / `{ streams: [] }`.
+3. All 22 standard K20 catalogs properly declared with correct types, names, and extras.
+
+Run verification tests:
+- `npm test`
+- `node tests/e2e.test.js`
+- `node tests/m3_verification.test.js`
+- `node tests/test_routing_and_22_catalogs.js`
+
+Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m3_1/handoff.md` with your verdict (APPROVE or REQUEST_CHANGES) and send a message back.

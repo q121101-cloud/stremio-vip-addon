@@ -2,290 +2,572 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/vsmov.js
- *  VsMov Scraper Provider (Multi-Gateway Scraper & Master M3U8 Extraction)
+ *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.0)
+ *  VSMOV 4K Provider Module (100% Official API: vsmov.com/api)
  *
  *  Features:
- *  - 5-second axios timeout for high resilience & zero blocking
- *  - Multi-gateway scraper: https://vsmov.com, https://streamvsmov.com, https://vsmov.net
- *  - 1080p master.m3u8 stream extraction
- *  - R3 Stremio Stream Protocol compliance:
- *    * In-App Direct Play: HLS Proxy (url only, NO externalUrl)
- *    * External Web Browser Play: Embed Player (externalUrl only, NO url)
- *  - Graceful degradation: all errors return [] safely
+ *  - Official API: https://vsmov.com/api
+ *  - Direct IMDb / TMDB lookup & fuzzy keyword title + year matching
+ *  - Master 4K Ultra HD (3840x2160) stream extraction from *.streamvsmov.com
+ *  - Anti-403 HLS Proxy encapsulation (Referer: https://vsmov.com/)
+ *  - Strict zero externalUrl invariant on all stream objects
+ *  - 5-second axios timeout for fault isolation & zero blocking
  * ============================================================
  */
 
 const axios = require('axios');
-const { imdbCache } = require('../lib/cache');
-const { unpackDeanEdwards } = require('../mapper');
+const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
+const { getCachedCinemeta } = require('../lib/cinemeta');
+const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch } = require('../lib/utils');
 
 const PROVIDER_ID    = 'vsmov';
-const PROVIDER_LABEL = 'VsMov';
-const GATEWAYS       = [
-  'https://vsmov.com',
-  'https://streamvsmov.com',
-  'https://vsmov.net',
-];
-const CDN_UA         = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const PROVIDER_LABEL = 'VSMOV 4K';
+const BASE_API       = 'https://vsmov.com/api';
+const REFERER_HEADER = 'https://vsmov.com/';
+const VSMOV_UA       = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 // ─── Axios Client (5s Timeout) ───────────────────────────────────
 const http = axios.create({
+  baseURL: BASE_API,
   timeout: 5000,
   headers: {
-    'User-Agent': CDN_UA,
-    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8',
+    'User-Agent': VSMOV_UA,
+    Accept: 'application/json, text/plain, */*',
+    'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
+    Referer: REFERER_HEADER,
+    Origin: 'https://vsmov.com',
   },
 });
 
-// ─── Helpers ───────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────
+function encodeBase64(str) {
+  if (!str) return '';
+  return Buffer.from(str, 'utf8').toString('base64url');
+}
+
+function escapeRegExp(str) {
+  if (!str) return '';
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function formatImageUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const clean = url.startsWith('/') ? url.slice(1) : url;
+  return `https://vsmov.com/${clean}`;
+}
+
+function formatEpisodeLabel(epName) {
+  if (!epName) return '';
+  const trimmed = String(epName).trim();
+  if (!trimmed || trimmed.toUpperCase() === 'FULL') return '';
+  if (/^tập\b/i.test(trimmed)) {
+    return ` [${trimmed}]`;
+  }
+  return ` [Tập ${trimmed}]`;
+}
 
 /**
- * Scan HTML/JS text for 1080p and master.m3u8 URLs using multiple patterns
+ * Similarity and year score matching
  */
-function scanM3u8(text) {
-  if (!text) return null;
-  const patterns = [
-    /file\s*:\s*["']([^"']+\.m3u8[^"']*?)["']/i,
-    /source\s*:\s*["']([^"']+\.m3u8[^"']*?)["']/i,
-    /(?:url|src|link|hls|stream)\s*[:=]\s*["']([^"']+\.m3u8[^"']*?)["']/i,
-    /["'](https?:\/\/[^"']*\.m3u8[^"']*?)["']/i,
-    /["'](\/[^"']*\.m3u8[^"']*?)["']/i,
-  ];
+function scoreMatch(item, title, year = null, season = null) {
+  if (!item || !title) return 0;
+  const normalize = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-  const allMatches = [];
-  for (const pat of patterns) {
-    const globalPat = new RegExp(pat.source, pat.flags.includes('g') ? pat.flags : pat.flags + 'g');
-    let m;
-    while ((m = globalPat.exec(text)) !== null) {
-      if (m[1]) {
-        const clean = m[1].replace(/\\\//g, '/');
-        allMatches.push(clean);
+  const target = normalize(title);
+  if (!target || target.length < 2) return 0;
+
+  const nameNorm = normalize(item.name || item.title);
+  const originNorm = normalize(item.origin_name || item.original_name);
+  const slugNorm = normalize(String(item.slug || '').replace(/[-_]/g, ' '));
+
+  let score = 0;
+  if (nameNorm === target || originNorm === target || slugNorm === target) {
+    score = 1.0;
+  } else if (
+    (target.length >= 4 && (` ${nameNorm} `.includes(` ${target} `) || ` ${originNorm} `.includes(` ${target} `) || ` ${slugNorm} `.includes(` ${target} `))) ||
+    (nameNorm.length >= 4 && ` ${target} `.includes(` ${nameNorm} `)) ||
+    (originNorm.length >= 4 && ` ${target} `.includes(` ${originNorm} `))
+  ) {
+    score = 0.8;
+  } else {
+    const targetWords = new Set(target.split(' ').filter((w) => w.length > 1));
+    const candidateWords = new Set([...nameNorm.split(' '), ...originNorm.split(' '), ...slugNorm.split(' ')].filter((w) => w.length > 1));
+    if (targetWords.size > 0 && candidateWords.size > 0) {
+      const common = [...targetWords].filter((w) => candidateWords.has(w)).length;
+      const ratio = common / targetWords.size;
+      if (ratio >= 0.45) {
+        score = ratio * 0.7;
       }
     }
   }
 
-  if (allMatches.length > 0) {
-    // Ưu tiên link 1080p hoặc master.m3u8 chất lượng cao
-    const master = allMatches.find((url) => /master\.m3u8|1080p|fullhd/i.test(url));
-    if (master) return master;
-    return allMatches[0];
-  }
+  if (score <= 0) return 0;
 
-  for (const pat of patterns) {
-    const m = text.match(pat);
-    if (m) return m[1].replace(/\\\//g, '/');
-  }
-  return null;
-}
-
-/**
- * Extract embed URL from vsmov film page HTML
- */
-function extractEmbedUrl(html, pageUrl) {
-  if (!html) return null;
-  // Pattern 1: <iframe src="...">
-  const m1 = html.match(/<iframe[^>]+src=["']([^"']+)["']/i);
-  if (m1 && m1[1].includes('http')) return m1[1];
-
-  // Pattern 2: data-src
-  const m2 = html.match(/data-src=["']([^"']+)["']/i);
-  if (m2 && m2[1].includes('http')) return m2[1];
-
-  // Pattern 3: player.init("...")
-  const m3 = html.match(/player\.init\s*\(\s*["']([^"']+)["']/i);
-  if (m3 && m3[1]) return m3[1];
-
-  // Pattern 4: src="//..."
-  const m4 = html.match(/<iframe[^>]+src=["'](\/\/[^"']+)["']/i);
-  if (m4 && m4[1]) return 'https:' + m4[1];
-
-  return null;
-}
-
-/**
- * Search vsmov across multi-gateways for a film by title
- * Returns { pageUrl, gateway } or null
- */
-async function searchFilm(title) {
-  if (!title) return null;
-  for (const gw of GATEWAYS) {
-    try {
-      const searchUrl = `${gw}/?s=${encodeURIComponent(title)}`;
-      const r = await http.get(searchUrl, {
-        headers: { Referer: gw + '/' },
-      });
-
-      const html = String(r.data);
-
-      // Extract search result link
-      const m = html.match(/href=["'](https?:\/\/(?:[a-zA-Z0-9-]+\.)?vsmov\.[a-z]+\/[^"']+)["'][^>]*>[^<]*(?:film|phim|movie)/i)
-        || html.match(/<h2[^>]*class="[^"]*title[^"]*"[^>]*>.*?<a[^>]+href=["']([^"']+)["']/is)
-        || html.match(/class="[^"]*result[^"]*"[^>]*>.*?<a[^>]+href=["']([^"']+)["']/is);
-
-      if (m) return { pageUrl: m[1], gateway: gw };
-
-      const m2 = html.match(/<article[^>]*>[\s\S]*?<a[^>]+href=["'](https?:\/\/(?:[a-zA-Z0-9-]+\.)?vsmov\.[a-z]+\/[^"']+)["']/i);
-      if (m2) return { pageUrl: m2[1], gateway: gw };
-    } catch (err) {
-      console.warn(`[VsMov] Search failed on gateway ${gw}: ${err.message}`);
+  if (year && (item.year || item.releaseInfo)) {
+    let itemYear = null;
+    if (typeof item.year === 'number') itemYear = item.year;
+    else if (typeof item.year === 'string') {
+      const ym = item.year.match(/\b(19\d\d|20\d\d)\b/);
+      if (ym) itemYear = parseInt(ym[1], 10);
+    }
+    const targetYear = parseInt(year, 10);
+    if (!isNaN(targetYear) && itemYear && !isNaN(itemYear)) {
+      if (itemYear === targetYear) score += 0.25;
+      else if (Math.abs(itemYear - targetYear) <= 1) score += 0.1;
+      else score -= 0.2;
     }
   }
-  return null;
+
+  if (season != null) {
+    const sNum = parseInt(season, 10);
+    if (!isNaN(sNum) && sNum > 0) {
+      const sm = nameNorm.match(/\b(?:phan|season|part|ss)\s*(\d+)\b/) ||
+                 originNorm.match(/\b(?:phan|season|part|ss)\s*(\d+)\b/) ||
+                 slugNorm.match(/\b(?:phan|season|part|ss)\s*(\d+)\b/);
+      const itemSeason = sm ? parseInt(sm[1], 10) : 1;
+      if (itemSeason === sNum) score += 0.3;
+      else if (sNum > 1 && itemSeason === 1) score -= 0.25;
+    }
+  }
+
+  return Math.max(0, score);
 }
 
 /**
- * Extract m3u8 and embed from a vsmov film page
+ * Extract master m3u8 playlist URL from link_embed or link_m3u8
  */
-async function extractFromFilmPage(pageUrl, gateway = GATEWAYS[0]) {
+async function resolveMasterPlaylistUrl(linkEmbed, linkM3u8) {
+  if (linkM3u8 && typeof linkM3u8 === 'string' && linkM3u8.startsWith('http')) {
+    return linkM3u8;
+  }
+  if (!linkEmbed || typeof linkEmbed !== 'string') return null;
+
+  if (linkEmbed.includes('.m3u8')) {
+    return linkEmbed;
+  }
+
+  const cacheKey = `vsmov:m3u8:${linkEmbed}`;
+  const cached = imdbCache.get(cacheKey);
+  if (cached) return cached;
+
   try {
-    const r = await http.get(pageUrl, {
-      headers: { Referer: gateway + '/' },
+    const res = await http.get(linkEmbed, {
+      timeout: 3000,
     });
-    const html = String(r.data);
+    const html = String(res.data);
 
-    // 1. Direct m3u8 in page source
-    let m3u8 = scanM3u8(html);
-    if (m3u8) {
-      const full = m3u8.startsWith('http')
-        ? m3u8
-        : (m3u8.startsWith('//') ? 'https:' + m3u8 : gateway + m3u8);
-      return { m3u8Url: full, embedHost: gateway, embedUrl: pageUrl };
+    // 1. Check baseUrl + videoHash
+    const mBase = html.match(/baseUrl\s*=\s*["'\x27]([^"'\x27]+)["'\x27]/i);
+    const mHash = html.match(/videoHash\s*=\s*["'\x27]([^"'\x27]+)["'\x27]/i);
+    if (mBase && mHash) {
+      const resolved = `${mBase[1]}/stream/${mHash[1]}/master.m3u8`;
+      imdbCache.set(cacheKey, resolved, 86400);
+      return resolved;
     }
 
-    // 2. Find embed URL → fetch embed page
-    let embedUrl = extractEmbedUrl(html, pageUrl);
-    if (!embedUrl) return null;
-    if (embedUrl.startsWith('//')) embedUrl = 'https:' + embedUrl;
-
-    const embedHost = (() => {
-      try { return new URL(embedUrl).origin; } catch { return gateway; }
-    })();
-
-    const re = await http.get(embedUrl, {
-      headers: { Referer: pageUrl, Origin: gateway },
-    });
-    const embedHtml = String(re.data);
-
-    // 3. Scan embed page
-    m3u8 = scanM3u8(embedHtml);
-    if (m3u8) {
-      const full = m3u8.startsWith('http')
-        ? m3u8
-        : (m3u8.startsWith('//') ? 'https:' + m3u8 : new URL(m3u8, embedUrl).href);
-      return { m3u8Url: full, embedHost, embedUrl };
+    // 2. Check backtick or quote URL containing .m3u8
+    const m = html.match(/(?:["`'\x27\s=:(])(https?:\/\/[^"`'\x27\s()]+\.m3u8[^"`'\x27\s()]*)/i);
+    if (m && m[1]) {
+      const resolved = m[1];
+      imdbCache.set(cacheKey, resolved, 86400);
+      return resolved;
     }
-
-    // 4. Try P.A.C.K.E.R unpack
-    if (embedHtml.includes('eval(function(p,a,c,k,e,')) {
-      const unpacked = unpackDeanEdwards(embedHtml);
-      if (unpacked) {
-        m3u8 = scanM3u8(unpacked);
-        if (m3u8) {
-          const full = m3u8.startsWith('http')
-            ? m3u8
-            : (m3u8.startsWith('//') ? 'https:' + m3u8 : new URL(m3u8, embedUrl).href);
-          return { m3u8Url: full, embedHost, embedUrl };
-        }
-      }
-    }
-
-    return null;
   } catch (err) {
-    console.warn(`[VsMov] extractFromFilmPage failed: ${err.message}`);
-    return null;
+    console.warn(`[VSMOV/resolveMasterPlaylistUrl] Embed parse warning for ${linkEmbed}:`, err.message);
+  }
+
+  // Fallback pattern
+  try {
+    const u = new URL(linkEmbed);
+    const parts = u.pathname.split('/').filter(Boolean);
+    const videoHash = parts[parts.length - 1];
+    if (videoHash && videoHash.length >= 8) {
+      return `${u.origin}/stream/${videoHash}/master.m3u8`;
+    }
+  } catch {}
+
+  return null;
+}
+
+function mapCatalogMeta(item, forceType = null) {
+  const isSeries = item.type === 'series' || item.type === 'tvshows';
+  const type = forceType || (isSeries ? 'series' : 'movie');
+  const slug = item.slug || '';
+  const badgeParts = ['4K Ultra HD'];
+  if (item.year) badgeParts.push(String(item.year));
+
+  return {
+    id: `vsmov_${slug}`,
+    type,
+    name: item.name || item.origin_name || 'Không rõ tên',
+    poster: formatImageUrl(item.poster_url || item.thumb_url),
+    posterShape: 'poster',
+    background: formatImageUrl(item.thumb_url || item.poster_url),
+    description: item.content ? String(item.content).replace(/<[^>]+>/g, '').slice(0, 300) : null,
+    releaseInfo: badgeParts.join(' · '),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  1. Tìm kiếm phim: search(keyword, page = 1)
+// ─────────────────────────────────────────────────────────────
+async function search(keyword, page = 1) {
+  const cleanKeyword = safeKeyword(keyword);
+  const p = safePage(page);
+  if (!cleanKeyword) return { items: [] };
+
+  try {
+    const res = await http.get('/tim-kiem', {
+      params: {
+        keyword: cleanKeyword,
+        page: p,
+      },
+    });
+    return res.data || { items: [] };
+  } catch (err) {
+    console.error(`[VSMOV/search] keyword="${cleanKeyword}":`, err.message);
+    return { items: [] };
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-/**
- * getCatalog — Graceful fallback
- */
-async function getCatalog(type, page = 1, extra = {}) {
-  return [];
+//  2. Chi tiết phim: getDetail(slug)
+// ─────────────────────────────────────────────────────────────
+async function getDetail(slug) {
+  const cleanSlug = safeSlug(slug, 'vsmov');
+  if (!cleanSlug) return null;
+  const cacheKey = `vsmov:detail:${cleanSlug}`;
+  const cached = detailCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const res = await http.get(`/phim/${cleanSlug}`);
+    if (res.data && res.data.movie) {
+      const result = {
+        movie: res.data.movie,
+        episodes: res.data.episodes || [],
+      };
+      detailCache.set(cacheKey, result, 600); // Cache 10 mins
+      return result;
+    }
+  } catch (err) {
+    console.error(`[VSMOV/getDetail] slug="${cleanSlug}":`, err.message);
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────
-/**
- * getStreams — Trích xuất luồng từ VsMov với multi-gateway & 5s timeout
- */
+//  3. Tra cứu theo IMDb ID / TMDB ID
+// ─────────────────────────────────────────────────────────────
+async function getByImdb(imdbId, title = null) {
+  if (!imdbId) return null;
+  const cleanImdb = String(imdbId).toLowerCase().trim();
+  const cacheKey = `vsmov:imdb:${cleanImdb}`;
+  const cachedSlug = imdbCache.get(cacheKey);
+  if (cachedSlug) {
+    const detail = await getDetail(cachedSlug);
+    if (detail) return detail;
+  }
+
+  try {
+    // 1. Try search with IMDb ID directly
+    const s1 = await search(cleanImdb);
+    const items1 = s1.items || [];
+    const directMatch = items1.find(
+      (it) => it.imdb && String(it.imdb.id || '').toLowerCase().trim() === cleanImdb
+    );
+    if (directMatch && directMatch.slug) {
+      imdbCache.set(cacheKey, directMatch.slug, 86400);
+      return await getDetail(directMatch.slug);
+    }
+
+    // 2. If title given, search title and check item.imdb.id
+    if (title) {
+      const s2 = await search(title);
+      const items2 = s2.items || [];
+      const titleMatch = items2.find(
+        (it) => it.imdb && String(it.imdb.id || '').toLowerCase().trim() === cleanImdb
+      );
+      if (titleMatch && titleMatch.slug) {
+        imdbCache.set(cacheKey, titleMatch.slug, 86400);
+        return await getDetail(titleMatch.slug);
+      }
+    }
+  } catch (err) {
+    console.warn(`[VSMOV/getByImdb] ${cleanImdb}:`, err.message);
+  }
+  return null;
+}
+
+async function getByTmdb(tmdbId) {
+  if (!tmdbId) return null;
+  try {
+    const s = await search(String(tmdbId));
+    const items = s.items || [];
+    const match = items.find((it) => it.tmdb && String(it.tmdb.id || '') === String(tmdbId));
+    if (match && match.slug) {
+      return await getDetail(match.slug);
+    }
+  } catch (err) {
+    console.warn(`[VSMOV/getByTmdb] ${tmdbId}:`, err.message);
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  4. Danh mục & Catalog: getCatalog(type, page = 1, extra = {})
+// ─────────────────────────────────────────────────────────────
+async function getCatalog(type, page = 1, extra = {}) {
+  const cleanType = safeType(type, '4k');
+  const safe = safeExtra(extra);
+  const p = safePage(page);
+  const searchQuery = safeKeyword(safe.search || safe.searchQuery || safe.query);
+  const genreFilter = safeKeyword(safe.genre);
+  const cacheKey = `vsmov:cat:${cleanType}:${p}:${searchQuery}:${genreFilter}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    let items = [];
+
+    // 1. Search mode
+    if (searchQuery) {
+      const searchRes = await search(searchQuery, p);
+      const raw = searchRes.items || [];
+      items = raw.map((i) => mapCatalogMeta(i));
+      catalogCache.set(cacheKey, items, 120);
+      return items;
+    }
+
+    // 2. List endpoints
+    let endpoint = '/danh-sach/4k';
+
+    if (cleanType.includes('4k') || cleanType === 'vsmov-4k') {
+      endpoint = '/danh-sach/4k';
+    } else if (cleanType.includes('tm') || cleanType.includes('thuyet-minh')) {
+      endpoint = '/danh-sach/thuyet-minh';
+    } else if (cleanType === 'movie' || cleanType === 'phim-le') {
+      endpoint = '/danh-sach/phim-le';
+    } else if (cleanType === 'series' || cleanType === 'phim-bo') {
+      endpoint = '/danh-sach/phim-bo';
+    } else if (cleanType === 'latest' || cleanType === 'phim-moi-cap-nhat') {
+      endpoint = '/danh-sach/phim-moi-cap-nhat';
+    }
+
+    const res = await http.get(endpoint, { params: { page: p } });
+    const raw = res.data?.items || res.data?.data?.items || [];
+    items = raw.map((i) => mapCatalogMeta(i));
+
+    catalogCache.set(cacheKey, items, 300);
+    return items;
+  } catch (err) {
+    console.error(`[VSMOV/getCatalog] type=${cleanType} page=${p}:`, err.message);
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  5. Trích xuất Luồng Stream: getStreams(payload)
+// ─────────────────────────────────────────────────────────────
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
-  let imdbId = arg1;
-  let slug = null;
+  let imdbId  = null;
+  let tmdbId  = null;
+  let slug    = null;
+  let year    = null;
+  let genres  = null;
+  let aliases = [];
 
   if (typeof arg1 === 'object' && arg1 !== null) {
     imdbId    = arg1.imdbId || null;
+    tmdbId    = arg1.tmdbId || null;
     title     = arg1.title || null;
     type      = arg1.type || 'movie';
+    year      = arg1.year || null;
+    genres    = arg1.genres || null;
+    aliases   = Array.isArray(arg1.aliases) ? arg1.aliases : [];
     season    = arg1.season != null ? arg1.season : null;
     episode   = arg1.episode != null ? arg1.episode : null;
     slug      = arg1.slug || null;
     proxyBase = arg1.proxyBase || '';
+  } else if (typeof arg1 === 'string') {
+    if (/^tt\d+/i.test(arg1)) {
+      imdbId = arg1;
+    } else {
+      slug = arg1;
+    }
+    type = type || 'movie';
+    proxyBase = proxyBase || '';
+  }
+
+  if (season != null) {
+    const seasonNum = parseInt(season, 10);
+    if (isNaN(seasonNum) || seasonNum <= 0 || seasonNum > 1000) return [];
+  }
+  if (episode != null) {
+    const epNum = parseInt(episode, 10);
+    if (String(episode).trim().startsWith('-') || (!isNaN(epNum) && epNum <= 0)) return [];
+  }
+
+  // Check cached Cinemeta for year if missing
+  if (!year && imdbId) {
+    const cachedCine = getCachedCinemeta(type, imdbId);
+    if (cachedCine?.year) {
+      year = cachedCine.year;
+    }
+    if (!title && cachedCine?.name) {
+      title = cachedCine.name;
+    }
   }
 
   try {
-    const cacheKey = `vsmov:${imdbId || title || slug}`;
-    let pageInfo = imdbCache.get(cacheKey);
+    let movieData = null;
 
-    if (!pageInfo) {
-      if (!title) return [];
-      pageInfo = await searchFilm(title);
-      if (!pageInfo || !pageInfo.pageUrl) {
-        console.warn(`[VsMov/getStreams] No page found for "${title}"`);
-        return [];
-      }
-      imdbCache.set(cacheKey, pageInfo, 86400); // Cache 24h
-      console.log(`[VsMov/getStreams] "${title}" → ${pageInfo.pageUrl} [FRESH]`);
-    } else {
-      console.log(`[VsMov/getStreams] Cache hit: ${pageInfo.pageUrl || pageInfo}`);
+    // Bước 1: Tra cứu qua slug nếu có
+    if (slug) {
+      movieData = await getDetail(slug);
     }
 
-    const pageUrl = typeof pageInfo === 'string' ? pageInfo : pageInfo.pageUrl;
-    const gateway = typeof pageInfo === 'object' ? pageInfo.gateway : GATEWAYS[0];
+    // Bước 2: Tra cứu trực tiếp IMDb ID
+    if (!movieData && imdbId) {
+      movieData = await getByImdb(imdbId, title);
+    }
 
-    const result = await extractFromFilmPage(pageUrl, gateway || GATEWAYS[0]);
-    if (!result || !result.m3u8Url) {
-      console.warn(`[VsMov/getStreams] Could not extract m3u8 from ${pageUrl}`);
+    // Bước 3: Tra cứu TMDB ID
+    if (!movieData && tmdbId) {
+      movieData = await getByTmdb(tmdbId);
+    }
+
+    // Bước 4: Fallback tìm kiếm theo canonical title & aliases + match year / season
+    if (!movieData && (title || aliases.length > 0)) {
+      const searchQueries = [title, ...aliases].filter(Boolean);
+      let bestItem = null;
+      let bestScore = -1;
+
+      for (const q of searchQueries) {
+        const searchRes = await search(q, 1);
+        const items = searchRes.items || [];
+        for (const item of items) {
+          const score = scoreMatch(item, title || q, year, season);
+          if (score > bestScore) {
+            bestScore = score;
+            bestItem = item;
+          }
+        }
+        if (bestScore >= 0.7) break; // High confidence match
+      }
+
+      if (bestItem && bestItem.slug && bestScore >= 0.45) {
+        movieData = await getDetail(bestItem.slug);
+        if (movieData && imdbId) {
+          imdbCache.set(`vsmov:imdb:${imdbId.toLowerCase()}`, bestItem.slug, 86400);
+        }
+      }
+    }
+
+    if (!movieData || !movieData.episodes || !movieData.episodes.length) {
       return [];
     }
 
-    const { m3u8Url, embedHost, embedUrl } = result;
+    const { movie, episodes } = movieData;
+    const isMovie = (type === 'movie' || movie.type === 'single') && episode == null;
+    const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
+
+    // Season validation for series
+    if (!isMovie && season != null) {
+      if (!isSeasonMatch(movie, episodes, season, type)) {
+        return [];
+      }
+    }
+
     const streams = [];
+    const b64Ref = encodeBase64(REFERER_HEADER);
 
-    // 1. In-App Direct Play (HLS Proxy) — MUST NOT have externalUrl
-    if (proxyBase) {
-      const b64Url = Buffer.from(m3u8Url).toString('base64url');
-      const b64Ref = Buffer.from((embedHost || GATEWAYS[0]) + '/').toString('base64url');
+    // Duyệt qua tất cả các server của VSMOV (Vietsub, Thuyết Minh, Lồng Tiếng, 4K)
+    for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
+      const server = episodes[sIdx];
+      const rawServerName = String(server.server_name || `Server ${sIdx + 1}`)
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/#/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const serverData = server.server_data || [];
+      if (!serverData.length) continue;
+
+      let targetEp = null;
+      if (isMovie || targetEpStr === null) {
+        targetEp = serverData[0];
+      } else {
+        const epNum = parseInt(targetEpStr, 10);
+        if (!isNaN(epNum) && epNum <= 0) {
+          targetEp = null;
+        } else {
+          targetEp = serverData.find((ep) => {
+            if (!ep) return false;
+            const nameStr = String(ep.name || '').trim();
+            const slugStr = String(ep.slug || '').trim();
+            if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
+            if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
+            if (!isNaN(epNum) && epNum > 0) {
+              const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
+              if (numFromName === epNum) return true;
+              const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
+              if (numFromSlug === epNum) return true;
+            }
+            if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
+              try {
+                const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
+                if (re.test(nameStr) || re.test(slugStr)) return true;
+              } catch {}
+            }
+            return false;
+          });
+
+          // 1-based index fallback
+          if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
+            targetEp = serverData[epNum - 1];
+          }
+        }
+      }
+
+      if (!targetEp) continue;
+
+      const masterPlaylistUrl = await resolveMasterPlaylistUrl(targetEp.link_embed, targetEp.link_m3u8);
+      if (!masterPlaylistUrl) continue;
+
+      const b64MasterUrl = encodeBase64(masterPlaylistUrl);
+      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${b64MasterUrl}&ref=${b64Ref}`;
+      const epLabel = formatEpisodeLabel(targetEp.name);
+
+      const isTM = /thuy.{1,5}t minh|l.{1,5}ng ti.{1,5}ng/i.test(rawServerName);
+      let titleHeader = isTM
+        ? `[VIP 1 • VSMOV] Thuyết Minh Full HD${epLabel} (HLS Proxy)`
+        : `[VIP 1 • VSMOV] Master 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)`;
+
+      // STRICT INVARIANT: url only, STRICTLY NO externalUrl
       streams.push({
         name: 'VIP Movies 🎬',
-        title: `[VIP • VsMov] Vietsub Full HD (HLS Proxy)\n⚡ Phát trực tiếp trong App`,
-        url: `${proxyBase}/hls/manifest.m3u8?url=${b64Url}&ref=${b64Ref}`,
+        title: `${titleHeader}\n⚡ Server VIP 1 • Master 4K Ultra HD (3840x2160)`,
+        url: streamUrl,
         behaviorHints: {
           notSupported: false,
-          bingeGroup: `vsmov-${slug || imdbId || 'stream'}`,
+          bingeGroup: `vsmov-${movie.slug || slug || 'stream'}`,
         },
       });
     }
 
-    // 2. External Web Browser Play (Embed Player Fallback) — MUST NOT have url
-    if (embedUrl) {
-      streams.push({
-        name: 'VIP Movies 🎬',
-        title: `[Dự phòng • VsMov] Vietsub Full HD (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`,
-        externalUrl: embedUrl,
-        behaviorHints: {
-          notSupported: false,
-          bingeGroup: `vsmov-${slug || imdbId || 'stream'}`,
-        },
-      });
-    }
-
-    console.log(`[VsMov/getStreams] ${imdbId || title} → ${streams.length} streams`);
     return streams;
   } catch (err) {
-    // GRACEFUL DEGRADATION — không throw, không block Stremio
-    console.error(`[VsMov/getStreams] ${imdbId || title} — graceful fail:`, err.message);
+    console.error(`[VSMOV/getStreams] ${imdbId || title || slug} — error:`, err.message);
     return [];
   }
 }
@@ -293,6 +575,10 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
 module.exports = {
   id: PROVIDER_ID,
   label: PROVIDER_LABEL,
+  search,
+  getDetail,
+  getByImdb,
+  getByTmdb,
   getCatalog,
   getStreams,
 };

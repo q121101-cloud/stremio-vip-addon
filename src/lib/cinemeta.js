@@ -30,6 +30,8 @@ const cinemetaClient = axios.create({
   },
 });
 
+const inflightRequests = new Map();
+
 /**
  * Parse a 4-digit numeric year from year string or releaseInfo
  * @param {string|number} yearVal
@@ -40,10 +42,11 @@ function parseYear(yearVal, releaseInfoVal) {
   if (typeof yearVal === 'number' && yearVal >= 1800 && yearVal <= 2100) {
     return yearVal;
   }
-  const str = String(yearVal || releaseInfoVal || '');
-  const match = str.match(/\b(19\d\d|20\d\d)\b/);
+  const raw = [yearVal, releaseInfoVal].filter(Boolean).join(' ');
+  const match = raw.match(/\b((?:18|19|20|21)\d{2})\b/);
   if (match) {
-    return parseInt(match[1], 10);
+    const y = parseInt(match[1], 10);
+    if (y >= 1800 && y <= 2100) return y;
   }
   return null;
 }
@@ -68,9 +71,13 @@ function parseGenres(meta) {
  */
 function parseAliases(meta) {
   if (!meta) return [];
-  if (Array.isArray(meta.aliases)) return meta.aliases.map(a => String(a).trim()).filter(Boolean);
-  if (typeof meta.aliases === 'string' && meta.aliases.trim()) return [meta.aliases.trim()];
-  return [];
+  const list = [];
+  if (Array.isArray(meta.aliases)) list.push(...meta.aliases);
+  if (Array.isArray(meta.titles)) list.push(...meta.titles);
+  if (Array.isArray(meta.alternativeTitles)) list.push(...meta.alternativeTitles);
+  if (typeof meta.aliases === 'string') list.push(meta.aliases);
+  if (typeof meta.originalName === 'string' && meta.originalName !== meta.name) list.push(meta.originalName);
+  return Array.from(new Set(list.map(a => String(a).trim()).filter(Boolean)));
 }
 
 /**
@@ -78,6 +85,7 @@ function parseAliases(meta) {
  * @property {string} imdbId - Clean IMDb ID (e.g. 'tt1375666')
  * @property {'movie'|'series'} type - Content type
  * @property {string} name - Canonical title (e.g. 'Inception')
+ * @property {string} originalName - Original title
  * @property {number|null} year - 4-digit release start year (e.g. 2010)
  * @property {string|null} releaseInfo - Full release string (e.g. '2008–2013')
  * @property {string[]} genres - Array of genre strings
@@ -111,44 +119,56 @@ async function resolveCinemeta(type, rawId) {
     return cached;
   }
 
-  try {
-    const res = await cinemetaClient.get(`/meta/${cleanType}/${imdbId}.json`);
-    const meta = res.data?.meta;
-
-    if (!meta || !meta.name) {
-      cinemetaCache.set(cacheKey, null, CACHE_TTL_FAILURE);
-      return null;
-    }
-
-    const parsedYear = parseYear(meta.year, meta.releaseInfo);
-    const releaseInfo = meta.releaseInfo ? String(meta.releaseInfo) : (meta.year ? String(meta.year) : null);
-    const genres = parseGenres(meta);
-    const aliases = parseAliases(meta);
-
-    const result = {
-      imdbId,
-      type: cleanType,
-      name: String(meta.name).trim(),
-      originalName: String(meta.name).trim(),
-      year: parsedYear,
-      releaseInfo,
-      genres,
-      aliases,
-      poster: meta.poster || null,
-      background: meta.background || null,
-      description: meta.description || null,
-    };
-
-    // Cache resolved metadata for 24h
-    cinemetaCache.set(cacheKey, result, CACHE_TTL_SUCCESS);
-    return result;
-  } catch (err) {
-    console.warn(`[Cinemeta] Failed to resolve ${imdbId} (${cleanType}): ${err.message}`);
-    if (err.response && err.response.status === 404) {
-      cinemetaCache.set(cacheKey, null, CACHE_TTL_FAILURE);
-    }
-    return null;
+  // Single-flight deduplication: return existing in-flight promise if available
+  if (inflightRequests.has(cacheKey)) {
+    return inflightRequests.get(cacheKey);
   }
+
+  const promise = (async () => {
+    try {
+      const res = await cinemetaClient.get(`/meta/${cleanType}/${imdbId}.json`);
+      const meta = res.data?.meta;
+
+      if (!meta || !meta.name) {
+        cinemetaCache.set(cacheKey, null, CACHE_TTL_FAILURE);
+        return null;
+      }
+
+      const parsedYear = parseYear(meta.year, meta.releaseInfo);
+      const releaseInfo = meta.releaseInfo ? String(meta.releaseInfo) : (meta.year ? String(meta.year) : null);
+      const genres = parseGenres(meta);
+      const aliases = parseAliases(meta);
+
+      const result = {
+        imdbId,
+        type: cleanType,
+        name: String(meta.name).trim(),
+        originalName: String(meta.originalName || meta.name).trim(),
+        year: parsedYear,
+        releaseInfo,
+        genres,
+        aliases,
+        poster: meta.poster || null,
+        background: meta.background || null,
+        description: meta.description || null,
+      };
+
+      // Cache resolved metadata for 24h
+      cinemetaCache.set(cacheKey, result, CACHE_TTL_SUCCESS);
+      return result;
+    } catch (err) {
+      console.warn(`[Cinemeta] Failed to resolve ${imdbId} (${cleanType}): ${err.message}`);
+      if (err.response && err.response.status === 404) {
+        cinemetaCache.set(cacheKey, null, CACHE_TTL_FAILURE);
+      }
+      return null;
+    } finally {
+      inflightRequests.delete(cacheKey);
+    }
+  })();
+
+  inflightRequests.set(cacheKey, promise);
+  return promise;
 }
 
 /**
