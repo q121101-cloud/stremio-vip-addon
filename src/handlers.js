@@ -3,13 +3,10 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/handlers.js  (Engine v1.4.0)
- *  Stremio Addon Routes:
- *    - GET /              → Interactive Configurator Dashboard
- *    - GET /catalog/:type/:id/:extra?.json
- *    - GET /meta/:type/:id.json
- *    - GET /stream/:type/:id.json
- *    - GET /health
- *  Dynamic Config: req.addonConfig (from /:config/* middleware)
+ *  Stremio Addon Express Route Handlers
+ *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov)
+ *  - Dynamic Catalog & Meta Router
+ *  - Interactive Cyber-Glassmorphism Configurator Dashboard
  * ============================================================
  */
 
@@ -18,7 +15,7 @@ const router  = express.Router();
 
 const api     = require('./api');
 const mapper  = require('./mapper');
-const { MANIFEST, GENRES, buildManifest } = require('./manifest');
+const { MANIFEST, GENRES, COUNTRIES, buildManifest } = require('./manifest');
 const { decodeConfig, encodeConfig, isConfigToken, DEFAULT_CONFIG, getDefaultToken } = require('./config');
 const { imdbCache, catalogCache, detailCache }  = require('./lib/cache');
 
@@ -65,12 +62,6 @@ function skipToPage(skip) {
   return Math.floor(s / 10) + 1;
 }
 
-/**
- * Lấy config từ request:
- *  - req.addonConfig (set bởi /:config middleware)
- *  - ?config= query param
- *  - DEFAULT_CONFIG fallback
- */
 function getConfig(req) {
   if (req.addonConfig) return req.addonConfig;
   if (req.query.config) {
@@ -79,35 +70,29 @@ function getConfig(req) {
   return DEFAULT_CONFIG;
 }
 
-/**
- * Xác định provider nào cần dùng từ catalog ID
- * Format: "nguonc-movie-latest", "kkphim-series-latest", v.v.
- */
 function getProviderFromCatalogId(catalogId) {
+  if (!catalogId) return 'nguonc';
   for (const pid of Object.keys(ALL_PROVIDERS)) {
-    if (catalogId.startsWith(pid + '-')) return pid;
+    if (catalogId.startsWith(pid + '-') || catalogId.startsWith(pid + '_')) return pid;
   }
-  return 'nguonc'; // default
+  return 'nguonc';
 }
 
-/**
- * Xác định loại catalog từ ID
- * "nguonc-anime-latest" → "anime"
- */
 function getCatTypeFromCatalogId(catalogId) {
-  const parts = catalogId.split('-');
-  if (parts.length >= 2) return parts[1]; // nguonc-[anime]-latest
+  if (!catalogId) return null;
+  const parts = catalogId.replace(/_/g, '-').split('-');
+  if (parts.length >= 2) return parts[1]; // kkphim-[movie]-latest
   return null;
 }
 
 // ─────────────────────────────────────────────────────────────
-//  ROUTE: GET / → Configurator Dashboard
+//  ROUTE: GET / → Interactive Configurator Dashboard
 // ─────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
   const baseUrl  = `${protocol}://${host}`;
-  const defaultToken     = getDefaultToken();
+  const defaultToken       = getDefaultToken();
   const defaultManifestUrl = `${baseUrl}/${defaultToken}/manifest.json`;
   const stremioUrl         = `stremio://${host}/${defaultToken}/manifest.json`;
   const webInstallUrl      = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(defaultManifestUrl)}`;
@@ -274,9 +259,9 @@ router.get('/', (req, res) => {
         <button class="pill action-pill" onclick="selectAll()">⚡ Bật tất cả</button>
         <button class="pill action-pill danger-pill" onclick="selectNone()">🚫 Tắt tất cả</button>
         <div style="width:1px;background:rgba(255,255,255,0.08);margin:0 4px;height:auto;align-self:stretch;border-radius:1px;"></div>
-        <button class="pill" id="cat-movie"  onclick="toggleCat('movie')" >🎬 Phim Lẻ</button>
+        <button class="pill" id="cat-movie"  onclick="toggleCat('movie')">🎬 Phim Lẻ</button>
         <button class="pill" id="cat-series" onclick="toggleCat('series')">📺 Phim Bộ</button>
-        <button class="pill" id="cat-anime"  onclick="toggleCat('anime')" >🐉 Hoạt Hình</button>
+        <button class="pill" id="cat-anime"  onclick="toggleCat('anime')">🐉 Hoạt Hình</button>
         <button class="pill" id="cat-cinema" onclick="toggleCat('cinema')">🍿 Chiếu Rạp</button>
       </div>
     </div>
@@ -297,7 +282,7 @@ router.get('/', (req, res) => {
             <span class="badge badge-purple">IMDb</span>
           </div>
         </div>
-        <div class="provider-card kkphim" id="card-kkphim" onclick="toggleProvider('kkphim')" role="checkbox" aria-checked="false" tabindex="0">
+        <div class="provider-card kkphim active" id="card-kkphim" onclick="toggleProvider('kkphim')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon">🔮</div>
             <div class="toggle-track" aria-hidden="true"></div>
@@ -310,7 +295,7 @@ router.get('/', (req, res) => {
             <span class="badge badge-pink">IMDb Direct</span>
           </div>
         </div>
-        <div class="provider-card vsmov" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="false" tabindex="0">
+        <div class="provider-card vsmov active" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon">⚡</div>
             <div class="toggle-track" aria-hidden="true"></div>
@@ -344,7 +329,7 @@ router.get('/', (req, res) => {
   <div class="floating-dock">
     <div class="dock-inner">
       <div class="status-bar">
-        <div class="status-text">Đang bật: <strong id="provider-count">1 nguồn</strong> &nbsp;·&nbsp; <strong id="category-count">2 danh mục</strong></div>
+        <div class="status-text">Đang bật: <strong id="provider-count">3 nguồn</strong> &nbsp;·&nbsp; <strong id="category-count">2 danh mục</strong></div>
         <div class="status-indicator"><span class="dot"></span>Config đã cập nhật</div>
       </div>
       <div class="apikey-row">
@@ -362,7 +347,7 @@ router.get('/', (req, res) => {
 
   <script>
     var _baseUrl = window.location.origin;
-    var _providers = new Set(['nguonc']);
+    var _providers = new Set(['nguonc', 'kkphim', 'vsmov']);
     var _categories = new Set(['movie', 'series']);
     var _apiKey = '';
 
@@ -461,6 +446,7 @@ router.get('/', (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 //  ROUTE: GET /catalog/:type/:id.json
+//  ROUTE: GET /catalog/:type/:id/:extra.json
 // ─────────────────────────────────────────────────────────────
 router.get(
   ['/catalog/:type/:id/:extra.json', '/catalog/:type/:id.json'],
@@ -475,7 +461,6 @@ router.get(
     console.log(`[Catalog] type=${type} id=${id} search=${searchQuery} genre=${genreFilter} page=${page}`);
 
     try {
-      // Xác định provider từ catalog ID
       const providerId = getProviderFromCatalogId(id);
       const catType    = getCatTypeFromCatalogId(id) || type;
       const provider   = ALL_PROVIDERS[providerId] || providerNguonC;
@@ -500,99 +485,138 @@ router.get(
 router.get('/meta/:type/:id.json', async (req, res) => {
   const { type, id } = req.params;
 
+  // If IMDb ID, let Cinemeta handle it
   if (/^tt\d+/i.test(id)) {
     console.log(`[Meta] IMDb ID → Cinemeta: ${id}`);
     return sendJSON(res, { meta: null });
   }
 
-  const slug = mapper.extractSlug(id);
-  if (!slug) return sendJSON(res, { meta: null });
-
-  // Check detail cache
-  const cacheKey = `meta:${slug}`;
+  const cacheKey = `meta:${id}`;
   const cached = detailCache.get(cacheKey);
   if (cached) return sendJSON(res, { meta: cached });
 
   try {
-    const data = await api.getFilmDetail(slug);
-    if (!data?.movie) return sendJSON(res, { meta: null });
+    let meta = null;
 
-    const meta = mapper.mapDetailMeta(data.movie, type);
-    detailCache.set(cacheKey, meta);
-    sendJSON(res, { meta });
+    // 1. KKPhim ID
+    if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
+      const slug = id.replace(/^kkphim[_:]/, '');
+      const detail = await providerKKPhim.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
+      }
+    }
+    // 2. NguonC ID
+    else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
+      const slug = id.replace(/^nguonc[_:]/, '');
+      const detail = await providerNguonC.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = mapper.mapDetailMeta(detail.movie, type);
+        meta.id = id;
+      }
+    }
+    // 3. Fallback generic slug via NguonC or KKPhim
+    else {
+      const slug = mapper.extractSlug(id);
+      const detail = await providerNguonC.getDetail(slug);
+      if (detail && detail.movie) {
+        meta = mapper.mapDetailMeta(detail.movie, type);
+      } else {
+        const kkDetail = await providerKKPhim.getDetail(slug);
+        if (kkDetail && kkDetail.movie) {
+          meta = providerKKPhim.mapDetailMeta(kkDetail.movie, kkDetail.episodes, type);
+        }
+      }
+    }
+
+    if (meta) {
+      detailCache.set(cacheKey, meta, 600);
+      return sendJSON(res, { meta });
+    }
+
+    sendJSON(res, { meta: null });
   } catch (err) {
-    console.error(`[Meta Error] slug=${slug}`, err.message);
+    console.error(`[Meta Error] id=${id}`, err.message);
     sendJSON(res, { meta: null });
   }
 });
 
 // ─────────────────────────────────────────────────────────────
 //  ROUTE: GET /stream/:type/:id.json
-//  Merge streams từ tất cả active providers
+//  BỘ GOM LUỒNG TỔNG HỢP: Chạy song song bất đồng bộ qua
+//  Promise.allSettled([kkphim.getStreams(...), nguonc.getStreams(...), vsmov.getStreams(...)])
+//  Đảm bảo mỗi tập phim luôn hiển thị 4–10 server tốc độ cao!
 // ─────────────────────────────────────────────────────────────
 router.get('/stream/:type/:id.json', async (req, res) => {
   const { type, id } = req.params;
-  const config  = getConfig(req);
+  const config = getConfig(req);
   const proxyBase = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`.replace(/\/$/, '');
 
-  console.log(`[Stream] type=${type} id=${id} providers=${config.providers.join(',')}`);
+  console.log(`[Stream Aggregator] type=${type} id=${id} activeProviders=${config.providers.join(',')}`);
 
   try {
-    // ── Native nguonc: ID ─────────────────────────────────────
-    if (!id.startsWith('tt') && !id.startsWith('kkphim:') && !id.startsWith('vsmov:')) {
-      const parsed = mapper.parseStreamId(id);
-      const { slug, epName } = parsed;
-      if (!slug) return sendError(res, 400, 'ID stream không hợp lệ');
-
-      const data = await api.getFilmDetail(slug);
-      if (!data?.movie) return sendError(res, 404, `Không tìm thấy phim: ${slug}`);
-
-      const targetEpName = type === 'movie' ? null : epName;
-      const streams = mapper.buildStreams(data.movie, targetEpName, proxyBase);
-      return sendJSON(res, { streams });
-    }
-
-    // ── KKPhim native ID ─────────────────────────────────────
-    if (id.startsWith('kkphim:')) {
-      const slug = id.replace('kkphim:', '');
-      const streams = await providerKKPhim.getStreams('', '', type, null, null, proxyBase);
-      return sendJSON(res, { streams });
-    }
-
-    // ── IMDb ID → multi-provider merge ────────────────────────
-    const parts   = id.split(':');
-    const imdbId  = parts[0];
-    const season  = parts[1] ? parseInt(parts[1], 10) : null;
-    const episode = parts[2] ? parseInt(parts[2], 10) : null;
-
-    // Lấy title từ Cinemeta để hỗ trợ fallback search
+    let imdbId = null;
+    let slug = null;
+    let season = null;
+    let episode = null;
     let title = null;
-    try {
-      const cineMeta = await api.resolveCinemeta(type, imdbId);
-      title = cineMeta?.name || null;
-    } catch {}
 
-    // Fan-out tới tất cả providers được bật
-    const activeProviders = config.providers
-      .map((pid) => ALL_PROVIDERS[pid])
-      .filter(Boolean);
+    // Parse ID
+    if (/^tt\d+/i.test(id)) {
+      const parts = id.split(':');
+      imdbId  = parts[0];
+      season  = parts[1] ? parseInt(parts[1], 10) : null;
+      episode = parts[2] ? parseInt(parts[2], 10) : null;
 
+      // Lấy title qua Cinemeta
+      try {
+        const cineMeta = await api.resolveCinemeta(type, imdbId);
+        title = cineMeta?.name || null;
+      } catch {}
+    } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
+      const withoutPrefix = id.replace(/^kkphim[_:]/, '');
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        season = parseInt(parts[1], 10);
+        episode = parseInt(parts[2], 10);
+      }
+    } else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
+      const withoutPrefix = id.replace(/^nguonc[_:]/, '');
+      const parts = withoutPrefix.split(':');
+      slug = parts[0];
+      if (parts.length >= 3) {
+        episode = parts.slice(2).join(':');
+      }
+    } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
+      const withoutPrefix = id.replace(/^vsmov[_:]/, '');
+      slug = withoutPrefix;
+    } else {
+      slug = id;
+    }
+
+    const payload = { imdbId, type, title, season, episode, slug, proxyBase };
+
+    // Lọc danh sách provider theo config người dùng
+    const activeProviderKeys = config.providers.filter((p) => ALL_PROVIDERS[p]);
+    const providersToRun = (activeProviderKeys.length > 0 ? activeProviderKeys : ['nguonc', 'kkphim', 'vsmov'])
+      .map((k) => ALL_PROVIDERS[k]);
+
+    // CHẠY SONG SONG BẤT ĐỒNG BỘ
     const results = await Promise.allSettled(
-      activeProviders.map((p) => p.getStreams(imdbId, title, type, season, episode, proxyBase))
+      providersToRun.map((provider) => provider.getStreams(payload))
     );
 
-    const streams = [];
+    const mergedStreams = [];
     for (const r of results) {
       if (r.status === 'fulfilled' && Array.isArray(r.value)) {
-        streams.push(...r.value);
+        mergedStreams.push(...r.value);
       }
     }
 
-    if (!streams.length) {
-      console.warn(`[Stream] No streams found for ${id}`);
-    }
+    console.log(`[Stream Aggregator] id=${id} → Total ${mergedStreams.length} high-speed streams`);
 
-    sendJSON(res, { streams });
+    sendJSON(res, { streams: mergedStreams });
   } catch (err) {
     console.error(`[Stream Error] id=${id}`, err.message);
     sendJSON(res, { streams: [] });

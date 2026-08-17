@@ -4,13 +4,13 @@
  * ============================================================
  *  VIP Movies Stremio Addon - src/manifest.js  (v1.4.0)
  *  Định nghĩa manifest của addon theo chuẩn Stremio / Nuvio
- *  Hỗ trợ Dynamic Manifest theo config token
+ *  Hỗ trợ Dynamic Manifest theo config token & đa nguồn (NguonC, KKPhim, VsMov)
  * ============================================================
  */
 
 const { VALID_PROVIDERS, VALID_CATEGORIES, DEFAULT_CONFIG } = require('./config');
 
-/** Danh sách thể loại & slug tương ứng trên NguonC */
+/** Danh sách thể loại chuẩn */
 const GENRES = [
   { name: 'Hành Động', slug: 'hanh-dong' },
   { name: 'Tình Cảm', slug: 'tinh-cam' },
@@ -37,7 +37,7 @@ const GENRES = [
   { name: 'Phim 18+', slug: 'phim-18' },
 ];
 
-/** Danh sách quốc gia & slug tương ứng trên NguonC */
+/** Danh sách quốc gia chuẩn */
 const COUNTRIES = [
   { name: 'Việt Nam', slug: 'viet-nam' },
   { name: 'Trung Quốc', slug: 'trung-quoc' },
@@ -60,11 +60,8 @@ const GENRE_NAMES = GENRES.map((g) => g.name);
 
 // ─── Catalog Definitions Per Provider ────────────────────────
 
-/**
- * Tất cả catalog có thể có, được đánh dấu provider + category
- */
 const ALL_CATALOGS = [
-  // ── NguonC ──────────────────────────────────────────────
+  // ── 1. NguonC ───────────────────────────────────────────
   {
     provider: 'nguonc',
     category: 'movie',
@@ -115,6 +112,58 @@ const ALL_CATALOGS = [
     ],
     extraSupported: ['search', 'skip'],
   },
+
+  // ── 2. KKPhim ───────────────────────────────────────────
+  {
+    provider: 'kkphim',
+    category: 'movie',
+    type: 'movie',
+    id: 'kkphim-movie-latest',
+    name: '🎬 KKPhim • Phim Lẻ Mới',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'kkphim',
+    category: 'series',
+    type: 'series',
+    id: 'kkphim-series-latest',
+    name: '📺 KKPhim • Phim Bộ Mới',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'kkphim',
+    category: 'anime',
+    type: 'series',
+    id: 'kkphim-anime-latest',
+    name: '🐉 KKPhim • Hoạt Hình & Anime',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'skip'],
+  },
+  {
+    provider: 'kkphim',
+    category: 'cinema',
+    type: 'movie',
+    id: 'kkphim-cinema-latest',
+    name: '🍿 KKPhim • Phim Chiếu Rạp',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'skip'],
+  },
 ];
 
 // ─── Base Manifest Object ─────────────────────────────────────
@@ -124,23 +173,23 @@ const BASE_MANIFEST = {
   version: '1.4.0',
   name: 'VIP Movies 🎬',
   description:
-    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ phim lẻ, phim bộ & IMDb. Cấu hình đa nguồn linh hoạt.',
+    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ NguonC, KKPhim, VsMov & IMDb. Cấu hình đa nguồn linh hoạt.',
   logo: 'https://i.imgur.com/3C9XQFP.png',
   resources: [
     'catalog',
     {
       name: 'meta',
       types: ['movie', 'series'],
-      idPrefixes: ['nguonc:'],
+      idPrefixes: ['nguonc:', 'nguonc_', 'kkphim:', 'kkphim_', 'vsmov:', 'vsmov_', 'tt'],
     },
     {
       name: 'stream',
       types: ['movie', 'series'],
-      idPrefixes: ['nguonc:', 'tt'],
+      idPrefixes: ['nguonc:', 'nguonc_', 'kkphim:', 'kkphim_', 'vsmov:', 'vsmov_', 'tt'],
     },
   ],
   types: ['movie', 'series'],
-  idPrefixes: ['nguonc:', 'tt'],
+  idPrefixes: ['nguonc:', 'nguonc_', 'kkphim:', 'kkphim_', 'vsmov:', 'vsmov_', 'tt'],
   behaviorHints: {
     adult: false,
     p2p: false,
@@ -156,18 +205,17 @@ const BASE_MANIFEST = {
  * @returns {object} Stremio-compatible manifest
  */
 function buildManifest(config = DEFAULT_CONFIG, configBaseUrl = '') {
-  const { providers, categories } = config;
+  const { providers = DEFAULT_CONFIG.providers, categories = DEFAULT_CONFIG.categories } = config;
 
   // Lọc catalog theo provider + category được chọn
   const filteredCatalogs = ALL_CATALOGS.filter(
     (cat) => providers.includes(cat.provider) && categories.includes(cat.category)
   );
 
-  // Nếu không có catalog nào khớp, trả về catalogs mặc định (NguonC movie+series)
   const catalogs =
     filteredCatalogs.length > 0
       ? filteredCatalogs.map(({ provider: _p, category: _c, ...rest }) => rest)
-      : ALL_CATALOGS.filter((c) => c.provider === 'nguonc' && ['movie', 'series'].includes(c.category))
+      : ALL_CATALOGS.filter((c) => providers.includes(c.provider) || c.provider === 'nguonc')
           .map(({ provider: _p, category: _c, ...rest }) => rest);
 
   const manifest = {
@@ -175,7 +223,6 @@ function buildManifest(config = DEFAULT_CONFIG, configBaseUrl = '') {
     catalogs,
   };
 
-  // Nếu có configBaseUrl, bổ sung configurationURL cho Stremio
   if (configBaseUrl) {
     manifest.behaviorHints = {
       ...manifest.behaviorHints,
@@ -186,7 +233,7 @@ function buildManifest(config = DEFAULT_CONFIG, configBaseUrl = '') {
   return manifest;
 }
 
-/** Manifest mặc định (đầy đủ tất cả catalog NguonC) */
+/** Manifest mặc định */
 const MANIFEST = buildManifest(DEFAULT_CONFIG);
 
 module.exports = { MANIFEST, GENRES, COUNTRIES, GENRE_NAMES, ALL_CATALOGS, buildManifest };

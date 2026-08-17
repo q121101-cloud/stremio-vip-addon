@@ -169,7 +169,19 @@ async function getCatalog(type, page = 1, extra = {}) {
 /**
  * getStreams — cào link m3u8 từ vsmov.com
  */
-async function getStreams(imdbId, title, type, season, episode, proxyBase) {
+async function getStreams(arg1, title, type, season, episode, proxyBase) {
+  let imdbId = arg1;
+  let slug = null;
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    imdbId    = arg1.imdbId;
+    title     = arg1.title;
+    type      = arg1.type;
+    season    = arg1.season;
+    episode   = arg1.episode;
+    slug      = arg1.slug;
+    proxyBase = arg1.proxyBase;
+  }
+
   try {
     // Check cache
     const cacheKey = `vsmov:${imdbId}`;

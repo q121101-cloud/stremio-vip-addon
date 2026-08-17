@@ -87,6 +87,19 @@ function decodeB64(str) {
   try { return Buffer.from(str, 'base64url').toString('utf8'); } catch { return null; }
 }
 
+/**
+ * Resolve target URL from raw or base64 param
+ */
+function resolveParamUrl(val) {
+  if (!val) return null;
+  if (val.startsWith('http://') || val.startsWith('https://')) return val;
+  const decoded = decodeB64(val);
+  if (decoded && (decoded.startsWith('http://') || decoded.startsWith('https://'))) {
+    return decoded;
+  }
+  return val;
+}
+
 // ─── OPTIONS preflight ──────────────────────────────────────────
 router.options('*', (req, res) => {
   setCorsHeaders(res);
@@ -98,7 +111,7 @@ router.options('*', (req, res) => {
 //  Lazy extraction: fetch embed → extract m3u8 → redirect to /hls/manifest.m3u8
 // ─────────────────────────────────────────────────────────────
 router.get('/extract', async (req, res) => {
-  let embedUrl = req.query.embed || decodeB64(req.query.b64);
+  let embedUrl = resolveParamUrl(req.query.embed || req.query.b64 || req.query.url);
   if (!embedUrl) return res.status(400).send('Missing embed url');
 
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
@@ -128,10 +141,10 @@ router.get('/extract', async (req, res) => {
 //  Rewrite playlist proxy (Master → sub-playlist, sub-playlist → TS)
 // ─────────────────────────────────────────────────────────────
 router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
-  const targetUrl = req.query.url || decodeB64(req.query.b64);
+  const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
 
-  const refParam  = req.query.ref ? decodeB64(req.query.ref) : (req.query.referer || null);
+  const refParam  = resolveParamUrl(req.query.ref || req.query.referer);
   const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
@@ -228,10 +241,10 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
 //  Segment pipe proxy — stream binary data
 // ─────────────────────────────────────────────────────────────
 router.get('/ts', async (req, res) => {
-  const targetUrl = req.query.url || decodeB64(req.query.b64);
+  const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
 
-  const refParam  = req.query.ref ? decodeB64(req.query.ref) : (req.query.referer || null);
+  const refParam  = resolveParamUrl(req.query.ref || req.query.referer);
   const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
 
   const isKey = req.query.is_key === '1' || targetUrl.includes('.key');
