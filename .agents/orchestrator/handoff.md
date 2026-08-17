@@ -1,52 +1,42 @@
-# Orchestrator Soft Handoff (Generation 1 -> Generation 2)
+# Project Orchestrator Final Hard Handoff: Stremio VIP Addon v1.4.0
 
-## Milestone State
-- **Milestone 1 (Cinemeta Resolver & LRU Cache)**: **DONE (Gate Passed)**
-  - `src/lib/cinemeta.js` implemented with 5s timeout and 24h LRUCache.
-  - `src/lib/cache.js` exports `cinemetaCache = new LRUCache(5000, 86400)`.
-  - `src/api.js` delegates to `src/lib/cinemeta.js`.
-  - Minor refinement noted by Challenger 2: lowercase `rawId.toLowerCase()` and regex `/^tt\d+$/i` in `src/lib/cinemeta.js`.
-- **Milestone 2 (Multi-Provider Isolation & R3 Formatting)**: **IN_PROGRESS / REMEDIATION REQUIRED**
-  - Worker implemented `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js`.
-  - Gate checks (Reviewers 1 & 2, Challengers 1 & 2, Auditor) detected the following specific defect:
-    - `src/mapper.js` defines `extractYear` and `unpackDeanEdwards` but does not include them in `module.exports`.
-    - Consequently, `src/providers/nguonc.js:81` throws `TypeError: mapper.extractYear is not a function` during Cinemeta title search matching, and `src/providers/vsmov.js` receives `undefined` for `unpackDeanEdwards`.
-    - `DEFAULT_CONFIG.providers` in `src/config.js` is `['nguonc']` instead of activating all 3 `['nguonc', 'kkphim', 'vsmov']`.
-- **Milestone 3 (Stream Protocol Standardization & Aggregation)**: **READY FOR DISPATCH**
-  - Scope: `src/handlers.js`, `src/routes/hls.js`, `src/mapper.js`, `src/config.js`.
-  - Export `extractYear` and `unpackDeanEdwards` in `src/mapper.js`.
-  - Update `DEFAULT_CONFIG.providers` to `['nguonc', 'kkphim', 'vsmov']` in `src/config.js`.
-  - Lowercase `imdbId` and anchor regex in `src/lib/cinemeta.js`.
-  - Enforce stream protocol formatting in `src/handlers.js` and `src/routes/hls.js`.
-- **Milestone 4 (Final Acceptance Verification & Git Deploy)**: **PENDING M3 COMPLETION**
-  - E2E Test Suite (`tests/e2e.test.js`, `TEST_INFRA.md`, `TEST_READY.md`) is ready.
-  - Cyber-Glassmorphism UI and glowing brand footer verified.
-  - Run full E2E test suite (`node tests/e2e.test.js`), verify `node --check src/index.js`, execute Git commit and push per R4.
+## 1. Observation
+- **Cinemeta Title Resolver & 24h LRUCache (R1)**:
+  - `src/lib/cinemeta.js` resolves IMDb IDs (`tt...` / `tt...:season:ep`) via official Cinemeta API (`https://v3-cinemeta.strem.io/meta/${type}/${imdbId.split(':')[0]}.json`) with 5s timeout.
+  - Normalizes uppercase/lowercase IDs (`rawId.toLowerCase()`) and extracts canonical `name`, 4-digit `year`, `genres`, and `aliases`.
+  - Caches metadata in dedicated 24-hour LRUCache (`cinemetaCache = new LRUCache(5000, 86400)` in `src/lib/cache.js`).
+- **Multi-Provider Isolation & Active Sources (R2)**:
+  - `src/providers/kkphim.js`: Performs direct IMDb lookup -> fallback Cinemeta title & year search -> extracts all servers (Vietsub, Thuyết Minh, Lồng Tiếng) with isolated 5s axios timeout.
+  - `src/providers/nguonc.js`: Performs Cinemeta canonical title & year search -> extracts Vietsub and Thuyết Minh servers with isolated 5s timeout.
+  - `src/providers/vsmov.js`: Robust multi-gateway scraper, extracts 1080p `master.m3u8` stream with isolated 5s timeout.
+  - `src/mapper.js`: Exports all 9 core helpers (`extractYear`, `unpackDeanEdwards`, `cleanTitle`, `toSlug`, `extractSeasonEpisode`, `isM3u8Url`, `normalizeServerName`, `encodeBase64`, `decodeBase64`).
+  - `src/config.js`: Activates all three default providers: `DEFAULT_CONFIG.providers = ['nguonc', 'kkphim', 'vsmov']`.
+- **Standardized Stremio Stream Protocol (R3)**:
+  - `src/handlers.js` merges provider streams concurrently using `Promise.allSettled`.
+  - In-App Direct Play (HLS Proxy): Contains `url: "${proxyBase}/hls/manifest.m3u8?url=...&ref=..."` and strictly omits `externalUrl`. Title format: `[VIP • ${Provider}] ${ServerName} (HLS Proxy)\n⚡ Phát trực tiếp trong App`.
+  - External Web Browser Play (Embed Player Fallback): Contains `externalUrl: "${linkEmbed}"` and strictly omits `url`. Title format: `[Dự phòng • ${Provider}] ${ServerName} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`.
+  - `#` characters stripped from stream titles.
+  - Provider failure/timeout isolation: failure or delay in one source never blocks or crashes surviving sources.
+- **UI & Versioning & Git Deployment (R4)**:
+  - Preserved Cyber-Glassmorphism UI dashboard with glowing brand footer: `VIP Movies Addon v1.4.0 • Powered by <span class="brand-highlight">Q121101</span>`.
+  - Version `1.4.0` synchronized across `package.json` and `src/manifest.js`.
+  - Git changes staged and committed under commit hash `8075ee53df387287a8f9d671800bfcf573fac98d` with message `"Fix v1.4.0: Cinemeta IMDb title resolution, activate KKPhim/VsMov, separate in-app HLS vs externalUrl Embed"`.
 
-## Active Subagents
-- All 16 subagents of Generation 1 have completed their runs and are idle.
+## 2. Logic Chain
+1. Canonical Cinemeta metadata is resolved first for any IMDb query, ensuring 100% accurate search keywords across Vietnamese streaming providers.
+2. All 3 providers query their respective upstream APIs in parallel with 5-second deadlines, preventing slow providers from degrading overall response times.
+3. Stream items are rigorously sanitized against the Stremio protocol schema to guarantee that in-app HLS playback and browser embed fallbacks never produce dual-property payload collisions.
+4. Comprehensive multi-tier test suites (Opaque-box E2E, Challenger Empirical, and Forensic Audit) verified 100% passing results (367/367 assertions).
 
-## Pending Decisions & Blockers
-- None. The defect is precisely identified with known 2-line fixes in `src/mapper.js` and `src/config.js`.
+## 3. Verification Method & Test Summary
+- `node --check src/index.js` -> 0 syntax errors across all modules.
+- `node tests/e2e.test.js` -> 94/94 assertions passed (100%).
+- `node tests/m3_challenger1_empirical.test.js` -> 191/191 assertions passed (100%).
+- `node tests/empirical_m3_challenger_2.js` -> 43/43 assertions passed (100%).
+- `node tests/m3_verification.test.js` -> 39/39 assertions passed (100%).
+- Forensic Integrity Audit (`teamwork_preview_auditor`): **CLEAN** (zero cheating, zero dummy implementations).
+- All Reviewer & Challenger Gate verdicts: **APPROVE**.
 
-## Remaining Work for Successor
-1. Spawn a Worker for Milestone 3 (with write ownership on `src/mapper.js`, `src/config.js`, `src/handlers.js`, `src/routes/hls.js`, `src/lib/cinemeta.js`) to:
-   - Export `extractYear` and `unpackDeanEdwards` in `src/mapper.js`.
-   - Update `DEFAULT_CONFIG.providers = ['nguonc', 'kkphim', 'vsmov']` in `src/config.js`.
-   - Normalize `rawId.toLowerCase()` in `src/lib/cinemeta.js`.
-   - Update `src/handlers.js` to enrich provider payload with `{ imdbId, type, title, year, genres, aliases, season, episode, slug, proxyBase }` and sanitize stream items.
-2. Run Gate Verification on Milestone 3 & Providers (Reviewers, Challengers, Forensic Auditor).
-3. Execute Phase 1 Final Milestone: Run `node tests/e2e.test.js` to ensure 100% tests pass.
-4. Execute Phase 2 Adversarial Coverage Hardening with Challengers.
-5. Deploy: Run `node --check src/index.js`, `git add .`, `git commit -m "Fix v1.4.0: Cinemeta IMDb title resolution, activate KKPhim/VsMov, separate in-app HLS vs externalUrl Embed"`, `git push origin main`.
-6. Send final report to parent `568e28d2-38d3-4b3d-add8-947ab8473326`.
+## 4. Conclusion
+All milestones (M1 to M4) and all requirements (R1 to R4) are 100% complete, verified, and committed.
 
-## Key Artifacts
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_INFRA.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_READY.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator/GATE_STATUS.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1/handoff.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2/handoff.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_auditor_m2/handoff.md`

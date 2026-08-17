@@ -10,8 +10,7 @@
  *  - Direct IMDb lookup -> fallback Cinemeta title & year search
  *  - Multi-server support: Vietsub, Thuyết Minh, Lồng Tiếng
  *  - R3 Stremio Stream Protocol compliance:
- *    * In-App Direct Play: HLS Proxy (url only, NO externalUrl)
- *    * External Web Browser Play: Embed Player (externalUrl only, NO url)
+ *    * In-App Direct Play: HLS Proxy (url only, strictly NO externalUrl)
  * ============================================================
  */
 
@@ -47,6 +46,16 @@ function formatImageUrl(url) {
 function encodeBase64(str) {
   if (!str) return '';
   return Buffer.from(str, 'utf8').toString('base64url');
+}
+
+function formatEpisodeLabel(epName) {
+  if (!epName) return '';
+  const trimmed = String(epName).trim();
+  if (!trimmed || trimmed.toUpperCase() === 'FULL') return '';
+  if (/^tập\b/i.test(trimmed)) {
+    return ` [${trimmed}]`;
+  }
+  return ` [Tập ${trimmed}]`;
 }
 
 /**
@@ -136,8 +145,8 @@ async function getByImdb(imdbId) {
 
   try {
     const res = await http.get(`/imdb/title/${imdbId}`);
-    const movie = res.data?.movie;
-    const episodes = res.data?.episodes || movie?.episodes || [];
+    const movie = res.data?.movie || res.data?.data?.item;
+    const episodes = res.data?.episodes || movie?.episodes || res.data?.data?.item?.episodes || [];
     if (movie) {
       const result = { movie, episodes };
       imdbCache.set(cacheKey, result, 86400); // 24h
@@ -192,8 +201,8 @@ async function getDetail(slug) {
 
   try {
     const res = await http.get(`/phim/${cleanSlug}`);
-    const movie = res.data?.movie;
-    const episodes = res.data?.episodes || [];
+    const movie = res.data?.movie || res.data?.data?.item;
+    const episodes = res.data?.episodes || movie?.episodes || res.data?.data?.item?.episodes || [];
     if (movie) {
       const result = { movie, episodes };
       detailCache.set(cacheKey, result, 600); // 10 minutes
@@ -275,7 +284,7 @@ async function getCatalog(type, page = 1, extra = {}) {
 //  5. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
-  let imdbId = arg1;
+  let imdbId = null;
   let slug = null;
   let year = null;
   let genres = null;
@@ -290,6 +299,14 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     episode   = arg1.episode != null ? arg1.episode : null;
     slug      = arg1.slug || null;
     proxyBase = arg1.proxyBase || '';
+  } else if (typeof arg1 === 'string') {
+    if (/^tt\d+/i.test(arg1)) {
+      imdbId = arg1;
+    } else {
+      slug = arg1;
+    }
+    type = type || 'movie';
+    proxyBase = proxyBase || '';
   }
 
   // Check cached Cinemeta for year if missing
@@ -344,13 +361,13 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
 
     const streams = [];
-    const baseRef = 'https://phimapi.com/';
+    const baseRef = 'https://player.phimapi.com/';
 
     // Bước 4: Duyệt tất cả các server (Vietsub, Thuyết Minh, Lồng Tiếng)
     for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
       const server = episodes[sIdx];
       const rawServerName = server.server_name || `Server #${sIdx + 1}`;
-      const cleanServerName = rawServerName.replace(/#/g, '').trim() || `Server ${sIdx + 1}`;
+      const cleanServerName = rawServerName.replace(/#/g, '').replace(/\s+/g, ' ').trim() || `Server ${sIdx + 1}`;
       const serverData = server.server_data || [];
 
       if (!serverData.length) continue;
@@ -359,57 +376,44 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       if (isMovie || targetEpStr === null) {
         targetEp = serverData[0];
       } else {
-        // Khớp ep.name == episode hoặc ep.slug == "tap-" + episode hoặc index episode - 1
+        const epNum = parseInt(targetEpStr, 10);
+        // Khớp ep.name == episode hoặc ep.slug == "tap-" + episode hoặc regex / index
         targetEp = serverData.find((ep) => {
           if (!ep) return false;
-          if (String(ep.name).trim() === targetEpStr) return true;
-          if (ep.slug === `tap-${targetEpStr}` || ep.slug === `tap-0${targetEpStr}`) return true;
-          if (ep.name && String(ep.name).match(new RegExp(`\\b${targetEpStr}\\b`))) return true;
+          const nameStr = String(ep.name || '').trim();
+          const slugStr = String(ep.slug || '').trim();
+          if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
+          if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
+          if (!isNaN(epNum)) {
+            const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
+            if (numFromName === epNum) return true;
+            const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
+            if (numFromSlug === epNum) return true;
+          }
+          if (nameStr && nameStr.match(new RegExp(`\\b${targetEpStr}\\b`))) return true;
           return false;
         });
 
         // Index fallback
-        if (!targetEp) {
-          const epNum = parseInt(targetEpStr, 10);
-          if (!isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
-            targetEp = serverData[epNum - 1];
-          }
+        if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
+          targetEp = serverData[epNum - 1];
         }
       }
 
-      if (!targetEp) continue;
+      if (!targetEp || !targetEp.link_m3u8) continue;
 
-      const epLabel = targetEp.name && String(targetEp.name).toUpperCase() !== 'FULL' ? ` [Tập ${targetEp.name}]` : '';
+      const epLabel = formatEpisodeLabel(targetEp.name);
+      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${encodeBase64(baseRef)}`;
 
-      // 1. In-App Direct Play (HLS Proxy) — MUST NOT have externalUrl
-      if (targetEp.link_m3u8) {
-        const streamUrl = proxyBase
-          ? `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${encodeBase64(baseRef)}`
-          : targetEp.link_m3u8;
-
-        streams.push({
-          name: 'VIP Movies 🎬',
-          title: `[VIP • KKPhim] ${cleanServerName}${epLabel} (HLS Proxy)\n⚡ Phát trực tiếp trong App`,
-          url: streamUrl,
-          behaviorHints: {
-            notSupported: false,
-            bingeGroup: `kkphim-${movie?.slug || 'stream'}`,
-          },
-        });
-      }
-
-      // 2. External Web Browser Play (Embed Player Fallback) — MUST NOT have url
-      if (targetEp.link_embed) {
-        streams.push({
-          name: 'VIP Movies 🎬',
-          title: `[Dự phòng • KKPhim] ${cleanServerName}${epLabel} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`,
-          externalUrl: targetEp.link_embed,
-          behaviorHints: {
-            notSupported: false,
-            bingeGroup: `kkphim-${movie?.slug || 'stream'}`,
-          },
-        });
-      }
+      streams.push({
+        name: 'VIP Movies 🎬',
+        title: `[VIP • KKPhim] ${cleanServerName}${epLabel} Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`,
+        url: streamUrl,
+        behaviorHints: {
+          notSupported: false,
+          bingeGroup: `kkphim-${movie?.slug || slug || 'stream'}`,
+        },
+      });
     }
 
     return streams;

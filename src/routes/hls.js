@@ -26,18 +26,17 @@ const { extractM3u8FromEmbed } = require('../mapper');
 const { m3u8Cache }            = require('../lib/cache');
 
 // ─── Constants ─────────────────────────────────────────────────
-const HLS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const HLS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 /**
  * Per-source Referer mapping
  * Detect nguồn từ URL → inject Referer phù hợp
  */
 const SOURCE_REFERERS = [
-  { pattern: /nguonc\.com/i,     referer: 'https://phim.nguonc.com/',   origin: 'https://phim.nguonc.com' },
-  { pattern: /phimapi\.com/i,    referer: 'https://phimapi.com/',       origin: 'https://phimapi.com' },
-  { pattern: /kkphim/i,          referer: 'https://kkphim.vip/',        origin: 'https://kkphim.vip' },
-  { pattern: /vsmov|streamvs/i,  referer: 'https://vsmov.com/',         origin: 'https://vsmov.com' },
-  { pattern: /streamc\./i,       referer: 'https://streamc.online/',    origin: 'https://streamc.online' },
+  { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
+  { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
+  { pattern: /vsmov|streamvs/i,                            referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
+  { pattern: /streamc\./i,                                 referer: 'https://streamc.online/',      origin: 'https://streamc.online' },
 ];
 
 const DEFAULT_REFERER = 'https://phim.nguonc.com/';
@@ -46,11 +45,15 @@ const DEFAULT_REFERER = 'https://phim.nguonc.com/';
  * Xác định Referer & Origin từ URL hoặc ref param
  */
 function getRefererHeaders(targetUrl, refParam) {
-  // Ưu tiên ref param nếu có
+  // Ưu tiên dynamic ref param nếu có
   if (refParam) {
     try {
-      const origin = new URL(refParam).origin;
-      return { referer: refParam, origin };
+      let parsedRef = refParam;
+      if (!parsedRef.startsWith('http://') && !parsedRef.startsWith('https://')) {
+        parsedRef = `https://${parsedRef}`;
+      }
+      const origin = new URL(parsedRef).origin;
+      return { referer: parsedRef, origin };
     } catch {}
   }
 
@@ -80,11 +83,23 @@ function setCorsHeaders(res) {
 }
 
 /**
- * Decode Base64URL → string an toàn
+ * Decode Base64URL / Base64 → string an toàn
  */
 function decodeB64(str) {
   if (!str) return null;
-  try { return Buffer.from(str, 'base64url').toString('utf8'); } catch { return null; }
+  try {
+    const decodedUrl = Buffer.from(str, 'base64url').toString('utf8');
+    if (decodedUrl && (decodedUrl.startsWith('http://') || decodedUrl.startsWith('https://') || decodedUrl.includes('://'))) {
+      return decodedUrl;
+    }
+    const decodedStd = Buffer.from(str, 'base64').toString('utf8');
+    if (decodedStd && (decodedStd.startsWith('http://') || decodedStd.startsWith('https://') || decodedStd.includes('://'))) {
+      return decodedStd;
+    }
+    return decodedUrl || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -92,12 +107,14 @@ function decodeB64(str) {
  */
 function resolveParamUrl(val) {
   if (!val) return null;
-  if (val.startsWith('http://') || val.startsWith('https://')) return val;
-  const decoded = decodeB64(val);
+  if (typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  const decoded = decodeB64(trimmed);
   if (decoded && (decoded.startsWith('http://') || decoded.startsWith('https://'))) {
     return decoded;
   }
-  return val;
+  return decoded || trimmed;
 }
 
 // ─── OPTIONS preflight ──────────────────────────────────────────
@@ -107,10 +124,11 @@ router.options('*', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  GET /hls/extract?b64=<embed_url>
+//  GET /hls/extract?url=<embed_url_base64url>
 //  Lazy extraction: fetch embed → extract m3u8 → redirect to /hls/manifest.m3u8
 // ─────────────────────────────────────────────────────────────
 router.get('/extract', async (req, res) => {
+  setCorsHeaders(res);
   let embedUrl = resolveParamUrl(req.query.embed || req.query.b64 || req.query.url);
   if (!embedUrl) return res.status(400).send('Missing embed url');
 
@@ -127,7 +145,7 @@ router.get('/extract', async (req, res) => {
     const b64M3u8 = Buffer.from(m3u8Url).toString('base64url');
     const b64Ref  = Buffer.from(embedUrl).toString('base64url');
 
-    const proxyUrl = `${protoHost}/hls/manifest.m3u8?b64=${b64M3u8}&ref=${b64Ref}`;
+    const proxyUrl = `${protoHost}/hls/manifest.m3u8?url=${b64M3u8}&ref=${b64Ref}`;
     console.log(`[HLS/extract] ${embedUrl.slice(0, 60)} → ${m3u8Url.slice(0, 60)}`);
     res.redirect(302, proxyUrl);
   } catch (err) {
@@ -137,10 +155,13 @@ router.get('/extract', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  GET /hls/manifest.m3u8?b64=<url>&ref=<referer>
+//  GET /hls/manifest.m3u8?url=<url>&ref=<referer>
 //  Rewrite playlist proxy (Master → sub-playlist, sub-playlist → TS)
 // ─────────────────────────────────────────────────────────────
 router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
+  setCorsHeaders(res);
+  res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+
   const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
 
@@ -149,11 +170,8 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
   // Check m3u8 cache
-  const cacheKey = `m3u8:${targetUrl}`;
+  const cacheKey = `m3u8:${protoHost}:${targetUrl}`;
   const cached   = m3u8Cache.get(cacheKey);
-
-  setCorsHeaders(res);
-  res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
 
   if (cached) {
     console.log(`[HLS/manifest] Cache HIT: ${targetUrl.slice(0, 60)}`);
@@ -165,7 +183,12 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
       url: targetUrl,
       method: 'GET',
       responseType: 'text',
-      headers: { 'User-Agent': HLS_UA, Referer: refererUrl, Origin: origin },
+      headers: {
+        'User-Agent': HLS_UA,
+        Referer: refererUrl,
+        Origin: origin,
+        Accept: '*/*',
+      },
       timeout: 15000,
       maxRedirects: 5,
     });
@@ -183,32 +206,53 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
 
       if (t.startsWith('#')) {
         if (t.startsWith('#EXT-X-STREAM-INF') || t.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
-          isNextSubPlaylist = true; isNextSegment = false;
+          isNextSubPlaylist = true;
+          isNextSegment = false;
           return line;
         }
         if (t.startsWith('#EXTINF')) {
-          isNextSegment = true; isNextSubPlaylist = false;
+          isNextSegment = true;
+          isNextSubPlaylist = false;
           return line;
         }
-        if (t.startsWith('#EXT-X-MEDIA:') && t.includes('URI=')) {
-          return t.replace(/URI="([^"]+)"/, (_, uri) => {
+        if (t.startsWith('#EXT-X-MEDIA') && t.includes('URI=')) {
+          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+            const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Uri = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/manifest.m3u8?b64=${b64Uri}&ref=${encodedRef}"`;
+            return `URI="${protoHost}/hls/manifest.m3u8?url=${b64Uri}&ref=${encodedRef}"`;
           });
         }
-        if (t.startsWith('#EXT-X-KEY') && t.includes('URI=')) {
-          return t.replace(/URI="([^"]+)"/, (_, uri) => {
+        if ((t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-SESSION-KEY')) && t.includes('URI=')) {
+          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+            const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Key = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/ts?b64=${b64Key}&ref=${encodedRef}&is_key=1"`;
+            return `URI="${protoHost}/hls/ts?url=${b64Key}&ref=${encodedRef}&is_key=1"`;
           });
         }
         if (t.startsWith('#EXT-X-MAP') && t.includes('URI=')) {
-          return t.replace(/URI="([^"]+)"/, (_, uri) => {
+          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+            const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Map = Buffer.from(absUri).toString('base64url');
-            return `URI="${protoHost}/hls/ts?b64=${b64Map}&ref=${encodedRef}"`;
+            return `URI="${protoHost}/hls/ts?url=${b64Map}&ref=${encodedRef}"`;
+          });
+        }
+        if (t.startsWith('#EXT-X-PRELOAD-HINT') && t.includes('URI=')) {
+          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+            const uri = qUri || unqUri;
+            const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
+            const b64Hint = Buffer.from(absUri).toString('base64url');
+            return `URI="${protoHost}/hls/ts?url=${b64Hint}&ref=${encodedRef}"`;
+          });
+        }
+        if (t.startsWith('#EXT-X-PART') && t.includes('URI=')) {
+          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+            const uri = qUri || unqUri;
+            const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
+            const b64Part = Buffer.from(absUri).toString('base64url');
+            return `URI="${protoHost}/hls/ts?url=${b64Part}&ref=${encodedRef}"`;
           });
         }
         return line;
@@ -220,11 +264,11 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
 
       if (isNextSubPlaylist || absUrl.includes('.m3u8') || absUrl.includes('playlist')) {
         isNextSubPlaylist = false;
-        return `${protoHost}/hls/manifest.m3u8?b64=${b64Url}&ref=${encodedRef}`;
+        return `${protoHost}/hls/manifest.m3u8?url=${b64Url}&ref=${encodedRef}`;
       }
 
       isNextSegment = false;
-      return `${protoHost}/hls/ts?b64=${b64Url}&ref=${encodedRef}`;
+      return `${protoHost}/hls/ts?url=${b64Url}&ref=${encodedRef}`;
     }).join('\n');
 
     // Cache rewritten playlist
@@ -237,34 +281,43 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  GET /hls/ts?b64=<segment_url>&ref=<referer>
+//  GET /hls/ts?url=<segment_url>&ref=<referer>
 //  Segment pipe proxy — stream binary data
 // ─────────────────────────────────────────────────────────────
 router.get('/ts', async (req, res) => {
-  const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
-  if (!targetUrl) return res.status(400).send('Missing url');
-
-  const refParam  = resolveParamUrl(req.query.ref || req.query.referer);
-  const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
-
-  const isKey = req.query.is_key === '1' || targetUrl.includes('.key');
-
   setCorsHeaders(res);
-  res.setHeader('Cache-Control', 'public, max-age=86400');
 
-  // BẮT BUỘC ghi đè Content-Type (tránh image/png từ CDN che giấu segment)
+  const isKey = req.query.is_key === '1';
   if (isKey) {
     res.setHeader('Content-Type', 'application/octet-stream');
   } else {
     res.setHeader('Content-Type', 'video/mp2t');
   }
 
+  const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
+  if (!targetUrl) return res.status(400).send('Missing url');
+
+  const refParam  = resolveParamUrl(req.query.ref || req.query.referer);
+  const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
+
+  const isKeyUrl = isKey || targetUrl.includes('.key');
+  if (isKeyUrl && !isKey) {
+    res.setHeader('Content-Type', 'application/octet-stream');
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+
   try {
     const r = await axios({
       url: targetUrl,
       method: 'GET',
       responseType: 'stream',
-      headers: { 'User-Agent': HLS_UA, Referer: refererUrl, Origin: origin },
+      headers: {
+        'User-Agent': HLS_UA,
+        Referer: refererUrl,
+        Origin: origin,
+        Accept: '*/*',
+      },
       timeout: 25000,
       maxRedirects: 5,
     });

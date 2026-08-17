@@ -1,45 +1,52 @@
 # Original User Request
 
-## Initial Request — 2026-08-17T03:16:15Z
+## 2026-08-17T08:21:14Z
 
-Fix IMDb title lookup with Cinemeta resolver, activate 3 providers (KKPhim, NguonC, VsMov) with independent error handling & 5s timeouts, and standardize Stremio Protocol streams (in-app `url` for HLS Proxy vs `externalUrl` for Embed Player).
+<USER_REQUEST>
+Optimize in-app HLS playback for KKPhim provider with anti-403 CDN headers and build an end-to-end stream test & self-debug loop ensuring 100% verified playback.
 
 Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 Integrity mode: development
 
 ## Requirements
 
-### R1. Cinemeta Title Resolver (`src/lib/cinemeta.js`)
-- Resolve IMDb IDs (`tt...` or `tt...:season:ep`) via official Cinemeta API (`https://v3-cinemeta.strem.io/meta/${type}/${imdbId.split(':')[0]}.json`).
-- Extract canonical title (`meta.name`), release year (`meta.year`), genres, and alternative names.
-- Pass resolved canonical title & year to all 3 providers for 100% accurate search matching.
-- Cache Cinemeta metadata in `LRUCache` (TTL: 24h).
+### R1. KKPhim In-App Stream Format (`src/providers/kkphim.js`)
+- Extract `link_m3u8` from `episodes[].server_data[]`.
+- Accurately resolve episodes: index 0 for movies, match `ep.name` or `tap-${episode}` for series.
+- Return Stream objects strictly formatted for Stremio in-app playback:
+  - `name`: `"VIP Movies 🎬"`
+  - `title`: `[VIP • KKPhim] ${server.server_name} [Tập ${ep.name}] Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`
+  - `url`: `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(ep.link_m3u8)}&ref=${encodeBase64('https://player.phimapi.com/')}`
+  - Strictly omit `externalUrl` so Stremio plays inside the native player.
 
-### R2. Robust Multi-Provider Isolation (`src/providers/`)
-- Wrap provider logic in individual `try...catch` blocks with 5-second axios timeouts so failure in one source never blocks or degrades other sources.
-- **KKPhim** (`src/providers/kkphim.js`): Try direct IMDb lookup (`/imdb/title/${imdbId}`) -> fallback to Cinemeta title search (`/v1/api/tim-kiem?keyword=...`) -> match year/slug -> return all servers (Vietsub, Thuyết Minh, Lồng Tiếng).
-- **NguonC** (`src/providers/nguonc.js`): Search with Cinemeta title (`/films/search?keyword=...`) -> return Vietsub & Thuyết Minh.
-- **VSMOV** (`src/providers/vsmov.js`): Robust multi-gateway scraper, extract 1080p `master.m3u8` stream.
+### R2. HLS Proxy Anti-403 Optimization (`src/routes/hls.js`)
+- Bypass CDN hotlink protection (`*.kkphimplayer*.com` etc.):
+  - Inject upstream headers on playlist & segment requests:
+    - `Referer: https://player.phimapi.com/`
+    - `Origin: https://player.phimapi.com`
+    - `User-Agent: Mozilla/5 visual Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36`
+  - Rewrite playlist contents so all sub-playlists and `.ts` / media segments route through the internal proxy.
+  - Enforce CORS headers (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Headers: *`) and MIME types (`application/vnd.apple.mpegurl` / `video/mp2t`).
 
-### R3. Standardize Stremio Stream Protocol (`src/handlers.js`)
-- **In-App Direct Play (HLS Proxy)**:
-  - Property: `url: "${baseUrl}/hls/manifest.m3u8?url=${b64Url}&ref=${b64Ref}"`
-  - Title: `[VIP • ${Provider}] ${ServerName} (HLS Proxy)\n⚡ Phát trực tiếp trong App`
-- **External Web Browser Play (Embed Player Fallback)**:
-  - Property: `externalUrl: "${linkEmbed}"` (MUST NOT contain `url` property).
-  - Title: `[Dự phòng • ${Provider}] ${ServerName} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`
+### R3. End-to-End Stream Test & Self-Debug Loop (`tests/test_kkphim_playback.js`)
+- Implement an automated E2E test script:
+  - Start local addon server on an ephemeral port.
+  - **Test Case 1 (Stream Generation)**: Fetch streams for test slug `cuu-mon` (or equivalent valid title), verify `[VIP • KKPhim]` stream with `url` exists.
+  - **Test Case 2 (Manifest Proxy Verification)**: GET the proxy manifest URL, verify HTTP 200, `#EXTM3U` tag, and rewritten `.ts` segment links.
+  - **Test Case 3 (Segment Playback Verification)**: GET a rewritten `.ts` video segment through proxy, verify HTTP 200 (no 403 Forbidden / 500) and valid binary video buffer.
+- **Self-Debug Mandate**: If any test case fails, analyze error logs, fix `src/routes/hls.js` or `src/providers/kkphim.js`, and re-run until all 3 pass 100%.
 
-### R4. Versioning & Deploy
-- Retain Cyber-Glassmorphism UI and glowing brand footer: `VIP Movies Addon v1.4.0 • Powered by <span class="brand-highlight">Q121101</span>`.
-- Version: `1.4.0` in `package.json` and `manifest.js`.
-- Verify with `node --check src/index.js`.
-- Deploy: `git add . && git commit -m "Fix v1.4.0: Cinemeta IMDb title resolution, activate KKPhim/VsMov, separate in-app HLS vs externalUrl Embed" && git push origin main`.
+### R4. Verification & Git Deployment
+- Run `node --check src/index.js` and all test suites.
+- Commit & push to GitHub:
+  `git add . && git commit -m "Fix & Verify: 100% In-App Playback for KKPhim with E2E verified HLS Proxy" && git push origin main`
 
 ## Acceptance Criteria
 
-### Stream & Resolver Verification
-- [ ] Querying `/stream/movie/tt1375666.json` (Inception) resolves title via Cinemeta, returns active streams from KKPhim, NguonC, and VsMov.
-- [ ] Streams with HLS Proxy have `url` and NO `externalUrl`.
-- [ ] Streams with Embed Player have `externalUrl` and NO `url`.
-- [ ] If one provider times out or throws an error, the remaining providers still return their streams without crashing the response.
-- [ ] `node --check src/index.js` passes with zero errors.
+### Playback & Test Suite
+- [ ] `node tests/test_kkphim_playback.js` passes all 3 test cases with 0 errors.
+- [ ] Real TS segment fetch returns HTTP 200 with non-empty `video/mp2t` buffer without 403 Forbidden.
+- [ ] KKPhim streams contain `url` and NO `externalUrl`.
+- [ ] `node --check src/index.js` passes without syntax errors.
+
+</USER_REQUEST>

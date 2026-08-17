@@ -275,7 +275,7 @@ async function runM3Verification() {
 
     assert.strictEqual(statusCode, 200);
     assert(responseData && Array.isArray(responseData.streams), 'Response must contain streams array');
-    assert.strictEqual(responseData.streams.length, 4, `Expected 4 streams (KKPhim: 2, NguonC: 2), got ${responseData.streams.length}`);
+    assert.strictEqual(responseData.streams.length, 3, `Expected 3 streams (KKPhim: 1 in-app proxy, NguonC: 2), got ${responseData.streams.length}`);
 
     // Verify R3 Protocol for every aggregated stream
     for (let i = 0; i < responseData.streams.length; i++) {
