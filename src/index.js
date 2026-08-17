@@ -72,6 +72,7 @@ const HLS_UA     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 const HLS_DEFREF = 'https://phim.nguonc.com/';
 const { extractM3u8FromEmbed } = require('./mapper');
 const mapper = require('./mapper');
+const { isConfigToken, decodeConfig } = require('./config');
 
 /**
  * /hls/extract?embed=<encoded_embed_url> | ?b64=<base64url>
@@ -284,6 +285,21 @@ app.get('/hls/ts', async (req, res) => {
 // ─── Routes ───────────────────────────────────────────────────
 app.use('/', handlers);
 
+// ─── Config-prefixed routes for Stremio ───────────────────────
+// Stremio calls /:config/manifest.json, /:config/catalog/..., etc.
+// We strip the config prefix and delegate to the same handlers.
+app.use('/:configToken', (req, res, next) => {
+  const token = req.params.configToken;
+  // Skip non-config tokens (e.g. 'hls', 'health', 'admin', 'favicon.ico')
+  if (!isConfigToken(token)) return next();
+  // Attach decoded config to request for downstream handlers
+  req.addonConfig = decodeConfig(token);
+  req.configToken = token;
+  // Rewrite URL: strip the config prefix so handlers see /manifest.json, /catalog/...
+  req.url = req.url.replace(/^\/[^/]+/, '') || '/';
+  handlers(req, res, next);
+});
+
 // ─── 404 Handler ─────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint không tồn tại', path: req.path });
@@ -303,7 +319,7 @@ const server = app.listen(PORT, HOST, () => {
 
   console.log('');
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log('║        🎬  VIP Movies Stremio Addon  v1.3.8          ║');
+  console.log('║        🎬  VIP Movies Stremio Addon  v1.4.0          ║');
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log(`║  Server:    ${addonUrl.padEnd(41)}║`);
   console.log(`║  Manifest:  ${manifestUrl.padEnd(41)}║`);
