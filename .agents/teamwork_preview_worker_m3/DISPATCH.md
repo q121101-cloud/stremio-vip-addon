@@ -1,9 +1,21 @@
-## 2026-08-17T10:37:16Z
-Milestone 3 (Stream Protocol Standardization & Aggregation) of stremio-nguonc-addon.
-Tasks:
-1. `src/mapper.js`: Export all helper functions (extractYear, unpackDeanEdwards, cleanTitle, toSlug, extractSeasonEpisode, isM3u8Url, normalizeServerName, encodeBase64, decodeBase64). Ensure extractYear and unpackDeanEdwards logic.
-2. `src/config.js`: Ensure DEFAULT_CONFIG.providers = ['nguonc', 'kkphim', 'vsmov'].
-3. `src/lib/cinemeta.js`: Ensure rawId.toLowerCase(), regex /^tt\d+$/i, 5000ms timeout, 24h LRUCache.
-4. `src/handlers.js`: Enforce stream aggregation via cinemeta.resolveCinemeta, Promise.allSettled with isolated 5s timeouts for all active providers, standardize stream items per R3 (in-app url vs externalUrl, behaviorHints, isolated error handling), retain Cyber-Glassmorphism UI.
-5. `package.json` & `src/manifest.js`: Version 1.4.0.
-6. Verification: node --check src/index.js, node tests/e2e.test.js.
+## 2026-08-18T17:38:45Z
+Execute the final verification, commit, and git deployment protocol for the VIP Movies Stremio Addon:
+
+1. Verification:
+   - Run `npm test` and verify 0 failures.
+   - Run `node tests/live_backtest_all_providers.js` to ensure the live backtest matrix passes.
+   - Verify `git status` to ensure NO `.env` files, API keys, or credentials are staged or committed.
+
+2. Git Commit & Push:
+   - Stage modified and new source/test files (`src/`, `tests/`, etc., avoiding any agent metadata files or sensitive files).
+   - Create a clean git commit, e.g.:
+     `git commit -m "feat(engine): v1.7.1 live backtest suite across 8 providers, Film4K fixes, and HLS fallback resilience"`
+   - Execute the strict Git push protocol:
+     ```bash
+     git remote set-url origin https://<TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
+     git push origin main
+     git remote set-url origin https://github.com/q121101-cloud/stremio-vip-addon.git
+     ```
+   - Verify that the remote URL is reset back to `https://github.com/q121101-cloud/stremio-vip-addon.git` and `git status` is clean.
+
+3. Write your handoff report with exact command outputs to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m3/handoff.md` and send a message back.

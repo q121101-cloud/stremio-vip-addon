@@ -1,14 +1,14 @@
-# Progress - Milestone 3 Worker
+# Progress - Worker M3
 
-Last visited: 2026-08-17T10:42:00Z
+Last visited: 2026-08-18T17:41:20Z
+Status: Final verification, commit, and git deployment protocol completed successfully.
 
-- [x] Initialized workspace and briefing
-- [x] Inspect source files (`src/mapper.js`, `src/config.js`, `src/lib/cinemeta.js`, `src/handlers.js`, `src/routes/hls.js`, `package.json`, `src/manifest.js`, `src/providers/*.js`)
-- [x] Update `src/mapper.js` exports and helper functions (`extractYear`, `unpackDeanEdwards`, `cleanTitle`, `toSlug`, `extractSeasonEpisode`, `isM3u8Url`, `normalizeServerName`, `encodeBase64`, `decodeBase64`)
-- [x] Update `src/config.js` default providers to `['nguonc', 'kkphim', 'vsmov']`
-- [x] Update `src/lib/cinemeta.js` normalization (`rawId.toLowerCase()`) and regex (`/^tt\d+$/i`)
-- [x] Update `src/handlers.js` aggregation, canonical metadata resolution, and protocol standardization
-- [x] Verify `package.json` & `src/manifest.js` version 1.4.0
-- [x] Verify syntax with `node --check src/index.js` (0 errors)
-- [x] Run test suite: `node tests/e2e.test.js` (94/94 passed), `node tests/m2_challenger_empirical.test.js` (152/152 passed), `node tests/m3_verification.test.js` (39/39 passed)
-- [x] Final handoff report written
+## Steps:
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] Run `npm test` (50 passed, 0 failed)
+- [x] Run `node tests/live_backtest_all_providers.js` (8/8 providers passed, chunk download > 50KB, fallback resilience passed)
+- [x] Run `node tests/verify_all_providers_playback.js` (47/47 passed)
+- [x] Inspect git status and check .gitignore / ensure no credentials are staged
+- [x] Git commit (`feat(engine): v1.7.1 live backtest suite across 8 providers, Film4K fixes, and HLS fallback resilience`)
+- [x] Git push to `origin/main` & reset remote url to clean public URL
+- [x] Complete handoff.md and notify orchestrator

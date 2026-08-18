@@ -1,79 +1,88 @@
-# Final Handoff Report — Stremio VIP Movies Addon Engine v1.6.2 Upgrade
+# Orchestrator Final Handoff Report
 
-**Orchestrator**: `orchestrator_1`  
-**Parent Agent**: `parent` (`bf16d1fa-700d-40fc-b73d-ec9956718a82`)  
-**Timestamp**: 2026-08-18T09:32:00Z  
-**Status**: 100% Complete (Hard Handoff)  
-**Project Root**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`  
+**Project**: VIP Movies Stremio Addon (Engine v1.7.1) Code Audit, Live Backtest & Deployment  
+**Status**: **COMPLETED (ALL REQUIREMENTS PASSED)**  
+**Commit**: `3bc9ba7` pushed to `origin/main`  
 
 ---
 
-## 1. Observation & State Summary
+## 1. Executive Summary & Verification Matrix
 
-All requirements (R1 through R6) from `ORIGINAL_REQUEST.md` have been fully implemented, empirically verified, audited, and deployed:
+All 4 mission requirements (R1, R2, R3, R4) have been fully audited, implemented, empirically stress-tested, verified by independent subagents (2 Reviewers, 2 Challengers, 1 Forensic Auditor), and deployed to GitHub `origin/main`.
 
-1. **R1: HLS Proxy Router (`src/routes/hls.js`)**:
-   - RFC 3986 relative path resolution (`new URL(targetUrl, parentUrl).href`) across all M3U8 tags (master variant, media segments, keys, fMP4 maps, preload hints).
-   - Safe base64url encoding/decoding preserving security tokens and query parameters (`?token=...&sign=...`).
-   - Dynamic Referer & Origin headers configured per CDN (KKPhim/Opstream `player.phimapi.com`, NguonC `phim.nguonc.com`, VSMOV `vsmov.com`, STP `sieutamphim.pro`, CLBPX `clbphimxua.info`, YAN `yanhh3d.pw`).
-   - `responseType: 'stream'`, `maxRedirects: 5`, and HTTP Range 206 partial content seek support.
-   - WebVTT subtitle converter and proxy (`/hls/sub.vtt`).
+### Live Backtest Matrix (8/8 Providers Healthy)
+| Provider | Catalog | Stream Resolution | Chunk Download | Health |
+|---|---|---|---|---|
+| FILM4K (4K VIP) | ✅ PASS (54 items) | ✅ PASS (In-App Proxy) | ✅ PASS (10,036.0 KB, fMP4 `styp`) | HEALTHY 🟢 |
+| VSMOV (4K UHD) | ✅ PASS (16 items) | ✅ PASS (In-App Proxy) | ✅ PASS (798.8 KB, PNG-wrapped TS `0x89`) | HEALTHY 🟢 |
+| KKPhim (FHD) | ✅ PASS (24 items) | ✅ PASS (In-App Proxy) | ✅ PASS (69.2 KB, MPEG-TS `0x47`) | HEALTHY 🟢 |
+| NguonC (StreamC) | ✅ PASS (10 items) | ✅ PASS (In-App Proxy) | ✅ PASS (2,422.5 KB, MPEG-TS `0x47`) | HEALTHY 🟢 |
+| STP (Sưu Tầm Phim) | ✅ PASS (24 items) | ✅ PASS (In-App Proxy) | ✅ PASS (1,274.3 KB, MPEG-TS `0x47`) | HEALTHY 🟢 |
+| HH3D (3D Donghua) | ✅ PASS (24 items) | ✅ PASS (In-App Proxy) | ✅ PASS (700.0 KB, MPEG-TS `0x47`) | HEALTHY 🟢 |
+| YAN (Donghua 3D) | ✅ PASS (26 items) | ✅ PASS (In-App Proxy) | ✅ PASS (700.0 KB, MPEG-TS `0x47`) | HEALTHY 🟢 |
+| CLBPX (Phim Xưa TVB) | ✅ PASS (24 items) | ✅ PASS (In-App Proxy) | ✅ PASS (907.9 KB, MPEG-TS `0x47`) | HEALTHY 🟢 |
 
-2. **R2: 22 Catalogs in Manifest (`src/manifest.js`)**:
-   - All 22 catalogs declared across the 6 provider clusters (VSMOV, KKPhim, NguonC, STP, CLBPX, YAN / HH3D) in `ALL_CATALOGS` and `MANIFEST.catalogs`.
-   - Full `extra: [{ name: 'skip' }, { name: 'genre' }, { name: 'search' }]` configured for every catalog.
-
-3. **R3: Catalog Routing & 6-Provider Stream Aggregator (`src/handlers.js`)**:
-   - `getCatTypeFromCatalogId` with complete alias mapping for all 22 catalog IDs.
-   - Parallel 6-provider stream aggregation via `Promise.allSettled()` with 4500ms timeout per provider.
-   - Standardized stream titles: `[VIP 1 • VSMOV]`, `[VIP 2 • KKPhim]`, `[VIP 3 • NguonC]`, `[VIP 4 • STP]`, `[VIP 5 • CLBPX]`, `[VIP 6 • YAN]`.
-   - Global stream priority sorting: `4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng -> Provider Rank`.
-   - Strict In-App Protocol invariant (`url` proxied through `/hls`, zero `externalUrl`).
-
-4. **R4: Provider Modules Optimization & 3-Tier Fallback (`src/providers/`)**:
-   - All providers export standard interface: `{ id, label, getCatalog, getStreams, search, getDetail }`.
-   - 100% utility reuse from `src/lib/utils.js` (zero duplicate helper functions).
-   - 3-tier fallback with resilient error handling and graceful `[]` return on missing sources.
-   - NguonC cinema catalog fallback to ensure populated movie metas.
-
-5. **R5: E2E Playback & Regression Verification (`tests/`)**:
-   - `tests/verify_all_providers_playback.js`: **44/44 assertions PASS (100%)** — verified 22 catalogs HTTP 200, all 6 providers resolving streams, real video TS chunks downloaded (>100KB, MPEG-TS sync byte `0x47`), WebVTT subtitle proxy, Range 206 seeking.
-   - `tests/verify_playback.js`: **7/7 phases PASS (100%)**.
-   - `tests/verify_hotfix_vsmov_kkphim.js`: **24/24 assertions PASS (100%)**.
-   - `tests/verify_new_providers.js`: **26/26 checks PASS (100%)**.
-   - `tests/challenger1_v162_adversarial_empirical.test.js`: **127/127 PASS (100%)**.
-   - `tests/challenger2_v162_aggregator_stress.test.js`: **186/186 PASS (100%)**.
-   - `node --check`: 100% clean JavaScript syntax across all files.
-
-6. **R6: Versioning & Deployment**:
-   - Synchronized version `1.6.2` across `package.json`, `src/manifest.js`, and `src/handlers.js`.
-   - Brand signature in footer: `VIP Movies Addon v1.6.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>`.
-   - Git commit `9b58035` pushed to `origin/main` (`https://github.com/q121101-cloud/stremio-vip-addon.git`). Clean working tree.
+- **Quorum Result**: 8/8 Providers verified with real video chunk download > 50 KB (Required: >= 5/8).
+- **In-App Stream Protocol Invariant**: 100% of streams across all providers use `url` pointing to local HLS proxy; strictly zero occurrences of `externalUrl`.
 
 ---
 
-## 2. Gate Status
-- `reviewer_1` (Senior Code Reviewer): **`APPROVE`**
-- `reviewer_2` (Architecture Reviewer): **`APPROVE`**
-- `challenger_1` (Adversarial Challenger): **`APPROVE`**
-- `challenger_2` (Stream & Aggregation Challenger): **`APPROVE`**
-- `auditor_1` (Forensic Integrity Auditor): **`CLEAN`**
+## 2. Requirement Compliance Details
 
-**Final Gate Result**: **`PASS`**
+### R1. Code Review & Architectural Audit
+- `src/providers/nguonc.js`:
+  - Verified Chrome 131 User-Agent (`NGUONC_UA`) and all 5 stealth headers (`Referer: https://phim.nguonc.com/`, `Origin`, `Sec-Fetch-Dest`, `Sec-Fetch-Mode`, `Sec-Fetch-Site`).
+  - Verified `RENDER_BACKEND_URL` fallback routing in `fetchNguonC()`.
+  - Added `GET /api/nguonc-proxy` transparent backend route in `src/handlers.js` so Render deployments act as functional proxies.
+- `src/providers/film4k.js`:
+  - Verified REST API scraping (`/api/home`, `/api/title/:slug`, `/api/watch/:slug`).
+  - Verified 4K stream master playlist extraction (`/api/hls/archive/:slug/master.m3u8`), multi-audio/subtitle handling, and 3-tier series episode matching.
+  - Fixed `generateSearchKeywords` options object signature to prevent alias dropping.
+  - Fixed IMDb ID extraction in `getStreams()` to support `targetExtra.imdbId`.
+  - Added `film4k: 'FILM4K'` label in `src/routes/manifest.js` and dedicated meta routing in `src/handlers.js`.
+- `src/routes/hls.js`:
+  - Verified upstream HTTP >= 400 error handling: issues self-healing HTTP 302 fallback redirect to `targetUrl` rather than returning 502 Bad Gateway.
+  - Verified broken cache purge: `m3u8Cache.del(cacheKey)` is called immediately upon upstream failure.
+  - Fixed HTML 200 non-M3U8 caching bug: Non-`#EXTM3U` responses (anti-bot / HTML error pages) are intercepted, purged from cache, and redirected with 302, never cached.
+  - Added self-healing 302 fallback redirects across `/hls/extract`, `/hls/segment.ts`, and `/hls/key`.
+- Provider Registry Consistency:
+  - Confirmed all 8 providers (`film4k`, `vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`) are consistently declared across `VALID_PROVIDERS`, `DEFAULT_CONFIG.providers`, `ALL_PROVIDERS`, `ALL_CATALOGS` (25 total), `ALL_ID_PREFIXES`, `_allProvidersList`, and 8 HTML configurator cards.
+
+### R2. Full Matrix Live Backtest (8/8 Providers)
+- Created and executed `tests/live_backtest_all_providers.js` using ephemeral test server (`app.listen(0)`).
+- Validated real live HTTP calls for catalog, stream extraction, `.m3u8` proxying, and `.ts` chunk download > 50 KB across all 8 providers.
+
+### R3. Fallback Verification
+- Simulated broken/expired upstream CDN URLs: verified HTTP 302 redirect response (not 502) and verified cache is purged (`m3u8Cache.get(...) === undefined`).
+- Simulated HTML block page: verified HTTP 302 redirect and verified HTML is never cached as playlist.
+- Simulated segment/key/extract failures: verified graceful self-healing 302 redirects.
+
+### R4. Fix & Deploy
+- Fixed all bugs and edge cases in source files.
+- `npm test`: 50 passed, 0 failed.
+- Multi-suite validation:
+  - `tests/verify_all_providers_playback.js`: 47/47 passed.
+  - `tests/m2_providers.test.js`: 53/53 passed.
+  - `tests/challenger2_v170_stress.test.js`: 207/207 passed.
+  - `tests/challenger1_hls_providers_empirical_adversarial.test.js`: 43/43 passed.
+- Git push executed cleanly to `origin/main` (commit `3bc9ba7`).
+- Git remote URL reset to clean public HTTPS URL.
+- Zero credentials or `.env` files committed.
 
 ---
 
-## 3. Verification Method
-```bash
-# 1. Run Comprehensive E2E 6-Provider Playback & 22-Catalog Suite
-node tests/verify_all_providers_playback.js
+## 3. Subagent Gate & Audit Summary
+- **Forensic Auditor (`teamwork_preview_auditor`)**: Verdict **CLEAN** (0 mock responses, 0 facade implementations, 0 leaked credentials, 100% genuine network requests and stream `url` invariants).
+- **Reviewer 1 (`teamwork_preview_reviewer`)**: Verdict **APPROVE**.
+- **Reviewer 2 (`teamwork_preview_reviewer`)**: Verdict **APPROVE**.
+- **Challenger 1 (`teamwork_preview_challenger`)**: Verdict **APPROVE** (43/43 adversarial tests passed).
+- **Challenger 2 (`teamwork_preview_challenger`)**: Verdict **APPROVE** (8/8 live backtests and 25/25 catalogs verified).
 
-# 2. Run All Regression Suites
-node tests/verify_playback.js
-node tests/verify_hotfix_vsmov_kkphim.js
-node tests/verify_new_providers.js
+---
 
-# 3. Check Git Status
-git status
-git log -n 1
-```
+## 4. Key Artifact Index
+- `tests/live_backtest_all_providers.js` — Live 8-provider matrix backtest and R3 fallback test suite.
+- `src/routes/hls.js` — HLS proxy route with self-healing 302 fallbacks and non-M3U8 cache purge.
+- `src/providers/film4k.js` — Film4K provider with fixed search keywords and IMDb ID extraction.
+- `src/handlers.js` — Handlers with `/api/nguonc-proxy` transparent route and Film4K meta handler.
+- `.agents/orchestrator_1/GATE_STATUS.md` — Full gate verification audit log.

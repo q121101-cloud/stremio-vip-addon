@@ -1,29 +1,16 @@
-## 2026-08-18T04:54:14Z
-You are Worker M2 for Milestone 2: E2E Verification Test Suite & Zero-Regression Guard.
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2
-
-You MUST read:
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1/handoff.md
-
-You own exclusively:
-- `tests/verify_new_providers.js`
-
-Tasks:
-1. Create the complete, robust, self-contained E2E test suite `tests/verify_new_providers.js` that tests all requirements in R3 of `ORIGINAL_REQUEST.md`:
-   - Phase 1: Server startup on ephemeral port (port 0), clean shutdown in `finally` block, verify `/health` and `/manifest.json`.
-   - Phase 2: Direct provider extraction checks for STP (`sieutamphim.pro`), CLBPX (`clbphimxua.info`), and YAN (`yanhh3d.pw`):
-     - Check `getCatalog()`, `search()`, `getStreams()`
-     - Verify stream properties: `name === 'VIP Movies 🎬'`, `url` points to `/hls/manifest.m3u8`, `externalUrl === undefined`, title matches branding (`[VIP 4 • STP] ... \n⚡ Server STP • sieutamphim.pro`, `[VIP 5 • CLBPX] ... \n⚡ Server CLBPX • clbphimxua.info`, `[VIP 6 • YAN] ... \n⚡ Server YAN • yanhh3d.pw`).
-   - Phase 3: Manifest Proxy Route Verification (`/hls/manifest.m3u8`): HTTP 200, Content-Type `application/vnd.apple.mpegurl` (or text/plain), body starts with `#EXTM3U`, segment lines rewritten to `/hls/segment.ts?url=...&ref=...`.
-   - Phase 4: Stream Aggregator Safety (`/default/stream/movie/tt0373889.json`, `/default/stream/series/tt0903747:1:1.json`): HTTP 200, no crashes.
-   - Phase 5: TS Segment Download & MPEG-TS Binary Inspection (`/hls/segment.ts`): HTTP 200/206, size > 10,000 bytes (>10KB), sync byte `0x47` at offset 0 or packet boundary.
-   - Phase 6: HTTP Range 206 Seeking Support: `Range: bytes=0-1023` returns HTTP 206, `Content-Range` header, length 1024 bytes.
-   - Robustness: If live provider upstream CDN is unavailable during CI/test run, fallback gracefully to validating public Mux HLS test stream while strictly asserting provider output invariants.
-2. Run test execution commands:
-   - `node tests/verify_new_providers.js` (must pass 100% with exit code 0)
-   - `node tests/verify_playback.js` (must pass 7/7)
-   - `node tests/verify_hotfix_vsmov_kkphim.js` (must pass 27/27)
-   - `node src/test.js` (must pass 50/50)
-3. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2/handoff.md`.
+## 2026-08-18T17:19:16Z
+Worker M2 assigned tasks:
+1. Fixes in src/:
+   - src/providers/film4k.js: fix generateSearchKeywords call and IMDb ID extraction in getStreams.
+   - src/routes/manifest.js: add film4k: 'FILM4K' to providerLabels in buildDescription().
+   - src/handlers.js: add explicit else if for film4k in handleMeta; add /api/nguonc-proxy route support in src/handlers.js / src/index.js if needed.
+   - src/routes/hls.js: purge cache if rawManifestData does not contain #EXTM3U (return 302 redirect fallback to targetUrl or non-crash error); add self-healing 302 fallback in /hls/segment.ts, /hls/key, /hls/extract.
+   - src/mapper.js: extractM3u8FromEmbed(embedUrl, customReferer) accepts customReferer.
+   - tests/verify_all_providers_playback.js: update catalog count assertion from 22 to 25.
+2. Create and execute tests/live_backtest_all_providers.js with real HTTP calls via local test server (app.listen(0)):
+   - 8 providers: film4k, vsmov, kkphim, nguonc, stp, hh3d, yan, clbpx.
+   - Catalog >= 1, getStreams proxy URLs, .m3u8 check (#EXTM3U), .ts chunk download (>50KB, 0x47 or 0x89), at least 5/8 chunk pass.
+   - Markdown status matrix output.
+3. Fallback verification (R3): test expired/broken upstream CDN URL through HLS proxy -> response NOT 502 (302 or non-crash error), cache purged.
+4. Full test suite (npm test) 0 failures.
+5. Write handoff.md and send_message to parent.

@@ -1,65 +1,52 @@
-# Milestone 3 Handoff Report: Stream Protocol Standardization & Multi-Provider Aggregation
+# Handoff Report — Worker M3 (Final Verification & Git Deployment)
 
 ## 1. Observation
-1. **Missing Exports in `src/mapper.js`**:
-   - `src/mapper.js` previously defined `extractYear` and `unpackDeanEdwards` internally, but omitted them from `module.exports`. Helper utilities `cleanTitle`, `toSlug`, `extractSeasonEpisode`, `isM3u8Url`, `normalizeServerName`, `encodeBase64`, `decodeBase64` were missing or not exported.
-   - When providers like `src/providers/nguonc.js:81` called `mapper.extractYear(item.category)`, it resulted in `TypeError: mapper.extractYear is not a function`.
-2. **Provider Default Configuration in `src/config.js`**:
-   - `DEFAULT_CONFIG.providers` was previously set to `['nguonc']` instead of activating all three active providers `['nguonc', 'kkphim', 'vsmov']`.
-3. **Cinemeta Resolver Normalization in `src/lib/cinemeta.js`**:
-   - `resolveCinemeta` and `getCachedCinemeta` did not lowercase `rawId` before regex check and caching, leading to cache fragmentation or potential mismatch on uppercase `TT1375666`.
-4. **Stream Aggregator Protocol Compliance in `src/handlers.js`**:
-   - `/stream/:type/:id.json` needed to enrich the provider invocation payload with canonical metadata (`title`, `year`, `genres`, `aliases`) resolved via `resolveCinemeta`.
-   - Merged streams needed explicit sanitization to enforce strict R3 Stremio Stream Protocol exclusivity:
-     - In-App Direct Play (HLS Proxy): `url` present, `externalUrl` strictly undefined.
-     - External Browser Play (Embed Player Fallback): `externalUrl` present, `url` strictly undefined.
-     - All streams branded as `VIP Movies 🎬`, `#` stripped from titles, and `behaviorHints` configured with `{ notSupported: false, bingeGroup }`.
-5. **Verification Results**:
-   - `node --check src/index.js`: Exit code `0` (clean syntax).
-   - `node tests/e2e.test.js`: Passed 94/94 assertions, 0 failures.
-   - `node tests/m2_challenger_empirical.test.js`: Passed 152/152 assertions, 0 failures, `APPROVE` verdict.
-   - `node tests/m3_verification.test.js`: Passed 39/39 assertions, 0 failures.
+1. **`npm test`**: Ran integration test suite across all 10 test stages.
+   - Result: `Kết quả: 50 passed, 0 failed. 🎉 Tất cả tests đều PASS!`
+   - HTTP 200 responses verified on `/manifest.json`, catalogs (movie/series/search/genre), metas (movie/series), streams (movie/series), and `/health`.
+2. **`node tests/live_backtest_all_providers.js`**: Executed live multi-provider matrix test suite.
+   - Verified live catalog queries, stream resolutions, M3U8 proxy manifests, and real video chunk downloads (>50KB) across all 8 providers:
+     - Film4K (4K VIP) (film4k): 54 items, Stream resolved, 10036.0 KB downloaded.
+     - VSMOV (4K UHD) (vsmov): 16 items, Stream resolved, 798.8 KB downloaded.
+     - KKPhim (FHD) (kkphim): 24 items, Stream resolved, 69.2 KB downloaded (Sync byte 0x47).
+     - NguonC (StreamC) (nguonc): 10 items, Stream resolved, 2422.5 KB downloaded (Sync byte 0x47).
+     - STP (Sưu Tầm Phim) (stp): 24 items, Stream resolved, 1274.3 KB downloaded (Sync byte 0x47).
+     - HH3D (3D Donghua) (hh3d): 24 items, Stream resolved, 700.0 KB downloaded (Sync byte 0x47).
+     - YAN (Donghua 3D) (yan): 26 items, Stream resolved, 700.0 KB downloaded (Sync byte 0x47).
+     - CLBPX (Phim Xưa TVB) (clbpx): 24 items, Stream resolved, 907.9 KB downloaded (Sync byte 0x47).
+   - Quorum check: `8/8 providers verified with full chunk download (> 50 KB)`.
+   - Verified Section 3 Fallback & Cache Self-Healing:
+     - 404/broken upstream CDN: HTTP 302 fallback redirect, cache key purged.
+     - HTML block page: HTTP 302 fallback redirect, HTML never cached.
+     - Segment error / Key error / Extract error: HTTP 302 fallback redirects.
+3. **`node tests/verify_all_providers_playback.js`**: Executed comprehensive E2E playback verification.
+   - Result: 47/47 assertions passed (100%).
+   - All 25 manifest catalogs responded HTTP 200.
+4. **Git Security & Secret Scan**:
+   - `git status` checked. Zero `.env` files or credentials staged.
+   - `git diff --staged` scanned for sensitive tokens.
+5. **Git Commit & Push**:
+   - Committed staged source code and test files:
+     `[main 3bc9ba7] feat(engine): v1.7.1 live backtest suite across 8 providers, Film4K fixes, and HLS fallback resilience`
+   - Executed remote URL update, pushed cleanly to `main` branch on GitHub:
+     `615cb72..3bc9ba7 main -> main`
+   - Immediately reset remote URL to clean public HTTPS URL:
+     `origin https://github.com/q121101-cloud/stremio-vip-addon.git`
 
 ## 2. Logic Chain
-1. **Export and Helper Resolution (Observation 1)**:
-   - Added robust implementations of `cleanTitle`, `toSlug`, `extractSeasonEpisode`, `isM3u8Url`, `normalizeServerName`, `encodeBase64`, and `decodeBase64` to `src/mapper.js`.
-   - Enhanced `extractYear` to extract 4-digit release years from numbers, strings (e.g. `"2010"`, `"Inception (2010)"`), and structured category groups.
-   - Exported all helpers (`extractYear`, `unpackDeanEdwards`, `cleanTitle`, `toSlug`, `extractSeasonEpisode`, `isM3u8Url`, `normalizeServerName`, `encodeBase64`, `decodeBase64`) in `module.exports`.
-   - Result: `mapper.extractYear` and `mapper.unpackDeanEdwards` execute reliably across all providers without runtime errors.
-2. **Provider Activation (Observation 2)**:
-   - Updated `DEFAULT_CONFIG.providers` in `src/config.js` to `['nguonc', 'kkphim', 'vsmov']`.
-   - Result: Default queries without custom config tokens aggregate streams across all three providers simultaneously.
-3. **IMDb ID Normalization & Resolution (Observation 3 & 4)**:
-   - Updated `resolveCinemeta` and `getCachedCinemeta` in `src/lib/cinemeta.js` to lowercase `rawId` (`const imdbId = String(rawId).split(':')[0].trim().toLowerCase();`) and validated against `/^tt\d+$/i`.
-   - In `src/handlers.js`, resolved canonical title, year, genres, and aliases from Cinemeta and supplied `{ imdbId, type, title, year, genres, aliases, season, episode, slug, proxyBase }` to `Promise.allSettled`.
-4. **Protocol Exclusivity & Aggregation Sanitization (Observation 4)**:
-   - In `src/handlers.js`, filtered and sanitized all fulfilled provider streams:
-     - For HLS Proxy streams: assigned `url` and deleted `externalUrl`.
-     - For Embed Player streams: assigned `externalUrl` and deleted `url`.
-     - Standardized `name: 'VIP Movies 🎬'` and stripped `#` from titles.
-   - Result: Stremio and Nuvio players receive strictly conforming streams with zero dual-property schema conflicts.
-5. **Validation (Observation 5)**:
-   - All syntax checks and empirical test suites pass with 100% success rate across all 4 tiers.
+1. Verification confirms all 8 providers, proxy streams, manifest endpoints, and fallback mechanisms work without error (50 integration tests, 8 live provider backtests, 47 E2E assertions).
+2. Staging was strictly constrained to `src/`, `tests/`, and `PROJECT.md`, preventing leakage of sensitive credentials or agent metadata.
+3. Committing and pushing via the authenticated token URL and immediately resetting back to the canonical URL ensures git origin cleanliness without credential persistence.
 
 ## 3. Caveats
-- No caveats. Upstream provider fallback mechanisms and scraper extractors operate seamlessly with isolated timeouts and graceful error handling.
+- No caveats. All 8 upstream providers are currently reachable and passing live chunk retrieval.
 
 ## 4. Conclusion
-Milestone 3 (Stream Protocol Standardization & Aggregation) is fully implemented, verified, and complete. All requirements of R1, R2, R3, and R4 have been met.
+- Final verification, git commit, and deployment push protocol have succeeded 100%.
+- Repository state on `main` is up-to-date with remote `https://github.com/q121101-cloud/stremio-vip-addon.git`.
 
 ## 5. Verification Method
-To independently verify:
-```bash
-# 1. Syntax check
-node --check src/index.js
-
-# 2. Run Comprehensive E2E test suite (all 4 tiers)
-node tests/e2e.test.js
-
-# 3. Run Milestone 2 Empirical Challenger test suite
-node tests/m2_challenger_empirical.test.js
-
-# 4. Run Milestone 3 Deterministic Verification test suite
-node tests/m3_verification.test.js
-```
-Expected output: All test suites exit with code 0 and 0 failures.
+- Run `npm test`
+- Run `node tests/live_backtest_all_providers.js`
+- Run `node tests/verify_all_providers_playback.js`
+- Run `git remote -v` to confirm clean URL: `https://github.com/q121101-cloud/stremio-vip-addon.git`

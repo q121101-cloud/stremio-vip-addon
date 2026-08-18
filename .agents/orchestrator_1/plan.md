@@ -1,25 +1,25 @@
-# Orchestrator Plan — Stremio VIP Movies Addon Engine v1.7.0 Overhaul
+# Project Plan — VIP Movies Stremio Addon Audit, Backtest & Deploy
 
-## Overview
-Comprehensive upgrade of the Stremio VIP Movies Addon Engine to version 1.7.0.
+## Objective
+Audit all 8 providers, verify HLS proxy fallback resilience, run full matrix live backtest against real CDN streams, fix any discovered issues, ensure 100% test pass rate, and push to origin/main via designated git protocol.
 
-## Phase 0: Codebase & Architecture Survey
-- Dispatch 3 Explorers / Spec Miners:
-  * Explorer 1 (HLS & Streaming Architecture): Analyze `src/routes/hls.js`, base64 encoding/decoding, URL resolution, Referer handling, binary streaming.
-  * Explorer 2 (HTML Providers & Scrapers): Analyze `src/providers/stp.js`, `clbpx.js`, `yan.js`, Cheerio usage, catalog parsing, stream scraping, Donghua guards.
-  * Explorer 3 (Matching Engine & Test Infrastructure): Analyze search/matching in `src/providers/kkphim.js`, `nguonc.js`, existing test suites (`tests/verify_all_providers_playback.js`, `tests/`), requirements for `tests/verify_v170_playback.js`.
-
-## Phase 1: Planning & Decomposition (PROJECT.md)
-- Synthesize survey findings into `PROJECT.md` (Feature Inventory, Architecture, Milestones, Interface Contracts, Code Layout).
-
-## Phase 2: Implementation & Verification Tracks
-- Milestone 1: Overhaul HLS Proxy (`src/routes/hls.js`)
-- Milestone 2: Implement Real Cheerio Scrapers for STP, CLBPX, YAN with Guards
-- Milestone 3: Multi-Keyword Fallback & Flexible Episode Matching for KDrama & US-UK
-- Milestone 4: E2E Playback Verification Test Suite (`tests/verify_v170_playback.js`) & Full Regression Testing
-- Milestone 5: Versioning v1.7.0, Brand Signature, Git Commit & Push
-
-## Phase 3: Gate & Acceptance Verification
-- Ensure 100% assertions pass across all test suites (`verify_v170_playback.js`, `verify_all_providers_playback.js`, `npm test`, `node --check src/index.js`).
-- Complete forensic audit verification.
-- Provide final handoff report.
+## Milestones & Work Breakdown
+- **Phase 0: Survey & Code Audit (R1)**
+  - Dispatch 3 parallel Explorers:
+    1. Explorer 1: Audit `src/providers/nguonc.js` (stealth headers, Chrome 131 UA, Vercel-to-Render fallback routing via `RENDER_BACKEND_URL`) and `src/providers/film4k.js` (REST API scraping, 4K m3u8 extraction, multi-audio/subtitles, episode matching).
+    2. Explorer 2: Audit `src/routes/hls.js` (upstream >= 400 error graceful fallback with 302/re-extraction, broken cache purge via `m3u8Cache.del(cacheKey)`).
+    3. Explorer 3: Audit `src/manifest.js`, `src/config.js`, `src/handlers.js`, and HTML configurator across all 8 providers (`film4k`, `vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`) for `VALID_PROVIDERS`, `DEFAULT_CONFIG.providers`, `ALL_PROVIDERS`, `ALL_CATALOGS`, `ALL_ID_PREFIXES`, `_allProvidersList`, and UI grid.
+- **Phase 1: Remediation & Verification of Core Engine (R1, R4)**
+  - Synthesize explorer audit findings.
+  - Worker fixes any discrepancies / edge cases in `src/`.
+  - Reviewer & Auditor gate verification.
+- **Phase 2: Live Matrix Backtest & Fallback Simulation (R2, R3)**
+  - Worker builds and executes `tests/live_backtest_all_providers.js` and fallback simulation test.
+  - Verify all 8 providers for catalog, streams, proxy URL, m3u8 `#EXTM3U`, and .ts segment download (>50KB, byte 0x47 or 0x89) for >= 5/8 providers.
+  - Verify fallback behavior on broken/expired upstream CDN without 502 Bad Gateway and with cache purge.
+- **Phase 3: Final Test Suite & Git Deployment (R4)**
+  - Worker runs full `npm test` ensuring 0 failures.
+  - Worker executes git push protocol.
+  - Challenger & Forensic Auditor verify integrity.
+- **Phase 4: Synthesis & Final Reporting**
+  - Synthesize results, status matrix table, and report to parent.

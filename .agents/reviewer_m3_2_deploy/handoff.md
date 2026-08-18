@@ -71,7 +71,7 @@ All test commands were executed directly and independently from the project root
 ### D. Git Cleanliness & Security Verification
 - Commit `ee95e5e` ("Engine v1.6.0: Updated STP/CLBPX/YAN domains + HLS Proxy routing + E2E tests + Zero-Regression Guard") was successfully pushed to `origin main`.
 - Remote origin verified clean: `https://github.com/q121101-cloud/stremio-vip-addon.git` (no plaintext tokens or credentials embedded).
-- Tracked scripts and markdown files checked for leaked GitHub tokens (`ghp_...` search found only placeholder template references).
+- Tracked scripts and markdown files checked for leaked GitHub tokens (`<TOKEN>...` search found only placeholder template references).
 - Working tree clean.
 
 ---

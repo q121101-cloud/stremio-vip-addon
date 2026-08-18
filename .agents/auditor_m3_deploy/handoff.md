@@ -52,7 +52,7 @@
   - Message: `Engine v1.6.0: Updated STP/CLBPX/YAN domains + HLS Proxy routing + E2E tests + Zero-Regression Guard`
 - **Branch status**: `On branch main, Your branch is up to date with 'origin/main'`
 - **Remote origin**: `https://github.com/q121101-cloud/stremio-vip-addon.git` (unauthenticated, clean URL; no leaked GitHub PAT / credentials in remote config or git history).
-- **Secret Scan**: Grep for `ghp_`, `github_pat_`, and `https://.*@github.com` found no unredacted credentials.
+- **Secret Scan**: Grep for `<TOKEN>`, `github_pat_`, and `https://.*@github.com` found no unredacted credentials.
 
 ---
 

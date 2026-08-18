@@ -57,8 +57,11 @@ async function fetchNguonC(endpoint, options = {}) {
     if (backendProxy && isForbiddenOrBlocked) {
       try {
         const cleanProxy = backendProxy.replace(/\/+$/, '');
-        const target = `${cleanProxy}/api/nguonc-proxy?path=${encodeURIComponent(endpoint)}`;
-        return await axios.get(target, { timeout: 6000, headers: NGUONC_HEADERS, params: options.params });
+        const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        const fullNguonCUrl = `https://phim.nguonc.com/api${cleanEndpoint}`;
+        // Support Render proxy format: /proxy/nguonc?url=...
+        const target = `${cleanProxy}/proxy/nguonc?url=${encodeURIComponent(fullNguonCUrl)}`;
+        return await axios.get(target, { timeout: 7000, headers: NGUONC_HEADERS, params: options.params });
       } catch (proxyErr) {
         // Fall back to throwing original error
       }
@@ -422,8 +425,14 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
         titleHeader = `[VIP 3 • NguonC] Vietsub Full HD${epLabel} (HLS Proxy)`;
       }
 
+      let embedOrigin = 'https://embed15.streamc.xyz/';
+      try {
+        if (targetEp.embed) embedOrigin = `${new URL(targetEp.embed).origin}/`;
+        else if (targetEp.m3u8) embedOrigin = `${new URL(targetEp.m3u8).origin}/`;
+      } catch {}
+
       const streamUrl = targetEp.m3u8
-        ? `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.m3u8)}&ref=${encodeBase64('https://embed15.streamc.xyz/')}`
+        ? `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.m3u8)}&ref=${encodeBase64(embedOrigin)}`
         : `${proxyBase || ''}/hls/extract?b64=${encodedEmbed}`;
 
       // In-App Direct Play (HLS Proxy) — STRICTLY NO externalUrl

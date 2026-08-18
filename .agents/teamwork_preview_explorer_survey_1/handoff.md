@@ -1,228 +1,228 @@
-# Investigation Report — Engine v1.7.0 Overhaul: HLS Proxy (R1) & E2E Verification Suites (R4)
-
-- **Date**: 2026-08-18
-- **Explorer**: Explorer 1 (`teamwork_preview_explorer_survey_1`)
-- **Target Scope**: 
-  - Requirement R1: HLS Proxy multi-level parent resolution & browser header simulation (`src/routes/hls.js`)
-  - Requirement R4: E2E Playback verification test suite (`tests/verify_v170_playback.js` & `tests/verify_all_providers_playback.js`)
-
----
+# Code Audit Report: `src/providers/nguonc.js` & `src/providers/film4k.js`
 
 ## 1. Observation
 
-### 1.1. Codebase Inspection: `src/routes/hls.js`
+### 1.1 `src/providers/nguonc.js`
+- **Stealth Headers & Chrome 131 User-Agent** (`src/providers/nguonc.js:26-37`):
+  ```javascript
+  const NGUONC_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-1. **Multi-Level M3U8 Resolution**:
-   - Master Playlist parsing (`src/routes/hls.js:232-249`):
-     ```javascript
-     if (t.startsWith('#EXT-X-STREAM-INF') || t.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
-       isMasterPlaylist = true;
-       isNextSubPlaylist = true;
-       isNextSegment = false;
-       ...
-       if (streamInfLine.includes('URI=')) {
-         streamInfLine = streamInfLine.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
-           const uri = qUri || unqUri;
-           const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
-           const b64Uri = Buffer.from(absUri).toString('base64url');
-           return `URI="${protoHost}/hls/manifest.m3u8?url=${b64Uri}&ref=${encodedRef}"`;
-         });
-       }
-       rewrittenLines.push(streamInfLine);
-       continue;
-     }
-     ```
-   - Variant Playlist line rewriting (`src/routes/hls.js:317-328`):
-     ```javascript
-     const absUrl = t.startsWith('http') ? t : new URL(t, baseUrl.href).href;
-     const b64Url = Buffer.from(absUrl).toString('base64url');
+  const NGUONC_HEADERS = {
+    'User-Agent': NGUONC_UA,
+    'Referer': 'https://phim.nguonc.com/',
+    'Origin': 'https://phim.nguonc.com',
+    'Accept': 'application/json, text/plain, */*',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
+    'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
+  };
+  ```
+  - `User-Agent`: Exactly Chrome 131 on macOS (`Chrome/131.0.0.0`).
+  - `Referer`: `'https://phim.nguonc.com/'`.
+  - `Origin`: `'https://phim.nguonc.com'`.
+  - `Sec-Fetch-Dest`: `'empty'`.
+  - `Sec-Fetch-Mode`: `'cors'`.
+  - `Sec-Fetch-Site`: `'same-origin'`.
+  - Axios client (`http`, line 40-44) is configured with `baseURL: 'https://phim.nguonc.com/api'`, `timeout: 5000`, `headers: NGUONC_HEADERS`.
 
-     if (isNextSubPlaylist || absUrl.includes('.m3u8') || absUrl.includes('playlist')) {
-       isNextSubPlaylist = false;
-       rewrittenLines.push(`${protoHost}/hls/manifest.m3u8?url=${b64Url}&ref=${encodedRef}`);
-       continue;
-     }
+- **Vercel-to-Render Fallback Routing via `RENDER_BACKEND_URL`** (`src/providers/nguonc.js:46-68`):
+  ```javascript
+  async function fetchNguonC(endpoint, options = {}) {
+    const config = {
+      timeout: options.timeout || 5000,
+      headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
+      params: options.params,
+    };
+    try {
+      return await http.get(endpoint, config);
+    } catch (err) {
+      const isForbiddenOrBlocked = err.response?.status === 403 || err.response?.status === 429 || (!err.response && err.code === 'ECONNABORTED');
+      const backendProxy = process.env.RENDER_BACKEND_URL;
+      if (backendProxy && isForbiddenOrBlocked) {
+        try {
+          const cleanProxy = backendProxy.replace(/\/+$/, '');
+          const target = `${cleanProxy}/api/nguonc-proxy?path=${encodeURIComponent(endpoint)}`;
+          return await axios.get(target, { timeout: 6000, headers: NGUONC_HEADERS, params: options.params });
+        } catch (proxyErr) {
+          // Fall back to throwing original error
+        }
+      }
+      throw err;
+    }
+  }
+  ```
+  - Catches 403, 429, or ECONNABORTED network timeouts.
+  - Inspects `process.env.RENDER_BACKEND_URL`.
+  - Routes request to `${cleanProxy}/api/nguonc-proxy?path=${encodeURIComponent(endpoint)}`.
+  - *Observation on Server Route*: A grep across the entire codebase confirms that no route handler for `GET /api/nguonc-proxy` is defined in `src/index.js` or `src/handlers.js`. If the Render service runs this same repository without an external proxy handler, it will return 404 for `/api/nguonc-proxy`.
 
-     isNextSegment = false;
-     rewrittenLines.push(`${protoHost}/hls/segment.ts?url=${b64Url}&ref=${encodedRef}`);
-     ```
-   - Sub-variant request handling: When a player requests `/hls/manifest.m3u8?url=${b64Url}&ref=${encodedRef}`, `targetUrl` is decoded to the sub-variant's absolute URL (`src/routes/hls.js:151`). `baseUrl` is computed as `new URL(effectiveTargetUrl)` (`src/routes/hls.js:211`). When `.ts` segments (e.g. `segment_01.ts` or relative paths) appear in the sub-variant manifest, `new URL(t, baseUrl.href).href` resolves against the sub-variant URL.
+- **Stream Extraction & Protocol Compliance** (`src/providers/nguonc.js:425-438`):
+  ```javascript
+  const streamUrl = targetEp.m3u8
+    ? `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.m3u8)}&ref=${encodeBase64('https://embed15.streamc.xyz/')}`
+    : `${proxyBase || ''}/hls/extract?b64=${encodedEmbed}`;
 
-2. **Browser Simulation Headers**:
-   - Current constant in `src/routes/hls.js:25`:
-     ```javascript
-     const HLS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-     ```
-   - Headers in Axios requests (`src/routes/hls.js:170-175, 372-377, 437-442, 498-503`):
-     ```javascript
-     headers: {
-       'User-Agent': HLS_UA,
-       Referer: refererUrl,
-       Origin: origin,
-       Accept: '*/*',
-     }
-     ```
-   - Observation: `Accept-Language: vi,en-US;q=0.9,en;q=0.8` and `Connection: keep-alive` are missing from Axios requests. The User-Agent string is Mac Chrome 126 instead of the specified Windows Chrome 124 (`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36`).
-
-3. **Dynamic Referer & Origin Mapping**:
-   - `SOURCE_REFERERS` table in `src/routes/hls.js:27-36`:
-     * KKPhim / Opstream / Vlcdn / Phim1280: `referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com'`
-     * VSMOV: `referer: 'https://vsmov.com/', origin: 'https://vsmov.com'`
-     * NguonC: `referer: 'https://phim.nguonc.com/', origin: 'https://phim.nguonc.com'`
-     * StreamC: `referer: 'https://embed15.streamc.xyz/', origin: 'https://embed15.streamc.xyz'`
-     * STP: `referer: 'https://sieutamphim.pro/', origin: 'https://sieutamphim.pro'`
-     * YAN: `referer: 'https://yanhh3d.pw/', origin: 'https://yanhh3d.pw'`
-     * HH3D: `referer: 'https://hh3d.tv/', origin: 'https://hh3d.tv'`
-     * CLBPX: `referer: 'https://clbphimxua.info/', origin: 'https://clbphimxua.info'`
-   - Function `getRefererHeaders(targetUrl, refParam)` in `src/routes/hls.js:43-67` correctly prioritizes `refParam` and falls back to regex patterns and target URL origin.
-
-4. **Binary Safe Loading (`/hls/segment.ts`)**:
-   - `src/routes/hls.js:363-364, 385-393`:
-     ```javascript
-     res.setHeader('Content-Type', req.query.is_key ? 'application/octet-stream' : 'video/MP2T');
-     res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=31536000, immutable');
-     ...
-     const upstreamRes = await axios({
-       url: targetUrl,
-       method: 'GET',
-       responseType: 'stream',
-       headers: upstreamHeaders,
-       timeout: 25000,
-       maxRedirects: 5,
-       validateStatus: (status) => status >= 200 && status < 400,
-     });
-     ```
-   - Observation: `responseType` is currently `'stream'` with `timeout: 25000` and `Cache-Control: public, max-age=31536000, immutable`. R1 specifies `responseType: 'arraybuffer'`, `timeout: 15000`, `maxRedirects: 5`, and `Cache-Control: public, max-age=3600`.
+  // In-App Direct Play (HLS Proxy) — STRICTLY NO externalUrl
+  streams.push({
+    name: 'VIP Movies 🎬',
+    title: `${titleHeader}\n⚡ Server VIP 3 • Phát trực tiếp trong App`,
+    url: streamUrl,
+    behaviorHints: {
+      notSupported: false,
+      bingeGroup: `nguonc-${movie.slug || 'stream'}`,
+    },
+  });
+  ```
+  - Verified: Every stream object contains `url` pointing to local HLS proxy routes (`/hls/manifest.m3u8` or `/hls/extract`).
+  - Verified: `externalUrl` is 100% absent across all return paths in `src/providers/nguonc.js`.
+  - Multi-server support handles Vietsub, Thuyết Minh, Lồng Tiếng separately with custom labels (`lines 412-423`).
+  - Episode matching uses `matchEpisodeItem(ep, targetEpStr, epNum)` (`line 398`) with 1-based index fallback (`line 402`) and season validation via `isSeasonMatch` (`line 373`).
 
 ---
 
-### 1.2. Test Execution Observations
+### 1.2 `src/providers/film4k.js`
+- **REST API Scraping Endpoints**:
+  - `BASE_URL`: `'https://film4k.net'` (`line 36`).
+  - `BASE_API`: `'https://film4k.net/api'` (`line 37`).
+  - `/api/home` (`lines 101, 188`): Used for `search()` and `getCatalog()` (filtering by `mediaType !== 'tv'` for movies, `mediaType === 'tv'` for series).
+  - `/api/title/:slug` (`line 140`): Primary endpoint in `getDetail()` for metadata and episode list.
+  - `/api/watch/:slug` (`lines 151, 251, 266`): Fallback endpoint for `getDetail()` and primary stream source lookup for `getStreams()`.
 
-1. **Execution of `node tests/verify_v170_playback.js`**:
-   - Command: `node tests/verify_v170_playback.js`
-   - Exit code: `0`
-   - Total Assertions: **38 Passed / 0 Failed**
-   - Output summary:
-     * Phase 1 (Catalogs): STP (`stp-phim-le` → 18 metas), CLBPX (`clbpx-hong-kong` → 10 metas), YAN (`yan-dang-chieu` → 28 metas).
-     * Phase 2 (KDrama & US-UK): *Teach You A Lesson* (5 streams, 0 from YAN), *A Shop for Killers* (4 streams), *Avengers 3* (5 streams).
-     * Phase 3 (Live Playback): Traversed Master to Sub-variant M3U8 (802 segments), Segment 1 (416.2 KB, sync byte `0x47`), Segment 2 (919.4 KB, sync byte `0x47`).
-     * Phase 4 (Seeking): HTTP Range `bytes=0-1023` → HTTP 206 Partial Content, `Content-Range: bytes 0-1023/426196`, 1024 bytes buffer.
+- **4K Stream URL Extraction & In-App Protocol** (`src/providers/film4k.js:283-328`):
+  ```javascript
+  if (isMovie) {
+    streamMasterUrl = watchData.sources?.[0]?.url || movie.hlsUrl;
+  } else {
+    const targetEpNum = episode != null ? parseInt(episode, 10) : 1;
+    const targetSeasonNum = season != null ? parseInt(season, 10) : 1;
 
-2. **Execution of `node tests/verify_all_providers_playback.js`**:
-   - Command: `node tests/verify_all_providers_playback.js`
-   - Exit code: `1`
-   - Result: **39 Passed / 2 Failed**
-   - Failures observed:
-     * `Provider STP (Sưu Tầm Phim): M3U8 body must contain #EXTM3U header`
-     * `Provider CLBPX (Phim Xưa & TVB): Must find CLBPX stream for Thiên Long Bát Bộ`
+    const matchedEp = episodes.find((ep) => {
+      const epNum = parseInt(ep.episode, 10);
+      const sNum = parseInt(ep.season || 1, 10);
+      return epNum === targetEpNum && (season == null || sNum === targetSeasonNum);
+    }) || episodes[targetEpNum - 1] || episodes[0];
 
-3. **Execution of `npm test` (`src/test.js`)**:
-   - Command: `npm test`
-   - Exit code: `0`
-   - Result: **50 Passed / 0 Failed**
+    if (matchedEp) {
+      streamMasterUrl = matchedEp.sources?.[0]?.url;
+      episodeLabel = `[Tập ${matchedEp.episode || targetEpNum}] `;
+    }
+  }
 
-4. **Syntax verification**:
-   - `node --check src/index.js` → Exit code `0` (Clean).
+  if (!streamMasterUrl) return [];
+
+  const fullStreamUrl = streamMasterUrl.startsWith('http')
+    ? streamMasterUrl
+    : `${BASE_URL}${streamMasterUrl}`;
+
+  const b64Url = encodeBase64(fullStreamUrl);
+  const b64Ref = encodeBase64(REFERER_HEADER);
+  const proxyStreamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${b64Url}&ref=${b64Ref}`;
+
+  return [
+    {
+      name: 'VIP Movies 🎬',
+      title: streamTitle,
+      url: proxyStreamUrl,
+      behaviorHints: {
+        notSupported: false,
+        bingeGroup: `film4k-${targetSlug || 'stream'}`,
+      },
+    },
+  ];
+  ```
+  - Relative 4K master playlist path (e.g. `/api/hls/archive/:slug/master.m3u8`) is resolved to `https://film4k.net/api/hls/archive/:slug/master.m3u8`.
+  - Base64-encoded URL and Referer are passed to `${proxyBase}/hls/manifest.m3u8`.
+  - Verified: Every stream object contains `url`. Zero occurrences of `externalUrl`.
+
+- **Multi-audio / Subtitles & Series Episode Matching**:
+  - Film4K master playlists contain multi-audio (Vietsub, Dubbed, 6-channel AAC) and subtitle tracks, passed directly to HLS proxy with `https://film4k.net/` origin/referer headers.
+  - Series episode matching provides a 3-tier fallback strategy:
+    1. Exact episode number + season number match: `epNum === targetEpNum && (season == null || sNum === targetSeasonNum)`.
+    2. 1-based index fallback: `episodes[targetEpNum - 1]`.
+    3. First episode fallback: `episodes[0]`.
+
+- **Bugs / Code-Level Flaws Identified in `film4k.js`**:
+  1. **Bug in `generateSearchKeywords` invocation** (`src/providers/film4k.js:258`):
+     - Code: `const keywords = generateSearchKeywords(queryTitle, targetExtra.aliases);`
+     - Function signature in `src/lib/utils.js:323`: `generateSearchKeywords(arg1, arg2, arg3, arg4)` where `arg1` = title (string), `arg2` = originalName (string), `arg3` = aliases (array), `arg4` = season (number).
+     - Impact: Passing `targetExtra.aliases` as `arg2` results in `typeof arg2 === 'string'` evaluating to false and `arg3` being `undefined`. Thus `aliases` is dropped and search fallback does not query aliases.
+     - Solution: Pass `{ title: queryTitle, aliases: targetExtra.aliases }` or `generateSearchKeywords(queryTitle, '', targetExtra.aliases)`.
+  2. **IMDb ID Extraction Missing from Payload Object** (`src/providers/film4k.js:234`):
+     - Code: `if (targetId && String(targetId).startsWith('tt')) cleanImdb = ...;`
+     - When `getStreams(payload)` is called where `payload` has `{ imdbId: 'tt...', ... }`, `targetId` is set from `type.id || type.slug || ''` which is null/empty for Cinemeta lookups, leaving `cleanImdb` as `null`.
+     - Solution: Check `const cleanImdb = targetExtra?.imdbId || (targetId && String(targetId).startsWith('tt') ? String(targetId).split(':')[0] : null);`.
+  3. **Unused Imports / Candidate Scoring** (`src/providers/film4k.js:28-29, 263-274`):
+     - `scoreMatch` and `isSeasonMatch` are imported from `../lib/utils` but never called in `film4k.js`. The search fallback loop takes the first item that succeeds on `/watch/:slug` instead of sorting by highest matching score.
+
+---
+
+### 1.3 Live Backtest Execution Result
+Command executed: `node tests/verify_playback_fix.js`
+- Total: **22 PASSED, 0 FAILED**.
+- Phase 1 (NguonC Anti-403 Stealth Engine):
+  - Catalog (`phim-le`): 10 items fetched (HTTP 200).
+  - Detail (`cuu-mon`): Fetched successfully.
+  - Search (`avatar`): 10 items returned.
+- Phase 2 (FILM4K 4K Ultra HD Provider):
+  - Catalog (`4k-movies`): 54 items returned (HTTP 200).
+  - Detail (`arcane`): Fetched successfully.
+  - Stream extraction (`Arcane S1E1`): Extracted 4K stream with title branding `[VIP 0 • FILM4K] Arcane - 4K Ultra HD (3840x2160) [Tập 1] (HLS Proxy)` routing through `/hls/manifest.m3u8`.
+  - In-App protocol invariant verified: `externalUrl === undefined`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Why Multi-Level M3U8 works for KDrama/US-UK in `verify_v170_playback.js`**:
-   - When KKPhim/NguonC streams return master playlists (e.g. `https://v7.kkphimplayer7.com/20260605/mMUnxegG/index.m3u8`), `src/routes/hls.js` rewrites the variant line `3500kb/hls/index.m3u8` to `/hls/manifest.m3u8?url=...`.
-   - When Stremio player requests this sub-variant, `src/routes/hls.js` fetches `https://v7.kkphimplayer7.com/20260605/mMUnxegG/3500kb/hls/index.m3u8` and sets `baseUrl` to that URL.
-   - The segments (e.g. `FqAOJI2h.ts`) are rewritten to `/hls/segment.ts?url=...` with `https://v7.kkphimplayer7.com/20260605/mMUnxegG/3500kb/hls/FqAOJI2h.ts`.
-   - This prevents the 404 error where segments were previously resolved relative to the master playlist root instead of the sub-variant directory.
-
-2. **Root Cause of STP failure in `verify_all_providers_playback.js`**:
-   - In `tests/verify_all_providers_playback.js:290-305`, the test queries `stpProvider.getCatalog('au-my', 1)` and tries to get streams for each item.
-   - `stpProvider.getCatalog('au-my', 1)` returned items like `stp_cuoc-chien-sinh-tu-ii`.
-   - In `src/providers/stp.js:356`, `getDetail(slug)` attempts `http.get('https://sieutamphim.pro/' + cleanSlug + '.html')`. On `sieutamphim.pro`, article URLs include year and month paths (`/YYYY/MM/slug.html`), causing direct slug lookups to return 404.
-   - Because `getDetail` failed, the test suite fell back to `stpProvider.search('Avatar', 1)`.
-   - `stpProvider.search` scraped the live HTML of `sieutamphim.pro` and decoded XOR-obfuscated episode URLs.
-   - The decoded URL for *Avatar* was `https://bysevepoin.com/e/akui1icnoycl` (an embed SPA player) and `https://short.ink/...` (an expired/dead shortlink domain).
-   - When `/hls/manifest.m3u8` received `bysevepoin.com`, it received HTML rather than M3U8. `extractM3u8FromEmbed` failed to extract a stream from `bysevepoin.com`, causing the proxy to return raw HTML and triggering the failure: `M3U8 body must contain #EXTM3U header`.
-
-3. **Root Cause of CLBPX failure in `verify_all_providers_playback.js`**:
-   - In `tests/verify_all_providers_playback.js:315-323`, the test requests streams for series `Thiên Long Bát Bộ` (Season 1, Episode 1).
-   - `clbpxProvider.search('Thiên Long Bát Bộ', 1)` returned 8 items (e.g. `thien-long-bat-bo-kieu-phong-truyen-2`, `thien-long-bat-bo-1997`, `thien-long-bat-bo-2003`, etc.).
-   - `scoreMatch` assigned all of them an identical score of `1.1` because all item titles start with `"Thiên Long Bát Bộ"` and no specific year was provided in the query.
-   - In `src/providers/clbpx.js:579-586`, the search loop picked only the first item (`thien-long-bat-bo-kieu-phong-truyen-2`).
-   - `extractClbpxLiveStreams('thien-long-bat-bo-kieu-phong-truyen-2', 1)` returned `[]` because that specific post on `clbphimxua.info` is empty/broken.
-   - The provider immediately returned `[]` without attempting subsequent high-scoring candidate items (such as `thien-long-bat-bo-1997`, which has a live working stream).
+1. **NguonC Stealth Headers**: Inspection of `src/providers/nguonc.js:26-37` confirms that `NGUONC_UA` matches Chrome 131 macOS, and all five required headers (`Referer`, `Origin`, `Sec-Fetch-Dest`, `Sec-Fetch-Mode`, `Sec-Fetch-Site`) are declared and passed into Axios config.
+2. **NguonC Fallback**: Inspection of `fetchNguonC` (`src/providers/nguonc.js:46-68`) confirms that on 403, 429, or ECONNABORTED, `process.env.RENDER_BACKEND_URL` is used to construct a proxy request to `/api/nguonc-proxy`.
+3. **NguonC Stream Invariants**: Inspection of `src/providers/nguonc.js:425-438` demonstrates that returned stream objects set `url: streamUrl` (pointing to `/hls/manifest.m3u8` or `/hls/extract`) and omit `externalUrl`.
+4. **Film4K REST API**: Inspection of `src/providers/film4k.js:101, 140, 151, 188, 251` confirms usage of `/api/home`, `/api/title/:slug`, and `/api/watch/:slug`.
+5. **Film4K 4K Extraction**: Lines 283-328 extract the relative `.m3u8` URL, resolve it against `https://film4k.net`, encode it with base64, and route it through the HLS proxy.
+6. **Film4K Series Logic**: Lines 288-302 evaluate season/episode matches with 3-tier fallback.
+7. **Film4K Stream Invariants**: Lines 318-327 return objects containing `url: proxyStreamUrl` with no `externalUrl`.
+8. **Identified Deficiencies**: Tracing parameter flow in `film4k.js:258` revealed that `targetExtra.aliases` is passed into `arg2` of `generateSearchKeywords`, ignoring aliases due to signature mismatch.
 
 ---
 
-## 3. Gap Analysis
+## 3. Caveats
 
-| Requirement Item | Expected (per Specification) | Current Implementation | Status |
-| :--- | :--- | :--- | :--- |
-| **R1: Multi-level Parent Resolution** | Master playlist wraps sub-variant to `/hls/manifest.m3u8?url=...&ref=...`, sub-variant uses sub-variant URL as `baseUrl` for segments | Implemented in `src/routes/hls.js:232-249, 317-328` | **COMPLETE & VERIFIED** |
-| **R1: Redirect ResponseUrl Handling** | Handle 301/302 redirects when resolving relative M3U8 / TS paths | Currently resolves relative to `targetUrl` rather than `r.request?.res?.responseUrl` | **MINOR GAP** |
-| **R1: Browser Simulation UA** | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36` | Uses Mac Chrome 126 (`src/routes/hls.js:25`) | **GAP** |
-| **R1: Browser Headers** | `Accept: */*`, `Accept-Language: vi,en-US;q=0.9,en;q=0.8`, `Connection: keep-alive` | `Accept-Language` and `Connection: keep-alive` missing in `hls.js` requests | **GAP** |
-| **R1: Referer / Origin Mapping** | Dynamic mapping for KKPhim, Opstream, Vlcdn, Phim1280, NguonC, VSMOV, STP, CLBPX, YAN | Fully declared in `SOURCE_REFERERS` table | **COMPLETE & VERIFIED** |
-| **R1: `/hls/segment.ts` Configuration** | `responseType: 'arraybuffer'`, `maxRedirects: 5`, `timeout: 15000`, `Cache-Control: public, max-age=3600` | Currently uses `responseType: 'stream'`, `timeout: 25000`, `max-age=31536000` | **GAP** |
-| **R4: `verify_v170_playback.js`** | 100% assertions PASS across Catalogs, KDrama/US-UK, Playback (>100KB, 0x47 sync), YAN Guard | 38/38 assertions PASS | **COMPLETE & VERIFIED** |
-| **R4: `verify_all_providers_playback.js`** | 100% assertions PASS across all 6 provider clusters | 39/41 PASS (STP and CLBPX failures in stream resolution) | **GAP (Needs Fix)** |
+1. **Proxy Endpoint on Render**: The Express server codebase in this repository does not declare a handler for `GET /api/nguonc-proxy`. If `RENDER_BACKEND_URL` points to an instance running this exact app, fallback requests will return 404 until `/api/nguonc-proxy` is registered in `src/handlers.js` or `src/routes/`.
+2. **Film4K Candidate Selection**: `film4k.js` currently does not rank multi-keyword search candidates with `scoreMatch()`; it picks the first candidate that yields watch data.
 
 ---
 
 ## 4. Conclusion
 
-- **R1 Assessment**: The multi-level M3U8 parent resolution logic is functionally working and successfully resolves sub-variants and video segments without 404 errors (verified with live KKPhim and NguonC streams). However, `src/routes/hls.js` requires updating to match the exact browser header simulation specs (`User-Agent`, `Accept-Language`, `Connection: keep-alive`) and the binary buffer segment loading configuration (`responseType: 'arraybuffer'`, `timeout: 15000`, `Cache-Control: public, max-age=3600`).
-- **R4 Assessment**: `tests/verify_v170_playback.js` is fully working (38/38 assertions pass). `tests/verify_all_providers_playback.js` has 2 edge-case failures in STP and CLBPX stream candidate matching that must be addressed by Worker to reach 100% PASS across the entire verification matrix.
+1. `src/providers/nguonc.js` **passes all audit requirements**: Chrome 131 UA, all required stealth headers, `RENDER_BACKEND_URL` fallback routing, and strict In-App stream protocol (`url` only, zero `externalUrl`).
+2. `src/providers/film4k.js` **passes core audit requirements**: REST API scraping (`/home`, `/title/:slug`, `/watch/:slug`), 4K stream URL extraction via `/hls/manifest.m3u8`, multi-audio/subtitle support, and series episode matching with 100% `url` In-App playback.
+3. **Remediation Recommendations for Phase M2**:
+   - In `src/providers/film4k.js:258`: Fix `generateSearchKeywords(queryTitle, targetExtra.aliases)` -> `generateSearchKeywords({ title: queryTitle, aliases: targetExtra.aliases })`.
+   - In `src/providers/film4k.js:234`: Support `cleanImdb = targetExtra?.imdbId || ...`.
+   - In `src/handlers.js` / `src/index.js`: Implement `GET /api/nguonc-proxy` handler so Render can act as a transparent proxy for NguonC API endpoints.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce and verify these findings:
+To independently verify these findings:
 
 ```bash
-# 1. Run the v1.7.0 E2E Playback test suite (Expected: 38/38 PASS)
-node tests/verify_v170_playback.js
+# 1. Run live playback and provider verification suite:
+node tests/verify_playback_fix.js
 
-# 2. Run the 6-provider comprehensive verification suite (Expected: 39/41 PASS, highlighting STP and CLBPX gaps)
-node tests/verify_all_providers_playback.js
+# 2. Inspect provider headers and exports:
+node -e "
+const nguonc = require('./src/providers/nguonc');
+const film4k = require('./src/providers/film4k');
+console.log('NguonC ID:', nguonc.id);
+console.log('FILM4K ID:', film4k.PROVIDER_ID);
+"
 
-# 3. Run the core integration test suite (Expected: 50/50 PASS)
-npm test
-
-# 4. Check syntax
-node --check src/index.js
-node --check src/routes/hls.js
+# 3. Test generateSearchKeywords signature against film4k invocation:
+node -e "
+const { generateSearchKeywords } = require('./src/lib/utils');
+console.log('Positional bug output:', generateSearchKeywords('Arcane', ['Liên Minh Huyền Thoại']));
+console.log('Object fix output:', generateSearchKeywords({ title: 'Arcane', aliases: ['Liên Minh Huyền Thoại'] }));
+"
 ```
-
----
-
-## 6. Concrete Recommendations for Worker
-
-### Recommendation 1 (for `src/routes/hls.js`):
-1. **Update User-Agent & Default Request Headers**:
-   ```javascript
-   const HLS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-
-   const DEFAULT_HEADERS = {
-     'User-Agent': HLS_UA,
-     'Accept': '*/*',
-     'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-     'Connection': 'keep-alive',
-   };
-   ```
-2. **Use `responseUrl` on Redirects**:
-   In `/manifest.m3u8`:
-   ```javascript
-   const finalUrl = r.request?.res?.responseUrl || effectiveTargetUrl;
-   let baseUrl;
-   try { baseUrl = new URL(finalUrl); } catch { return res.send(rawManifestData); }
-   ```
-3. **Align `/hls/segment.ts` Delivery**:
-   Update `responseType: 'arraybuffer'`, `timeout: 15000`, `maxRedirects: 5`, and set `res.setHeader('Cache-Control', 'public, max-age=3600')`. Handle Range requests with buffer slicing (`buffer.subarray(start, end + 1)`) and HTTP 206 with `Content-Range`.
-
-### Recommendation 2 (for `src/providers/stp.js` & `src/providers/clbpx.js`):
-1. **STP Provider (`src/providers/stp.js`)**:
-   - Filter out dead / unplayable embed domains (e.g. `bysevepoin.com`, `short.ink`, `short.icu`) when parsing `episodeGroup`.
-   - In `getDetail` / `getStreams`, when direct HTML scrape does not yield working direct `.m3u8` streams, fallback to PhimAPI/Ophim mirror search by title.
-2. **CLBPX Provider (`src/providers/clbpx.js`)**:
-   - In `getStreams`, if the highest-scoring search match returns no stream (`liveStreams.length === 0`), iterate through the remaining candidate matches from `search(title)` (e.g. `thien-long-bat-bo-1997`) instead of failing immediately.

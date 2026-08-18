@@ -1,45 +1,37 @@
-# BRIEFING — 2026-08-18T10:14:30Z
+# BRIEFING — 2026-08-18T17:18:00Z
 
 ## Mission
-Investigate R1 (HLS Proxy multi-level parent resolution & browser simulation in src/routes/hls.js) and R4 (E2E Playback verification test suite in tests/verify_v170_playback.js and tests/verify_all_providers_playback.js) for Engine v1.7.0 Overhaul.
+Conduct a detailed code audit of `src/providers/nguonc.js` and `src/providers/film4k.js`.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Read-only investigation, code & test analysis, synthesis
+- Archetype: explorer
+- Roles: investigator, synthesizer
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1
-- Original parent: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
-- Milestone: Engine v1.7.0 Overhaul Investigation Phase
+- Original parent: cdcbc7a1-f5e9-482f-bf54-d9f2d980736c
+- Milestone: audit_providers
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement production changes
-- Write reports and analysis only to my own folder: .agents/teamwork_preview_explorer_survey_1/
-- Produce a rigorous 5-component handoff report with exact code references, test execution results, gap analysis, and worker recommendations
+- Read-only investigation — do NOT implement / modify source code files
+- Audit requirements for nguonc.js and film4k.js
 
 ## Current Parent
-- Conversation ID: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
-- Updated: 2026-08-18T10:14:30Z
+- Conversation ID: cdcbc7a1-f5e9-482f-bf54-d9f2d980736c
+- Updated: 2026-08-18T17:18:00Z
 
 ## Investigation State
-- **Explored paths**:
-  - `src/routes/hls.js` (Multi-level M3U8 resolution, headers, dynamic referers, segment proxy)
-  - `tests/verify_v170_playback.js` (38/38 PASS)
-  - `tests/verify_all_providers_playback.js` (39/41 PASS, 2 failures in STP & CLBPX stream candidates)
-  - `src/providers/stp.js` and `src/providers/clbpx.js` (Analysis of stream failure causes)
-  - `src/manifest.js` and `src/handlers.js` (Manifest catalogs and branding check)
-  - `npm test` (`src/test.js` - 50/50 PASS)
+- **Explored paths**: `src/providers/nguonc.js`, `src/providers/film4k.js`, `src/lib/utils.js`, `src/index.js`, `src/handlers.js`, `src/routes/hls.js`, `tests/verify_playback_fix.js`
 - **Key findings**:
-  - Multi-level M3U8 parent resolution is structurally implemented and verified in `src/routes/hls.js`.
-  - Browser headers in `src/routes/hls.js` need User-Agent alignment to Windows Chrome 124, addition of `Accept-Language` and `Connection: keep-alive`.
-  - `/hls/segment.ts` should align to `responseType: 'arraybuffer'`, `timeout: 15000`, `Cache-Control: public, max-age=3600`.
-  - STP needs filtering of unplayable embed domains (`bysevepoin.com`, `short.ink`) and better fallback to mirror search.
-  - CLBPX candidate iteration needs multi-match loop when first match is empty.
-- **Unexplored areas**: None within R1 & R4 scope.
+  - `src/providers/nguonc.js` correctly implements Chrome 131 UA, all required stealth headers (`Referer`, `Origin`, `Sec-Fetch-Dest`, `Sec-Fetch-Mode`, `Sec-Fetch-Site`), and Vercel-to-Render fallback routing via `RENDER_BACKEND_URL`. All streams use `url` (HLS proxy) and omit `externalUrl`.
+  - Missing server route: Express app in repo does not define `GET /api/nguonc-proxy` if Render runs the same codebase.
+  - `src/providers/film4k.js` correctly calls `/api/home`, `/api/title/:slug`, `/api/watch/:slug`, extracts 4K stream URLs to HLS proxy (`/hls/manifest.m3u8`), handles multi-audio/subtitles via master m3u8, and provides 3-tier series episode matching. All streams strictly use `url`, no `externalUrl`.
+  - Bug in `film4k.js:258`: `generateSearchKeywords(queryTitle, targetExtra.aliases)` passes aliases array as 2nd arg (`originalName`), dropping aliases.
+  - Minor issue in `film4k.js:234`: `cleanImdb` extraction misses `targetExtra.imdbId`.
+  - Unused imports: `scoreMatch` and `isSeasonMatch` imported in `film4k.js` but not utilized during candidate ranking.
+- **Unexplored areas**: None for provider scope.
 
 ## Key Decisions Made
-- Fully documented all observations, logic chains, test outputs, gap analysis, and worker recommendations in `handoff.md`.
+- Confirmed compliance of both providers with Stremio In-App streaming protocol (100% `url`, zero `externalUrl`).
+- Identified 3 bugs/improvements in `film4k.js` and 1 architectural note in `nguonc.js`.
 
 ## Artifact Index
-- `.agents/teamwork_preview_explorer_survey_1/DISPATCH.md` — Initial user dispatch
-- `.agents/teamwork_preview_explorer_survey_1/BRIEFING.md` — Agent briefing & working memory
-- `.agents/teamwork_preview_explorer_survey_1/progress.md` — Liveness & status log
-- `.agents/teamwork_preview_explorer_survey_1/handoff.md` — Detailed 5-component handoff report
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/handoff.md — Final audit report

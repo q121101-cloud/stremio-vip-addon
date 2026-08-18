@@ -1728,16 +1728,23 @@ router.get('/:config/stream/:type/:id.json', handleStream);
 router.get('/:config/stream/:type/:id', handleStream);
 
 // ─── NguonC Transparent Backend Proxy Route ──────────────────
-router.get('/api/nguonc-proxy', async (req, res) => {
+router.get(['/api/nguonc-proxy', '/proxy/nguonc'], async (req, res) => {
+  const reqUrl = req.query.url;
   const reqPath = req.query.path;
-  if (!reqPath) {
-    return res.status(400).json({ error: 'Missing path parameter' });
+  if (!reqUrl && !reqPath) {
+    return res.status(400).json({ error: 'Missing url or path parameter' });
   }
 
-  const cleanPath = String(reqPath).startsWith('/') ? reqPath : `/${reqPath}`;
-  const targetUrl = `https://phim.nguonc.com/api${cleanPath}`;
+  let targetUrl;
+  if (reqUrl) {
+    targetUrl = reqUrl.startsWith('http') ? reqUrl : `https://phim.nguonc.com/api${reqUrl.startsWith('/') ? reqUrl : '/' + reqUrl}`;
+  } else {
+    const cleanPath = String(reqPath).startsWith('/') ? reqPath : `/${reqPath}`;
+    targetUrl = `https://phim.nguonc.com/api${cleanPath}`;
+  }
 
   const forwardParams = { ...req.query };
+  delete forwardParams.url;
   delete forwardParams.path;
 
   try {

@@ -1,43 +1,47 @@
-# BRIEFING — 2026-08-18T10:14:30Z
+# BRIEFING — 2026-08-18T17:18:30Z
 
 ## Mission
-Investigate R2: Real Cheerio HTML scrapers for STP (src/providers/stp.js), CLBPX (src/providers/clbpx.js), and YAN (src/providers/yan.js) with strict Donghua Guard for Engine v1.7.0 Overhaul.
+Conduct a detailed code audit of `src/routes/hls.js` and related stream proxying logic focusing on upstream >= 400 error handling, cache purging, segment proxying & rewriting, and potential 502/crash scenarios.
 
 ## 🔒 My Identity
-- Archetype: Teamwork Explorer
-- Roles: Investigator, Synthesizer
+- Archetype: explorer
+- Roles: read-only investigation, code audit, synthesis, structured handoff reporting
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2
-- Original parent: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
-- Milestone: Engine v1.7.0 Overhaul - R2 Survey
+- Original parent: cdcbc7a1-f5e9-482f-bf54-d9f2d980736c
+- Milestone: HLS Proxy & Stream Logic Code Audit
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement production changes in src/
-- Analysis and report in .agents/teamwork_preview_explorer_survey_2/
-- Follow 5-Component Handoff Protocol
+- Read-only investigation — do NOT implement / modify source code
+- Files for content delivery, messages for coordination
+- Deliver 5-component handoff report (Observation, Logic Chain, Caveats, Conclusion, Verification Method) in handoff.md
+- Update progress.md and BRIEFING.md
 
 ## Current Parent
-- Conversation ID: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
-- Updated: 2026-08-18T10:14:30Z
+- Conversation ID: cdcbc7a1-f5e9-482f-bf54-d9f2d980736c
+- Updated: 2026-08-18T17:18:30Z
 
 ## Investigation State
-- **Explored paths**: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/providers/index.js`, `src/handlers.js`, `src/manifest.js`, `tests/verify_v170_playback.js`, `tests/verify_all_providers_playback.js`, live network endpoints for STP, CLBPX, and YAN.
+- **Explored paths**:
+  - `src/routes/hls.js` (Lines 1-591: /extract, /manifest.m3u8, /segment.ts, /key, /sub.vtt, getRefererHeaders, resolveParamUrl)
+  - `src/lib/cache.js` & `src/lib/cloudCache.js` (LRUCache, HybridCache, m3u8Cache instance)
+  - `src/mapper.js` (extractM3u8FromEmbed, buildStreams)
+  - `src/handlers.js` (Stream Aggregator, getStreamPriority, handleStream)
+  - `src/providers/*.js` (film4k, vsmov, kkphim, nguonc, stp, hh3d, yan, clbpx)
+  - `src/manifest.js` & `src/config.js`
+  - `tests/hls_challenger_empirical.test.js`, `tests/forensic_hls_audit.js`
 - **Key findings**:
-  1. STP (`sieutamphim.pro`): Real HTML card scraper parses 18-24 cards for categories (`/the-loai/phim-le/`, `/the-loai/phim-au-my/`). Search scrapes `/?s=...` successfully. XOR 0x2a decoding extracts streams from `episodeGroup`. Gaps: shortlink domain handling (`short.ink`), raw title sanitization from post HTML.
-  2. CLBPX (`clbphimxua.info`): Real HTML card scraper parses 10-20 cards from `/quoc-gia/hong-kong/` and `/the-loai/co-trang/`. Search `/?s=...` works. Live stream extraction requires calling `player.php` with `{ post_id, server_id, episode_slug }` which gives StreamC embed (`embed3.streamc.xyz`). Gaps: Season 1 matching on movie search results, fallback to PhimAPI wuxia catalog when live search returns standalone movies.
-  3. YAN (`yanhh3d.pw`): Real HTML card scraper parses 15-28 cards from `/hoat-hinh-3d`, `/dang-chieu`. Strict Donghua Guard (`isDonghuaOrAnime`) 100% blocks live-action, KDrama, and Hollywood queries (*Teach You A Lesson*, *A Shop for Killers*, *Lanterns* -> 0 streams). Live stream extraction decodes `fbcdn.cloud` embeds into direct `stream-plain` M3U8 URLs.
-- **Unexplored areas**: None, full survey complete across all 3 providers.
+  1. Upstream HTTP >= 400 in `/manifest.m3u8` is caught via axios error handling, purges cache via `m3u8Cache.del(cacheKey)`, and gracefully redirects via `res.redirect(302, targetUrl)` if targetUrl is a valid http(s) URL.
+  2. Edge case bug: If upstream CDN returns HTTP 200 with HTML (e.g. Cloudflare challenge/block page) and de-embedding fails, `/manifest.m3u8` treats HTML lines as TS segment URLs, caches the corrupted manifest in `m3u8Cache` for 300s, and serves it with `Content-Type: application/vnd.apple.mpegurl`.
+  3. Inconsistent 302 fallback in `/segment.ts` (lines 464-466), `/key` (lines 504-505), and `/extract` (lines 140-151), which return HTTP 502 instead of self-healing 302 redirect.
+  4. Header forwarding & Anti-403 logic: `SOURCE_REFERERS` supports all 8 providers with accurate Referer and Origin headers; Range 206 seeking is supported with upstream forwarding and local buffer-slicing fallback.
+  5. `extractM3u8FromEmbed(targetUrl, refererUrl)` in `src/routes/hls.js:198` passes 2 arguments, but `src/mapper.js:280` only takes 1 argument and hardcodes `Referer: 'https://phim.nguonc.com/'`.
+- **Unexplored areas**: None. Code audit of `src/routes/hls.js` and all related modules is complete.
 
 ## Key Decisions Made
-- Fully audited STP, CLBPX, and YAN live behaviors, code paths, test suites, and edge cases.
+- Verified all 5 endpoints in `src/routes/hls.js` empirically via live Express test servers.
 
 ## Artifact Index
-- DISPATCH.md — Initial dispatch instructions
-- BRIEFING.md — Persistent memory
-- progress.md — Liveness heartbeat
-- test_survey.js — Live provider survey script
-- inspect_pages.js — Watch page inspection script
-- debug_clbpx.js — CLBPX player flow debug script
-- debug_player.js — CLBPX player endpoint debug script
-- debug_yan.js — YAN embed and M3U8 extraction script
-- test_yan_detail.js — YAN episode link discovery script
-- handoff.md — Final 5-component handoff report
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2/DISPATCH.md` — Inbound dispatch record
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2/BRIEFING.md` — Situational awareness
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2/progress.md` — Liveness & step tracking
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2/handoff.md` — Comprehensive Handoff Report

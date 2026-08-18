@@ -1,192 +1,195 @@
-# Comprehensive Handoff Report: Explorer 3 Survey on R3 & R5
+# Handoff Report: Detailed Code Audit of Provider Registrations, Manifest, Config, Handlers, and UI Grid
 
-**Author**: Explorer 3  
-**Date**: 2026-08-18  
-**Scope**: 
-- **R3**: Multi-Keyword Fallback & Flexible Episode Matching (KKPhim & NguonC)
-- **R5**: Versioning v1.7.0, Brand Signature, and Git Deployment Readiness
-- **Test Suites & Syntax Validation**: `npm test`, `node --check src/index.js`, `tests/verify_v170_playback.js`, `tests/m3_multikeyword_episode_matching.test.js`
+**Agent**: Explorer 3
+**Working Directory**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/`
+**Target Commit / Version**: VIP Movies Addon Engine v1.7.1
+**Date**: 2026-08-19
 
 ---
 
 ## 1. Observation
 
-### 1.1 Code Analysis for R3 (Multi-Keyword Fallback & Flexible Episode Matching)
+### A. Provider Registration Across All 8 Required Checkpoints
 
-#### [A] Multi-Keyword Fallback Implementation (`src/lib/utils.js:323-413`)
-- `generateSearchKeywords(arg1, arg2, arg3, arg4)` supports both object `{ title, originalName, aliases, season }` and positional arguments `(title, originalName, aliases, season)`.
-- It collects candidate raw strings from English titles, Vietnamese aliases, and original titles.
-- For each raw candidate, it generates multi-tier variations:
-  1. **Direct string**: Raw input without modifications.
-  2. **Year stripping**: Removes 4-digit release years (e.g., `"Inception (2010)"` → `"Inception"`).
-  3. **Season / Part stripping**: Strips Vietnamese (`"Phần 1"`, `"Phan 1"`, `"Chương 2"`), English (`"Season 1"`, `"Part 2"`, `"SS1"`), shorthand (`"S01"`, `"P1"`), and Roman numerals (`"Phần II"`).
-  4. **Punctuation & Special Character normalization**: Normalizes punctuation (`:`, `_`, `-`, `,`, `.`) and quotes into clean tokens (e.g., `"9-1-1"` → `"9 1 1"`).
-  5. **Combined normalization**: Strips season notation + normalizes punctuation (e.g., `"A Shop for Killers (Phần 1)"` → `"A Shop for Killers"`, `"9-1-1 Phần 1"` → `"9 1 1"`).
+1. **`VALID_PROVIDERS` in `src/config.js:12`**:
+   - Quote: `const VALID_PROVIDERS = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];`
+   - Verified: All 8 providers present in canonical order.
 
-#### [B] Provider Integration in KKPhim (`src/providers/kkphim.js:316-348`)
-- In `getStreams(...)`:
-  * Tier 1: Direct IMDb lookup via `phimapi.com/imdb/title/:id`.
-  * Tier 1b: Fallback slug lookup via `getDetail(slug)`.
-  * Tier 2: Search Fallback via `generateSearchKeywords`:
-    ```javascript
-    const searchQueries = generateSearchKeywords({
-      title: cleanTitle,
-      originalName: null,
-      aliases,
-      season,
-    });
-    ```
-  * Iterates across generated queries with `scoreMatch(item, cleanTitle || q, year, season)`.
-  * High-confidence early exit at `bestScore >= 0.70`, acceptance threshold at `bestScore >= 0.45`.
-  * Successful matches are cached into `imdbCache` (`kkphim:imdb:${imdbId}`) for 24 hours.
+2. **`DEFAULT_CONFIG.providers` in `src/config.js:19`**:
+   - Quote: `providers: ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'],`
+   - Verified: All 8 providers enabled by default.
 
-#### [C] Provider Integration in NguonC (`src/providers/nguonc.js:295-327`)
-- In `getStreams(...)`:
-  * Step 1: Direct slug lookup.
-  * Step 2: Cached IMDb lookup.
-  * Step 3: Multi-keyword fallback loop utilizing `generateSearchKeywords` + `scoreMatch`.
-  * High-confidence early exit at `bestScore >= 0.70`, acceptance threshold at `bestScore >= 0.45`.
-  * Successful matches are cached into `imdbCache` (`nguonc:imdb:${imdbId}`) for 24 hours.
+3. **`ALL_PROVIDERS` object in `src/handlers.js:33-42` & `src/providers/index.js:20-29`**:
+   - In `src/handlers.js:33-42`:
+     ```javascript
+     const ALL_PROVIDERS = {
+       film4k: providerFilm4K,
+       vsmov:  providerVsMov,
+       kkphim: providerKKPhim,
+       nguonc: providerNguonC,
+       stp:    providerSTP,
+       hh3d:   providerHH3D,
+       yan:    providerYAN,
+       clbpx:  providerCLBPX,
+     };
+     ```
+   - In `src/providers/index.js:20-29`:
+     ```javascript
+     const ALL_PROVIDERS = {
+       film4k,
+       vsmov,
+       kkphim,
+       nguonc,
+       stp,
+       hh3d,
+       yan,
+       clbpx,
+     };
+     ```
+   - Verified: All 8 provider modules imported and correctly registered.
 
-#### [D] Universal Episode Matcher (`src/lib/utils.js:431-545`)
-- `matchEpisodeItem(ep, targetEpStr, targetEpNum)` validates server episode items against target episode number/string:
-  * Direct numeric matching (`"1"`, `"01"`, `"001"`).
-  * Vietnamese prefixes (`"Tập 1"`, `"Tập 01"`, `"Tap 1"`, `"Tap 01"`, `"Tập01"`).
-  * English prefixes (`"Episode 1"`, `"Episode 01"`, `"Ep 1"`, `"Ep. 01"`).
-  * Slug patterns (`"tap-1"`, `"tap-01"`, `"episode-1"`, `"ep-1"`, suffix `"-1"`, `"-01"`, `"_1"`).
-  * Movie Single / Full representations (`"Full"`, `"FULL"`, `"Trọn Bộ"`, `"tron-bo"`) matching episode 1 or `"full"`.
-  * Regex token boundaries (`/(?:tập|tap|episode|ep|e|t)\.?\s*(\d+)\b/i`).
-  * **Strict False Positive Guards**: Lookbehind and lookahead (`(?<!\d)${str}(?!\d)`) ensure Episode 1 does NOT match Episode 10, 11, 12, 21, 100, and Episode 2 does NOT match Episode 12, 20, 22.
-  * 1-based index fallback in `kkphim.js:390` and `nguonc.js:370` if naming schemes deviate.
+4. **`ALL_CATALOGS` array in `src/manifest.js:63-404`**:
+   - `film4k` (3 catalogs, lines 65-103): `film4k-4k-movies`, `film4k-4k-series`, `film4k-chieu-rap`
+   - `vsmov` (2 catalogs, lines 106-131): `vsmov-4k`, `vsmov-thuyet-minh`
+   - `kkphim` (4 catalogs, lines 134-185): `kkphim-movie-latest`, `kkphim-series-latest`, `kkphim-cinema-latest`, `kkphim-anime-latest`
+   - `nguonc` (4 catalogs, lines 188-239): `nguonc-movie-latest`, `nguonc-series-latest`, `nguonc-cinema-latest`, `nguonc-anime-latest`
+   - `stp` (4 catalogs, lines 242-293): `stp-au-my`, `stp-phim-le`, `stp-phim-bo`, `stp-han-quoc`
+   - `hh3d` (3 catalogs, lines 296-334): `hh3d-phim-le`, `hh3d-phim-bo`, `hh3d-tien-hiep`
+   - `yan` (3 catalogs, lines 337-375): `yan-phim-le`, `yan-phim-bo`, `yan-dang-chieu`
+   - `clbpx` (2 catalogs, lines 378-403): `clbpx-kiem-hiep`, `clbpx-hong-kong`
+   - Total: Exactly **25 catalogs** representing all 8 providers.
+
+5. **`ALL_ID_PREFIXES` array in `src/manifest.js:408-426`**:
+   - Quote (`src/manifest.js:408-426`):
+     ```javascript
+     const ALL_ID_PREFIXES = [
+       'film4k:',
+       'film4k_',
+       'vsmov:',
+       'vsmov_',
+       'kkphim:',
+       'kkphim_',
+       'nguonc:',
+       'nguonc_',
+       'stp:',
+       'stp_',
+       'hh3d:',
+       'hh3d_',
+       'yan:',
+       'yan_',
+       'clbpx:',
+       'clbpx_',
+       'tt',
+     ];
+     ```
+   - Referenced in `BASE_MANIFEST.resources` (meta, stream) and `BASE_MANIFEST.idPrefixes`.
+   - Verified: All 8 providers covered with both colon `:` and underscore `_` prefixes + IMDb `tt`.
+
+6. **`_allProvidersList` client-side JS variable in `src/handlers.js:1125`**:
+   - Quote: `var _allProvidersList = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];`
+   - Utilized in client UI functions `selectAll()` (line 1193) and `selectNone()` (line 1204).
+
+7. **Provider Card HTML in Configurator Bento Grid (`src/handlers.js:931-1065`)**:
+   - Section header: `🌐 8 Cụm Nguồn Phim VIP (Chuẩn 4K Ultra HD & Audio Độc Lập)` (line 930)
+   - `card-film4k`: Lines 933-948 (`💎 FILM4K (VIP Ultra HD Engine)`)
+   - `card-vsmov`: Lines 951-966 (`🌟 VSMOV 4K (Master Engine)`)
+   - `card-kkphim`: Lines 969-983 (`🔮 KKPhim`)
+   - `card-nguonc`: Lines 985-1000 (`🎞️ NguonC`)
+   - `card-stp`: Lines 1003-1016 (`🗽 STP (Sưu Tầm Phim)`)
+   - `card-hh3d`: Lines 1019-1032 (`⚔️ HH3D (Hoạt Hình 3D)`)
+   - `card-yan`: Lines 1035-1048 (`🔥 YAN Donghua`)
+   - `card-clbpx`: Lines 1051-1064 (`🗡️ CLBPX (Phim Xưa)`)
+   - Verified: Full keyboard accessibility (`tabindex="0"`, `role="checkbox"`, `aria-checked`), toggle functions, and micro-interactive styling present.
 
 ---
 
-### 1.2 Code Analysis for R5 (Versioning, Brand Signature & Git Readiness)
+### B. Routing Correctness in `src/handlers.js` and Providers
 
-1. **`package.json`**:
-   - Line 3: `"version": "1.7.0"` (Correct).
-2. **`src/manifest.js`**:
-   - Line 387: `version: '1.7.0'` in `BASE_MANIFEST` (Correct).
-   - Line 5: Header comment shows `(v1.6.2)` (Cosmetic header comment).
-3. **`src/handlers.js`**:
-   - Line 1057: Brand signature footer is verbatim:
-     `VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>` (Correct).
-   - Line 5: Header comment shows `(Engine v1.7.0)` (Correct).
-4. **`src/index.js`**:
-   - Line 105: `console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.6.0     ║');` (Still contains `v1.6.0`).
-   - Line 5: Header comment shows `(Engine v1.6.0)`.
-5. **Git Status & Remotes**:
-   - Current branch: `main`.
-   - Upstream remote: `origin https://github.com/q121101-cloud/stremio-vip-addon.git`.
-   - Modified and untracked files are ready in workspace for git staging and commit.
+1. **Catalog Resolution & Routing**:
+   - `getProviderFromCatalogId(catalogId)` (`src/handlers.js:109-116`): Iterates over `Object.keys(ALL_PROVIDERS)` and checks prefix matching.
+   - `getCatTypeFromCatalogId(catalogId)` (`src/handlers.js:118-174`): Correctly translates 25 catalog IDs into standard types across all 8 providers (`4k-movies`, `4k-series`, `cinema`, `4k`, `thuyet-minh`, `movie`, `series`, `anime`, `au-my`, `han-quoc`, `tien-hiep`, `dang-chieu`, `kiem-hiep`, `hong-kong`).
+   - `handleCatalog` (`src/handlers.js:1275-1353`): Safely executes `provider.getCatalog()` with 4500ms timeout (`withTimeout`) and handles generic search fan-out across active providers.
+
+2. **Meta Resolution & Routing**:
+   - `handleMeta` (`src/handlers.js:1367-1481`):
+     - IMDb IDs (`tt\d+`) delegated to Cinemeta (lines 1378-1381).
+     - Dedicated handlers for `vsmov:`/`vsmov_`, `kkphim:`/`kkphim_`, `nguonc:`/`nguonc_`, `stp:`/`stp_`, `hh3d:`/`hh3d_`, `yan:`/`yan_`, `clbpx:`/`clbpx_`.
+     - Observation: `film4k:` / `film4k_` currently relies on Cinemeta or fallback rather than a dedicated `else if (id.startsWith('film4k:'))` branch.
+
+3. **Stream Resolution & Routing**:
+   - `handleStream` (`src/handlers.js:1551-1693`):
+     - Correctly strips prefixes for all 8 providers (lines 1596-1615).
+     - Gathers metadata from Cinemeta for IMDb IDs (`resolveCinemeta`).
+     - Gathers active providers from user configuration (`config.providers`), defaulting to `PROVIDER_ORDER`.
+     - Executes provider queries concurrently via `Promise.allSettled` and per-provider 4500ms timeout (`withTimeout`).
+     - Priority sorting: 4K/UHD (0) -> Vietsub (100) -> Thuyết Minh (200) -> Lồng Tiếng (300) sub-sorted by provider rank (FILM4K VIP 0 -> VSMOV VIP 1 -> KKPhim VIP 2 -> NguonC VIP 3 -> STP VIP 4 -> CLBPX VIP 5 -> YAN VIP 6).
+     - Normalizes and deduplicates streams via `normalizeStreamKey` (lines 1536-1549).
 
 ---
 
-### 1.3 Empirical Test Execution Results
+### C. Stream `url` Invariant & `externalUrl` Prohibition
 
-| Test Suite | Command | Output / Status |
-|---|---|---|
-| **M3 Unit & Adversarial** | `node tests/m3_multikeyword_episode_matching.test.js` | **21/21 PASSED (100%)** |
-| **M3 Live Queries** | `node tests/verify_m3_live_queries.js` | **PASSED** (KKPhim & NguonC streams resolved for Teach You A Lesson, A Shop for Killers, Lanterns, 9-1-1, Avengers) |
-| **E2E v1.7.0 Live Playback** | `node tests/verify_v170_playback.js` | **38/38 assertions PASSED (100%)** |
-| **Integration Suite** | `npm test` | **50/50 assertions PASSED (100%)** |
-| **Syntax Check** | `node --check src/index.js` | **0 errors (PASS)** |
-| **All Core Modules Check** | `node --check src/routes/hls.js && node --check src/handlers.js && node --check src/manifest.js && node --check src/lib/utils.js && node --check src/providers/kkphim.js && node --check src/providers/nguonc.js` | **0 errors (PASS)** |
+Every provider implementation and the aggregator enforce In-App Direct Play:
+- **`src/handlers.js:1650-1667`**:
+  - Drops items missing `url`: `if (!item.url || typeof item.url !== 'string' || !item.url.trim()) continue;`
+  - Explicit sanitizer deletion: `delete sanitized.externalUrl;`
+- **`src/providers/film4k.js:317-327`**: Returns HLS Proxy `url: proxyStreamUrl`, no `externalUrl`.
+- **`src/providers/vsmov.js:598-622`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
+- **`src/providers/kkphim.js:414-423`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
+- **`src/providers/nguonc.js:430-438`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
+- **`src/providers/stp.js:692-751`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
+- **`src/providers/hh3d.js:305-314`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
+- **`src/providers/yan.js:493-620`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
+- **`src/providers/clbpx.js:578-755`**: Returns HLS Proxy `url: streamUrl`, no `externalUrl`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **R3 Verification**:
-   - `generateSearchKeywords` was executed across multiple target titles (`Teach You A Lesson`, `A Shop for Killers`, `Lanterns`, `9-1-1`, `Avengers: Infinity War (2018)`).
-   - For `Teach You A Lesson`: Produced original English title + Vietnamese alias `"Bài Học Đáng Đời"`. Live query to KKPhim and NguonC successfully resolved 2 streams each.
-   - For `A Shop for Killers`: Stripped `(Phần 1)` and generated `"A Shop for Killers"`, `"Cửa Hàng Sát Thủ"`. Live query to KKPhim and NguonC successfully resolved streams.
-   - For `matchEpisodeItem`: Evaluated against direct numbers (`"1"`), zero-padding (`"01"`), Vietnamese prefix (`"Tập 01"`), slug (`"tap-1"`), single movie (`"Full"`), and adversarial numbers (`10`, `11`, `12`, `100`). All assertions passed, confirming complete absence of false-positive matches on multi-digit episode numbers.
-
-2. **R5 Verification**:
-   - `package.json` specifies version `1.7.0`.
-   - `src/manifest.js` outputs `version: '1.7.0'`.
-   - `src/handlers.js` renders the exact specified footer: `VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`.
-   - Minor residual version comments exist in `src/index.js:105` (startup banner displaying `Engine v1.6.0`) and top-of-file comments in `src/manifest.js`, `src/config.js`, `src/routes/hls.js`.
-
-3. **Deployment Readiness**:
-   - Git repository is located at `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`.
-   - Branch is `main`. The personal access token authentication URL is ready to be set and pushed.
+1. **Premise 1**: All 8 providers must be consistently registered across configuration, manifest, handler routing, client JS, and HTML configurator.
+   - *Evidence*: `VALID_PROVIDERS` (`src/config.js:12`), `DEFAULT_CONFIG.providers` (`src/config.js:19`), `ALL_PROVIDERS` (`src/handlers.js:33` & `src/providers/index.js:20`), `ALL_CATALOGS` (`src/manifest.js:63`), `ALL_ID_PREFIXES` (`src/manifest.js:408`), `_allProvidersList` (`src/handlers.js:1125`), and the 8 HTML cards (`src/handlers.js:933-1064`) all contain exactly the 8 providers (`film4k`, `vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`).
+2. **Premise 2**: Routing logic must correctly handle catalog lookup, meta lookup, and stream aggregation for all 8 providers.
+   - *Evidence*: `getProviderFromCatalogId`, `getCatTypeFromCatalogId`, `handleCatalog`, and `handleStream` in `src/handlers.js` successfully parse all provider catalog IDs and prefix types.
+3. **Premise 3**: Stremio Stream Protocol requires in-app direct play using the `url` property with zero occurrences of `externalUrl`.
+   - *Evidence*: All 8 provider modules in `src/providers/*.js` return objects with `url` and omit `externalUrl`. Furthermore, `src/handlers.js:1666` explicitly invokes `delete sanitized.externalUrl`.
 
 ---
 
-## 3. Caveats
+## 3. Caveats & Observations for Subsequent Milestones (M2 Remediation)
 
-1. **Live Network Dependency**: E2E playback tests (`verify_v170_playback.js`) make live HTTPS requests to third-party endpoints (`phimapi.com`, `phim.nguonc.com`, `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`). Network stability on external CDNs is required during test execution.
-2. **Legacy Test File (`verify_all_providers_playback.js`)**: Contains outdated query expectations from v1.6.2 (such as direct HTML scraping query on older CLBPX structure without fallback). The primary acceptance test suite for Engine v1.7.0 is `tests/verify_v170_playback.js` (which passed 100%).
+1. **`src/routes/manifest.js` Label Map**:
+   - In `src/routes/manifest.js:32-40`, `providerLabels` inside `buildDescription()` maps 7 providers (`vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`) and omits `film4k: 'FILM4K'`. While it falls back to the key `'film4k'`, adding the explicit label will ensure consistent uppercase formatting.
+2. **`handleMeta` symmetry for `film4k`**:
+   - In `src/handlers.js:1388-1470`, adding an explicit `else if (id.startsWith('film4k:') || id.startsWith('film4k_'))` branch to call `providerFilm4K.getDetail(slug)` will provide full symmetry with the other 7 provider branches.
+3. **Legacy test suite catalog count**:
+   - `tests/verify_all_providers_playback.js:187` asserts `manifestRes.data.catalogs.length === 22`, which was the count prior to the addition of `film4k` (3 catalogs: total 25). Updating this test to expect 25 catalogs will allow the legacy suite to pass cleanly.
 
 ---
 
 ## 4. Conclusion
 
-- **R3 Requirement**: **100% COMPLETE & VERIFIED**. Multi-keyword fallback and universal episode matching are fully implemented in `src/lib/utils.js` and active in `src/providers/kkphim.js` and `src/providers/nguonc.js`.
-- **R5 Requirement**: **READY FOR DEPLOYMENT**. Version `1.7.0` and Brand Signature `<span class="brand-highlight">Q121101</span>` are properly integrated. Minor startup banner text in `src/index.js` needs a 1-line update to `Engine v1.7.0`.
-- **Test Integrity**: All critical test suites (`npm test`, `verify_v170_playback.js`, `m3_multikeyword_episode_matching.test.js`, `node --check src/index.js`) achieve **100% PASS**.
+- **Registry Consistency**: Verified 100% across all 8 checkpoints (`VALID_PROVIDERS`, `DEFAULT_CONFIG.providers`, `ALL_PROVIDERS`, `ALL_CATALOGS` [25 catalogs], `ALL_ID_PREFIXES`, `_allProvidersList`, and 8 HTML configurator cards).
+- **Routing**: Catalog, Meta, and Stream handlers correctly route requests to all 8 providers with resilient timeouts and fallback mechanisms.
+- **Stream Invariant**: All 8 providers strictly produce `url` streams with 0 instances of `externalUrl`.
 
 ---
 
-## 5. Gap Analysis & Concrete Recommendations for Worker
+## 5. Verification Method
 
-### Gap Analysis
+To independently verify these findings:
 
-| Item | Expected | Current State | Action Required |
-|---|---|---|---|
-| Startup Console Banner | `Engine v1.7.0` in `src/index.js:105` | Displays `Engine v1.6.0` | Update line 105 to `Engine v1.7.0` |
-| File Header Comments | Header comments referencing `v1.7.0` | Headers in `manifest.js`, `index.js`, `config.js`, `hls.js` have `v1.6.x` | Update header docblocks for cleanliness |
-| Git Deployment | Pushed to GitHub repository | Local changes pending git commit & push | Execute PAT push sequence |
+```bash
+# 1. Run integration test suite
+npm test
 
-### Concrete Recommendations for Worker
+# 2. Run empirical stress and UI tests
+node tests/challenger_v170_empirical_stress.test.js
+node tests/challenger1_taste_ui_adversarial.test.js
+node tests/challenger_taste_ui_comprehensive.test.js
 
-1. **Update `src/index.js:105`**:
-   ```javascript
-   // Before:
-   console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.6.0     ║');
-   // After:
-   console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.7.0     ║');
-   ```
-
-2. **Run Final Sanity Check**:
-   ```bash
-   node --check src/index.js
-   npm test
-   node tests/verify_v170_playback.js
-   ```
-
-3. **Execute Git Deployment Step (R5)**:
-   ```bash
-   git remote set-url origin https://<GITHUB_TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
-   git add . && git commit -m "Engine v1.7.0: Complete Playback Overhaul - Resolved HLS Sub-variant 404, Implemented True HTML Scrapers for STP/CLBPX/YAN & Fixed False Positive Matching"
-   git push origin main
-   git remote set-url origin https://github.com/q121101-cloud/stremio-vip-addon.git
-   ```
-
----
-
-## 6. Verification Method
-
-To independently reproduce and verify this investigation:
-1. Run syntax verification:
-   ```bash
-   node --check src/index.js
-   ```
-2. Run M3 unit & adversarial test suite:
-   ```bash
-   node tests/m3_multikeyword_episode_matching.test.js
-   ```
-3. Run live multi-keyword test:
-   ```bash
-   node tests/verify_m3_live_queries.js
-   ```
-4. Run integration tests:
-   ```bash
-   npm test
-   ```
-5. Run full E2E live playback verification:
-   ```bash
-   node tests/verify_v170_playback.js
-   ```
+# 3. Inspect provider declaration consistency
+grep -n "VALID_PROVIDERS" src/config.js
+grep -n "ALL_PROVIDERS" src/providers/index.js src/handlers.js
+grep -n "ALL_ID_PREFIXES" src/manifest.js
+grep -n "_allProvidersList" src/handlers.js
+```

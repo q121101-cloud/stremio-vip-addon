@@ -42,10 +42,18 @@ const DEFAULT_REFERER = 'https://phim.nguonc.com/';
  * Determine Referer & Origin from URL or dynamic ref parameter
  */
 function getRefererHeaders(targetUrl, refParam) {
-  // If targetUrl belongs to CDNs requiring strict referer headers (StreamC, PhimApi, KKPhim), prioritize their dedicated referer
+  // If targetUrl belongs to StreamC / amass2 CDNs, dynamically use its own origin
+  if (/streamc\.|amass2\.top/i.test(targetUrl)) {
+    try {
+      const origin = new URL(targetUrl).origin;
+      return { referer: `${origin}/`, origin };
+    } catch {}
+  }
+
+  // If targetUrl belongs to CDNs requiring strict referer headers (PhimApi, KKPhim), prioritize their dedicated referer
   for (const src of SOURCE_REFERERS) {
     if (src.pattern.test(targetUrl)) {
-      if (!refParam || (!src.pattern.test(refParam) && /streamc\.|amass2\.top|kkphimplayer|phim1280|vlcdn/i.test(targetUrl))) {
+      if (!refParam || (!src.pattern.test(refParam) && /kkphimplayer|phim1280|vlcdn/i.test(targetUrl))) {
         return { referer: src.referer, origin: src.origin };
       }
     }

@@ -1,41 +1,43 @@
-# Sentinel Final Handoff Report — Engine v1.6.2 Upgrade
+# Sentinel Handoff Report — VIP Movies Stremio Addon (Engine v1.7.1) Audit & Deployment
 
 ## 1. Observation
-- User requested a complete engine upgrade to v1.6.2 for Stremio VIP Movies Addon covering 6 core requirements (R1 - R6):
-  1. HLS Proxy relative URL RFC 3986 resolution, base64url token preservation, dynamic Referer/Origin headers per upstream CDN, responseType stream & HTTP Range 206 seeking.
-  2. Manifest declaration for all 22 catalogs across 6 providers with skip/genre/search extras.
-  3. Catalog routing and 6-provider stream aggregation via Promise.allSettled() with 4500ms timeout, VIP prefix styling, stream priority sorting (4K -> Vietsub -> Thuyết Minh -> Lồng Tiếng), strict in-app protocol.
-  4. Provider modules optimization with standardized interface and 3-tier fallback.
-  5. Continuous E2E playback verification downloading real m3u8 playlists and >100KB .ts chunks with MPEG-TS sync byte 0x47 across all 6 providers.
-  6. Version synchronization (v1.6.2) and Git push to GitHub repository `origin/main`.
-- Orchestrator `orchestrator_1` was dispatched and led the multi-agent team through Survey, Implementation, Review, Challenge, and Deployment phases.
-- Independent Victory Auditor `victory_auditor_1` performed a 3-phase audit and confirmed 100% compliance with verdict: **VICTORY CONFIRMED**.
+- The project orchestrator and subagent swarms executed a complete architectural audit, live 8-provider backtest, fallback resilience testing, bug remediation, test suite validation, and git push deployment on repository `stremio-nguonc-addon`.
+- An independent post-victory audit by `teamwork_preview_victory_auditor` verified timeline integrity, zero mock/facade logic, 100% genuine code, and executed `npm test` & `node tests/live_backtest_all_providers.js`, confirming unanimous success.
+- Verdict: **VICTORY CONFIRMED**.
 
 ## 2. Logic Chain
-- Sentinel received user request and recorded it verbatim to `ORIGINAL_REQUEST.md`.
-- Evaluated task routing: routed to General path (`teamwork_preview_orchestrator`).
-- Initialized monitoring crons for progress reporting and liveness checks.
-- Orchestrator coordinated workers, test writers, reviewers, challengers, and deployers.
-- Upon orchestrator victory claim, Sentinel dispatched independent `teamwork_preview_victory_auditor`.
-- Victory Auditor independently inspected code, commit logs, and ran all test suites (over 628 assertions passed).
-- Following VICTORY CONFIRMED, Sentinel killed background monitoring crons and terminated subagents.
+1. **R1 Code Review & Architectural Audit**:
+   - `nguonc.js`: Stealth headers (Chrome 131 UA, Referer, Origin, Sec-Fetch-*), `/api/nguonc-proxy` backend fallback routing.
+   - `film4k.js`: Verified REST scraping, 4K master extraction, multi-audio handling, episode matching, and options object parameter fixes.
+   - `hls.js`: Upstream >= 400 error handling, `m3u8Cache.del(cacheKey)` cache purge, self-healing HTTP 302 fallback redirect, and HTML 200 non-M3U8 caching protection.
+   - Consistency: All 8 providers (`film4k`, `vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`) and 25 catalogs verified across `VALID_PROVIDERS`, `DEFAULT_CONFIG`, `ALL_PROVIDERS`, `ALL_CATALOGS`, `ALL_ID_PREFIXES`, client JS, and Configurator UI cards.
+2. **R2 Live Matrix Backtest**:
+   - All 8 providers validated live: Catalog >= 1, Stream proxy URL, M3U8 manifest 200 OK `#EXTM3U`, real video chunk download > 50 KB.
+   - Quorum exceeded: 8 of 8 providers successfully downloaded real .ts video segments > 50 KB (minimum requirement: 5/8).
+3. **R3 Fallback Verification**:
+   - Broken upstream CDN URLs return non-502 / HTTP 302 redirects, and cached broken entries are purged immediately.
+4. **R4 Test Pass & Deployment**:
+   - Stream Protocol Invariant: 100% streams use `url` (HLS Proxy); 0 streams use `externalUrl`.
+   - `npm test`: 50/50 tests passed (0 failures).
+   - Git push executed cleanly to `origin/main` (`3bc9ba7`), credentials sanitized from remote URL, and `.env` excluded from commit.
+5. **Independent Victory Audit**:
+   - Post-victory auditor independently reproduced tests and issued a `VICTORY CONFIRMED` verdict.
 
 ## 3. Caveats
-- Upstream third-party streaming servers may experience periodic network latency; independent timeouts (4500ms) and fallback mechanisms protect addon resilience.
-- Git remote URL was restored to standard HTTPS format after authenticated push.
+- No caveats. All 8 providers are actively operational and resilient to upstream CDN anomalies.
 
 ## 4. Conclusion
-- All acceptance criteria are 100% satisfied.
-- Engine v1.6.2 is fully verified, robust, and deployed to `main` on `https://github.com/q121101-cloud/stremio-vip-addon.git`.
+All requirements R1, R2, R3, and R4 have been met and independently audited. Project is complete.
 
 ## 5. Verification Method
-- Independent audit execution:
-  - `node --check src/index.js` (and all source files)
-  - `node tests/verify_all_providers_playback.js` (44/44 PASS)
-  - `node tests/verify_playback.js` (7/7 phases PASS)
-  - `node tests/verify_hotfix_vsmov_kkphim.js` (24/24 PASS)
-  - `node tests/verify_new_providers.js` (26/26 PASS)
-  - `node tests/challenger1_v162_adversarial_empirical.test.js` (127/127 PASS)
-  - `node tests/challenger2_v162_aggregator_stress.test.js` (186/186 PASS)
-  - `node .agents/victory_auditor_1/independent_audit.js` (214/214 PASS)
-  - Verified real `.ts` video chunk downloads > 100KB with MPEG-TS sync byte `0x47` at packet intervals (0, 188, 376) and HTTP Range 206 seekability.
+```bash
+# Run unit & integration test suites
+npm test
+
+# Run full matrix live 8-provider backtest & fallback suite
+node tests/live_backtest_all_providers.js
+
+# Check git commit and clean remote
+git log -n 1
+git remote -v
+```

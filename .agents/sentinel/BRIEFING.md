@@ -1,27 +1,35 @@
-# BRIEFING — 2026-08-18T09:37:20Z
+# BRIEFING — 2026-08-18T17:46:40Z
 
 ## Mission
-Sentinel monitoring and lifecycle management for Stremio VIP Movies Addon Engine v1.6.2 upgrade.
+Coordinate comprehensive code audit, 8-provider live stream backtest, fallback verification, bugfixes, and git deployment for stremio-nguonc-addon.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel
-- Orchestrator: 9690458b-e1e2-43b3-aca3-2dded3ba2878
-- Victory Auditor: 62935933-2f18-44cb-bf51-832ab18de97e
+- Orchestrator: cdcbc7a1-f5e9-482f-bf54-d9f2d980736c
+- Victory Auditor: 1a054763-8f71-4fc7-b160-14012f4d95c7
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Route: General (teamwork_preview_orchestrator)
-- Monitor orchestrator progress and liveness via crons (completed)
+- Git push protocol: set token remote, push, reset to clean URL
+- .env must never be committed
+- All streams must use url field (HLS Proxy), externalUrl strictly forbidden
 
 ## User Context
-- **Last user request**: Engine v1.6.2 upgrade for Stremio VIP Movies Addon (HLS Proxy 404 fix, 22 catalogs manifest, 6 providers aggregation, E2E playback verification >100KB .ts chunks, version bump to 1.6.2, git push).
+- **Last user request**: Adversarial code audit, 8-provider backtest, fallback verification, bug fixing, test pass, and push to origin/main.
 - **Pending clarifications**: none
-- **Delivered results**: [Engine v1.6.2 fully implemented, verified via independent victory audit, and pushed to origin/main]
+- **Delivered results**:
+  - Full code review and architectural audit (R1)
+  - 8/8 Providers live backtested and passing (R2)
+  - Upstream 404/broken CDN fallback & cache self-healing verified (R3)
+  - Fixes applied, 100% tests passing, pushed to origin/main (R4)
+  - Independent Victory Audit confirmed (VERDICT: VICTORY CONFIRMED)
 
 ## Project Status
 - **Phase**: complete
+- **Routing Decision**: teamwork_preview_orchestrator (General path)
+- **Active Crons**: None (all cleaned up)
 
 ## Victory Audit Status
 - **Triggered**: yes
@@ -29,7 +37,5 @@ Sentinel monitoring and lifecycle management for Stremio VIP Movies Addon Engine
 - **Retry count**: 0
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Authoritative User Request Record
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/handoff.md — Orchestrator Handoff Report
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/victory_auditor_1/handoff.md — Victory Auditor Forensic Report
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel/handoff.md — Sentinel Final Handoff Report
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Verbatim user request
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel/handoff.md — Final Sentinel handoff report
