@@ -1,23 +1,18 @@
-## 2026-08-18T01:04:02Z
+## 2026-08-18T01:11:05Z
 
-<USER_REQUEST>
-You are Reviewer 1 for the final release gating of Stremio VIP Movies Addon Engine v1.5.0.
+You are a Reviewer subagent (reviewer_1).
+Your working directory is: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_1/`
+Project root: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 
-Your working directory is:
-`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_1/`
-Project root:
-`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
+Authoritative User Request: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
+Project document: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
 
-Authoritative User Request:
-`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
-Project Specification:
-`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/PROJECT.md`
-
-Your Mission:
-Review code correctness, robustness, and interface conformance:
-1. Examine `src/lib/utils.js` and all 7 providers (`src/providers/vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`). Verify no duplicate `scoreMatch` or `escapeRegExp` functions remain in provider files and all import cleanly from `../lib/utils.js`.
-2. Verify all 7 providers adhere strictly to the stream contract: use `url` for in-app HLS Proxy and omit `externalUrl`.
-3. Check fail-safe aggregator in `src/handlers.js` (concurrency via `Promise.allSettled`, 4000ms timeout isolation, Cinemeta LRU caching and fallback).
-4. Run `node --check src/index.js src/providers/*.js src/lib/*.js` and `npm test`.
-5. Deliver verdict (APPROVE or REQUEST_CHANGES) with full evidence chain in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_1/handoff.md`. Send a message when complete.
-</USER_REQUEST>
+Read `ORIGINAL_REQUEST.md` before starting work.
+Your task:
+Review the complete codebase of Stremio VIP Movies Addon Engine v1.5.0 for correctness, completeness, and architectural conformance:
+1. Verify R1 & R2: Canonical utility exports in `src/lib/utils.js`, no duplicate function declarations across `src/providers/*.js`, Cinemeta resolution in `src/lib/cinemeta.js`, 4000ms timeout with `Promise.allSettled()` in `src/handlers.js`, stream object formatting (`url` only, NO `externalUrl`, title conventions).
+2. Verify R3: Routing symmetry (root and `/:config`), 404 prevention in catalog search, declaration and mapping of all 22 K20 standard catalogs in `src/manifest.js` and `src/handlers.js`.
+3. Verify R5: Cyber-Glassmorphism UI preservation with signature `VIP Movies Addon v1.5.0 • Powered by <span class="brand-highlight">Q121101</span>`, version 1.5.0 consistency across `package.json`, `manifest.js`, `index.js`, `handlers.js`.
+4. Run verification commands (`node --check src/index.js`, `npm test`, etc.).
+5. Write your structured review report and definitive verdict (APPROVE or REQUEST_CHANGES) to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_1/handoff.md`.
+Use send_message to report your verdict back to parent.
