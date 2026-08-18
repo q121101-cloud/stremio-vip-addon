@@ -1,55 +1,57 @@
-# BRIEFING — 2026-08-18T11:50:00+07:00
+# BRIEFING — 2026-08-18T10:15:35Z
 
 ## Mission
-Implement updates to STP, CLBPX, and YAN providers and HLS proxy routing for Milestone 1 (Engine v1.6.0) ensuring strict invariants and zero regression.
+Implement and verify VIP Movies Stremio Addon Engine v1.7.0 Overhaul (HLS proxy enhancements, STP stream filtering, CLBPX candidate iteration, and version bump).
 
 ## 🔒 My Identity
 - Archetype: worker
 - Roles: implementer, qa, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1
-- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Milestone: M1 - Provider Upgrades & HLS Routing
+- Original parent: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Milestone: M1
 
 ## 🔒 Key Constraints
-- Exclusive ownership: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`
-- No `externalUrl` in any stream object (only `url` pointing to HLS proxy)
-- Import `scoreMatch` from `src/lib/utils.js` (no re-declaration)
-- Stream labels must match exact brand format
-- Zero regression: `verify_playback.js` 7/7 PASS, `verify_hotfix_vsmov_kkphim.js` 27/27 PASS, `src/test.js` PASS
+- Genuine implementation only, no cheating or hardcoding test results/facades.
+- Follow minimal change principle and existing code styles.
+- Verify using node --check, tests/verify_v170_playback.js, tests/verify_all_providers_playback.js, and npm test.
 
 ## Current Parent
-- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Updated: 2026-08-18T11:50:00+07:00
+- Conversation ID: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Updated: 2026-08-18T10:15:35Z
 
 ## Task Summary
-- **What to build**: Update `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, and `src/routes/hls.js` per M1 explorer specifications.
-- **Success criteria**: All provider syntax checks pass, HLS routing checks pass, all regression tests pass (7/7, 27/27, 50/50).
-- **Interface contracts**: PROJECT.md § Interface Contracts
-- **Code layout**: PROJECT.md § Code Layout
+- **What to build**:
+  1. `src/routes/hls.js`: Windows Chrome 124 UA, default browser simulation headers, redirect responseUrl in /manifest.m3u8, segment proxy enhancements (arraybuffer, headers, Range request support HTTP 206).
+  2. `src/providers/stp.js`: Filter out dead shortlinks (`bysevepoin.com`, `short.ink`, `short.icu`) when extracting M3U8 and ensure fallback.
+  3. `src/providers/clbpx.js`: Multi-candidate fallback loop in getStreams if highest candidate has no streams, mirror search fallback.
+  4. `src/index.js`: Update startup banner to v1.7.0 and file header comments.
+  5. Verification & Testing: Run all test suites and ensure 100% pass.
+- **Success criteria**:
+  - `node --check` passes on all modified files
+  - `node tests/verify_v170_playback.js` 100% PASS
+  - `node tests/verify_all_providers_playback.js` 100% PASS
+  - `npm test` 50/50 PASS
+- **Interface contracts**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/PROJECT.md
+- **Code layout**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
 
 ## Key Decisions Made
-- `stp.js`: Integrated WP-JSON search + robust multiline regex HTML parsing for `data-episodes` with XOR 0x2a decoding, fallback to PhimAPI, safe `[]` return, brand label `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`.
-- `clbpx.js`: Updated to `https://clbphimxua.info`, integrated Ophim API + HTML search scraping fallback, safe `[]` return, brand label `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`.
-- `yan.js`: Updated to `https://yanhh3d.pw`, integrated Tier 1 direct live scraping (`data-obf.pU`/`master.m3u8`) + Tier 2 Ophim fallback + Tier 3 safe `[]` return, brand label `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`.
-- `src/routes/hls.js`: Added routing entries for `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw`/`fbcdn.cloud`/`defifa.com` with precedence before `hh3d|hoathinh3d`.
+- [TBD]
 
 ## Artifact Index
-- `.agents/teamwork_preview_worker_m1/DISPATCH.md` — Assignment dispatch
-- `.agents/teamwork_preview_worker_m1/BRIEFING.md` — Agent briefing & situational memory
-- `.agents/teamwork_preview_worker_m1/progress.md` — Liveness heartbeat & task tracking
-- `.agents/teamwork_preview_worker_m1/handoff.md` — Final handoff report
-- `tests/test_m1_invariants.js` — Unit & invariant test suite for M1
+- DISPATCH.md — Assignment instructions
+- BRIEFING.md — Persistent working memory
+- progress.md — Heartbeat and step progress tracking
+- handoff.md — Final handoff report
 
 ## Change Tracker
-- **Files modified**:
-  - `src/providers/stp.js`: Upgraded to Engine v1.6.0 with sieutamphim.pro domain, XOR 0x2a deobfuscation, multi-tier extraction, VIP 4 brand label.
-  - `src/providers/clbpx.js`: Upgraded to Engine v1.6.0 with clbphimxua.info domain, HTML scrape fallback, VIP 5 brand label.
-  - `src/providers/yan.js`: Upgraded to Engine v1.6.0 with yanhh3d.pw domain, live stream scraping (data-obf.pU/master.m3u8), VIP 6 brand label.
-  - `src/routes/hls.js`: Updated SOURCE_REFERERS for new provider domains with precedence ordering.
-- **Build status**: PASS (all syntax checks and regression tests pass 100%)
-- **Pending issues**: none
+- **Files modified**: [TBD]
+- **Build status**: [TBD]
+- **Pending issues**: [TBD]
 
 ## Quality Status
-- **Build/test result**: PASS (7/7 playback, 27/27 hotfix, 50/50 integration, 11/11 M1 invariant tests)
-- **Lint status**: 0 violations
-- **Tests added/modified**: `tests/test_m1_invariants.js`
+- **Build/test result**: [TBD]
+- **Lint status**: [TBD]
+- **Tests added/modified**: [TBD]
+
+## Loaded Skills
+- None required to load externally.

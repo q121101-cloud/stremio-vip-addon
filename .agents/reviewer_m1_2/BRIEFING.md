@@ -1,61 +1,57 @@
-# BRIEFING — 2026-08-17T22:04:00Z
+# BRIEFING — 2026-08-18T10:31:00Z
 
 ## Mission
-Adversarial & Quality Review of Milestone 1 (HLS Proxy & Full Segment Rewriter R1) in src/routes/hls.js.
+Conduct independent objective review, adversarial stress-testing, and integrity verification for Stremio VIP Movies Addon Engine v1.7.0 Overhaul.
 
 ## 🔒 My Identity
-- Archetype: Reviewer & Adversarial Critic
+- Archetype: reviewer_and_adversarial_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_2
-- Original parent: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
-- Milestone: Milestone 1 (HLS Proxy & Full Segment Rewriter R1)
+- Original parent: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Milestone: m1
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Thoroughly check integrity violations, facade implementations, test cheating
-- Stress-test M3U8 rewriting edge cases, Referer headers, Range seeking, and error handling
+- Check for integrity violations (hardcoded test results, fake facades, shortcuts, self-certifying work without real logic)
+- Rigorous verification of all claims and test suites
 
 ## Current Parent
-- Conversation ID: 16f3f43b-5ffd-45ef-8c8d-b97bd3b2f2fc
-- Updated: 2026-08-17T22:04:00Z
+- Conversation ID: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Updated: 2026-08-18T10:31:00Z
 
 ## Review Scope
-- **Files to review**:
-  - `src/routes/hls.js`
-  - `ORIGINAL_REQUEST.md`
-  - Related test files: `tests/test_hls_worker_m1.js`, `tests/verify_playback.js`, `tests/test_hls_adversarial_m1_2.js`
-- **Interface contracts**: HLS RFC 8216 compliance, Express proxy endpoints, HTTP Range requests, CORS, upstream referer spoofing
-- **Review criteria**: correctness, edge-case coverage, security/integrity, streaming robustness, error handling
+- **Files reviewed**:
+  - `src/routes/hls.js` (Multi-level M3U8 resolution, Windows Chrome 124 UA, redirect responseUrl, binary segment proxy, HTTP Range 206)
+  - `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js` (Cheerio scrapers, dead link filter, scored candidate search, Donghua guard)
+  - `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/lib/utils.js` (Multi-keyword fallback & universal episode matching)
+  - `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js` (Engine v1.7.0 versioning & brand signature)
+  - `tests/verify_v170_playback.js`, `tests/verify_all_providers_playback.js`, `src/test.js`
+- **Interface contracts**: PROJECT.md and ORIGINAL_REQUEST.md
+- **Review criteria**: Correctness, integrity, security, HTTP compliance, HLS streaming behavior.
 
 ## Review Checklist
-- **Items reviewed**:
-  - `src/routes/hls.js` line-by-line review
-  - `tests/test_hls_worker_m1.js` execution
-  - `tests/verify_playback.js` execution
-  - `tests/test_hls_adversarial_m1_2.js` created and executed
-  - Integrity violation checks (no hardcoded fixtures, real stream piping)
+- **Items reviewed**: All modified modules, scrapers, utils, and test suites.
 - **Verdict**: APPROVE
-- **Unverified claims**: None
+- **Unverified claims**: None. All claims independently reproduced and verified against live ephemeral servers.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Upstream CDN Referer spoofing & regex pattern matching (KKPhim, VSMOV, NguonC, StreamC, specialized CDNs) -> PASS
-  - Master M3U8 rewriting (4K, I-Frames, audio renditions, subtitle renditions, quoted/unquoted URIs) -> PASS
-  - Media M3U8 rewriting (EXT-X-KEY, EXT-X-MAP, EXT-X-PART, EXT-X-PRELOAD-HINT, relative & absolute URLs, disguised .png/.bin) -> PASS
-  - Key proxying (/hls/key) 16-byte AES-128 binary payload integrity -> PASS
-  - Segment proxying (/hls/segment.ts) >50KB delivery & 188-byte MPEG-TS packet sync (0x47) -> PASS
-  - HTTP Range 206 partial content seeking across byte offsets -> PASS
-  - Resilient error handling (400 on missing params, 502 on upstream 404/500/timeout, non-crashing) -> PASS
-- **Vulnerabilities found**: None blocking
-- **Untested angles**: None
+  1. HLS proxy sub-variant URL rewriting under redirects (Verified via `responseUrl || effectiveTargetUrl`).
+  2. Byte-range seeking on non-206 upstream responses (Verified local buffer slicing returning 206 with `Content-Range`).
+  3. False positive pollution from YAN on KDrama / Live-Action queries (Verified 0 streams returned).
+  4. Episode matching for varied prefixes and padded numbers (Verified `matchEpisodeItem`).
+  5. Dead link handling in STP and CLBPX (Verified `isDeadOrBadUrl` filters expired shortlinks).
+- **Vulnerabilities found**: None. Zero regressions or integrity violations detected.
+- **Untested angles**: All target paths and fallback tiers verified.
 
 ## Key Decisions Made
-- Confirmed full compliance with Milestone 1 R1 specifications and RFC 8216.
-- Issued APPROVE verdict.
+- Confirmed zero integrity violations (no mock facades or hardcoded bypasses).
+- Verified 100% test pass rate across all suites.
+- Issued verdict: APPROVE.
 
 ## Artifact Index
-- `.agents/reviewer_m1_2/BRIEFING.md` — persistent memory & state
-- `.agents/reviewer_m1_2/progress.md` — liveness heartbeat & task progress
-- `.agents/reviewer_m1_2/handoff.md` — final 5-component review & critique report
-- `tests/test_hls_adversarial_m1_2.js` — adversarial test harness
+- `.agents/reviewer_m1_2/DISPATCH.md` — Inbound message log
+- `.agents/reviewer_m1_2/BRIEFING.md` — Situational awareness memory
+- `.agents/reviewer_m1_2/progress.md` — Liveness and task progress tracking
+- `.agents/reviewer_m1_2/handoff.md` — Final review and challenge report

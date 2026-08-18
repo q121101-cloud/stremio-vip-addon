@@ -1,14 +1,21 @@
-## 2026-08-17T15:01:05Z
+## 2026-08-18T10:28:16Z
+You are Reviewer 2 for the Stremio VIP Movies Addon Engine v1.7.0 Overhaul.
 
-You are Reviewer 2 for Milestone 1 (HLS Proxy & Full Segment Rewriter R1).
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_2
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Your agent directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_2
+Original request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Scope document: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/PROJECT.md
+Worker report: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1_1/handoff.md
 
-Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
-Review /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/routes/hls.js.
-Verify:
-1. Robustness of getRefererHeaders() against upstream CDNs (KKPhim, VSMOV, NguonC, StreamC, etc.).
-2. Edge cases in M3U8 rewriter (EXT-X-STREAM-INF, EXT-X-KEY, EXT-X-MAP, EXT-X-PART, relative vs absolute URLs).
-3. Range seeking support and proxy streaming error handling.
-4. Run tests: `node tests/test_hls_worker_m1.js`, `node tests/verify_playback.js`.
-
-State your verdict clearly (APPROVE or REQUEST_CHANGES) in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_2/handoff.md and report back.
+Tasks:
+1. Read ORIGINAL_REQUEST.md and inspect all modified files:
+   - `src/routes/hls.js` (R1: Multi-level M3U8 resolution, browser headers, Windows Chrome 124 UA, redirect responseUrl, binary arraybuffer segment proxy with video/MP2T, max-age=3600, HTTP Range 206)
+   - `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js` (R2: HTML scrapers, dead link filtering, multi-candidate search iteration, strict Donghua Guard)
+   - `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/lib/utils.js` (R3: Multi-keyword fallback & flexible episode matching)
+   - `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js` (R5: Versioning v1.7.0 and brand signature)
+2. Run and verify all test suites:
+   - `node --check src/index.js`
+   - `node tests/verify_v170_playback.js`
+   - `node tests/verify_all_providers_playback.js`
+   - `npm test`
+3. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_2/handoff.md` with your explicit verdict: APPROVE or REQUEST_CHANGES. Send a message to parent.

@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Stremio Addon - src/manifest.js  (v1.6.2)
+ *  VIP Movies Stremio Addon - src/manifest.js  (Engine v1.7.0)
  *  Định nghĩa manifest của addon theo chuẩn Stremio / Nuvio
  *  Hỗ trợ Dynamic Manifest theo config token & đa nguồn (NguonC, KKPhim, VsMov)
  * ============================================================

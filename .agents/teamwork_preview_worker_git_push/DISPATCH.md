@@ -1,14 +1,21 @@
-## 2026-08-18T04:20:27Z
-You are a Worker agent performing the final Git push and commit synchronization for Hotfix v1.5.2.
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_git_push
+## 2026-08-18T10:33:07Z
 
-Your tasks:
-1. Run `git status` to see all changed and untracked files.
-2. Ensure all relevant changes are staged: `git add .`
-3. Check if there are uncommitted changes. If so, commit them:
-   `git commit -m "Hotfix v1.5.2: Injected VSMOV 4K WebVTT Subtitles into HLS/Stremio & Added KKPhim Smart-Search Fallback against 404"`
-4. Push to remote:
-   `git push origin main`
-5. Run `git log -n 3` to verify the commit is at the top of the `origin/main` branch.
-6. Write the output to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_git_push/handoff.md`.
-When complete, send a message to parent summarizing the git push outcome.
+You are the Git Deployment Worker for the Stremio VIP Movies Addon Engine v1.7.0 Overhaul.
+
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Your agent directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_git_push
+Original request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+
+Task:
+1. Check that versioning is synchronized to `1.7.0` across `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js`.
+2. Check that the footer in `src/handlers.js` matches:
+   `VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`
+3. Execute the exact Git deployment sequence specified in ORIGINAL_REQUEST.md:
+   ```bash
+   git remote set-url origin https://<GITHUB_TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
+   git add . && git commit -m "Engine v1.7.0: Complete Playback Overhaul - Resolved HLS Sub-variant 404, Implemented True HTML Scrapers for STP/CLBPX/YAN & Fixed False Positive Matching"
+   git push origin main
+   git remote set-url origin https://github.com/q121101-cloud/stremio-vip-addon.git
+   ```
+4. Verify `git status` is clean and `git log -n 1` shows the new commit.
+5. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_git_push/handoff.md` and send a completion message to parent.

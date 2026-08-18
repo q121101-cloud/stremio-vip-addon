@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/routes/hls.js (Engine v1.6.2)
+ *  VIP Movies Addon — src/routes/hls.js (Engine v1.7.0)
  *  HLS Proxy Router: Anti-403, Full Segment & Key Rewriter, HTTP Range 206
  *
  *  Routes:
@@ -22,7 +22,7 @@ const { extractM3u8FromEmbed } = require('../mapper');
 const { m3u8Cache }            = require('../lib/cache');
 
 // ─── Constants ─────────────────────────────────────────────────
-const HLS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const HLS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 const SOURCE_REFERERS = [
   { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim|opstream|vlcdn/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
@@ -41,6 +41,15 @@ const DEFAULT_REFERER = 'https://phim.nguonc.com/';
  * Determine Referer & Origin from URL or dynamic ref parameter
  */
 function getRefererHeaders(targetUrl, refParam) {
+  // If targetUrl belongs to CDNs requiring strict referer headers (StreamC, PhimApi, KKPhim), prioritize their dedicated referer
+  for (const src of SOURCE_REFERERS) {
+    if (src.pattern.test(targetUrl)) {
+      if (!refParam || (!src.pattern.test(refParam) && /streamc\.|amass2\.top|kkphimplayer|phim1280|vlcdn/i.test(targetUrl))) {
+        return { referer: src.referer, origin: src.origin };
+      }
+    }
+  }
+
   if (refParam) {
     try {
       let parsedRef = refParam.trim();
@@ -172,6 +181,8 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
         Referer: refererUrl,
         Origin: origin,
         Accept: '*/*',
+        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+        Connection: 'keep-alive',
       },
       timeout: 15000,
       maxRedirects: 5,
@@ -194,6 +205,8 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
               Referer: extracted.embedHost || refererUrl,
               Origin: origin,
               Accept: '*/*',
+              'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+              Connection: 'keep-alive',
             },
             timeout: 15000,
             maxRedirects: 5,
@@ -208,8 +221,9 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       }
     }
 
+    const finalUrl = r.request?.res?.responseUrl || effectiveTargetUrl;
     let baseUrl;
-    try { baseUrl = new URL(effectiveTargetUrl); } catch { return res.send(rawManifestData); }
+    try { baseUrl = new URL(finalUrl); } catch { return res.send(rawManifestData); }
 
     const encodedRef = Buffer.from(refererUrl).toString('base64url');
     let isNextSubPlaylist = false;
@@ -361,7 +375,8 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
 router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => {
   setCorsHeaders(res);
   res.setHeader('Content-Type', req.query.is_key ? 'application/octet-stream' : 'video/MP2T');
-  res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=31536000, immutable');
+  res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=3600');
+  res.setHeader('Accept-Ranges', 'bytes');
 
   const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
@@ -374,6 +389,8 @@ router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => 
     Referer: refererUrl,
     Origin: origin,
     Accept: '*/*',
+    'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+    Connection: 'keep-alive',
   };
 
   // HTTP Range forwarding for seek support
@@ -385,32 +402,52 @@ router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => 
     const upstreamRes = await axios({
       url: targetUrl,
       method: 'GET',
-      responseType: 'stream',
+      responseType: 'arraybuffer',
       headers: upstreamHeaders,
-      timeout: 25000,
+      timeout: 15000,
       maxRedirects: 5,
       validateStatus: (status) => status >= 200 && status < 400,
     });
 
-    res.status(upstreamRes.status);
+    const buffer = Buffer.from(upstreamRes.data);
 
-    if (upstreamRes.headers['content-range']) {
-      res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+    if (req.headers.range) {
+      if (upstreamRes.status === 206) {
+        res.status(206);
+        if (upstreamRes.headers['content-range']) {
+          res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+        }
+        if (upstreamRes.headers['content-length']) {
+          res.setHeader('Content-Length', upstreamRes.headers['content-length']);
+        } else {
+          res.setHeader('Content-Length', buffer.length);
+        }
+        return res.send(buffer);
+      }
+
+      // Upstream returned 200, handle Range locally by buffer slicing
+      const rangeMatch = req.headers.range.match(/bytes=(\d+)-(\d*)/);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1], 10);
+        let end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : buffer.length - 1;
+        if (isNaN(end) || end >= buffer.length) end = buffer.length - 1;
+        if (start <= end && start < buffer.length) {
+          const slice = buffer.subarray(start, end + 1);
+          res.status(206);
+          res.setHeader('Content-Range', `bytes ${start}-${end}/${buffer.length}`);
+          res.setHeader('Content-Length', slice.length);
+          return res.send(slice);
+        }
+      }
     }
+
+    res.status(upstreamRes.status);
     if (upstreamRes.headers['content-length']) {
       res.setHeader('Content-Length', upstreamRes.headers['content-length']);
-    }
-    if (upstreamRes.headers['accept-ranges']) {
-      res.setHeader('Accept-Ranges', upstreamRes.headers['accept-ranges']);
     } else {
-      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Length', buffer.length);
     }
-
-    upstreamRes.data.pipe(res);
-    upstreamRes.data.on('error', (err) => {
-      console.error('[HLS/segment] Stream error:', err.message);
-      if (!res.headersSent) res.status(502).end();
-    });
+    return res.send(buffer);
   } catch (err) {
     console.error('[HLS/segment]', err.message, targetUrl.slice(0, 80));
     if (!res.headersSent) res.status(502).send('HLS Segment Error');
@@ -439,6 +476,8 @@ router.get(['/key', '/key.key'], async (req, res) => {
         Referer: refererUrl,
         Origin: origin,
         Accept: '*/*',
+        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+        Connection: 'keep-alive',
       },
       timeout: 15000,
       maxRedirects: 5,
@@ -500,6 +539,8 @@ router.get(['/sub.vtt', '/sub'], async (req, res) => {
           Referer: referer,
           Origin: origin,
           Accept: '*/*',
+          'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+          Connection: 'keep-alive',
         },
         timeout: 15000,
         maxRedirects: 5,

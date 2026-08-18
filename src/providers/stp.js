@@ -183,6 +183,15 @@ function parseStpCardsFromHtml(html) {
 }
 
 /**
+ * Helper to check for dead / unplayable embed & shortlink domains
+ */
+function isDeadOrBadUrl(url) {
+  if (!url || typeof url !== 'string') return true;
+  const lower = url.toLowerCase();
+  return lower.includes('short.icu') || lower.includes('short.ink') || lower.includes('bysevepoin.com') || lower.includes('bysevepoin');
+}
+
+/**
  * Parse WordPress rendered HTML content into structured movie & episode groups
  */
 function parsePostContent(html, postTitle = '') {
@@ -214,8 +223,8 @@ function parsePostContent(html, postTitle = '') {
       const epName = epMatches[eIdx][2].trim();
       const decodedUrl = decodeXor0x2a(encUrl);
       if (decodedUrl && (decodedUrl.startsWith('http://') || decodedUrl.startsWith('https://'))) {
-        // Exclude unresolvable / expired shortlink domains like short.icu
-        if (!decodedUrl.includes('short.icu')) {
+        // Exclude unresolvable / expired shortlink domains
+        if (!isDeadOrBadUrl(decodedUrl)) {
           eps.push({
             name: epName,
             slug: `tap-${epName}`,
@@ -236,7 +245,7 @@ function parsePostContent(html, postTitle = '') {
 
   if (groups.length === 0) {
     const iframeMatch = html.match(/<iframe[^>]+src=[\x22\x27](https?:\/\/[^"'\s]+)[\x22\x27]/i);
-    if (iframeMatch && !iframeMatch[1].includes('short.icu')) {
+    if (iframeMatch && !isDeadOrBadUrl(iframeMatch[1])) {
       groups.push({
         server_name: 'Server VIP',
         server_data: [{
@@ -351,13 +360,21 @@ async function getDetail(slug) {
   let movieResult = null;
   let allEpisodes = [];
 
+  const hasPlayableEps = (eps) => {
+    if (!Array.isArray(eps) || eps.length === 0) return false;
+    return eps.some((srv) => {
+      const sData = srv.server_data || [];
+      return sData.some((e) => (e.link_m3u8 || e.link_embed) && !isDeadOrBadUrl(e.link_m3u8 || e.link_embed));
+    });
+  };
+
   // Tier 1: HTML Post Page Scraping on sieutamphim.pro
   try {
     const directRes = await http.get(`https://sieutamphim.pro/${cleanSlug}.html`, { timeout: 4000 }).catch(() => null);
     const htmlData = directRes?.data || '';
     if (htmlData && htmlData.includes('episodeGroup')) {
       const parsed = parsePostContent(htmlData, cleanSlug.replace(/-/g, ' '));
-      if (parsed.episodes && parsed.episodes.length > 0) {
+      if (parsed.episodes && hasPlayableEps(parsed.episodes)) {
         movieResult = {
           name: parsed.name || cleanSlug.replace(/-/g, ' '),
           origin_name: parsed.origin_name || null,
@@ -373,7 +390,7 @@ async function getDetail(slug) {
   } catch (err) {}
 
   // Tier 2: WP-JSON slug lookup
-  if (!movieResult) {
+  if (!movieResult || !hasPlayableEps(allEpisodes)) {
     try {
       const res = await http.get('/wp-json/wp/v2/posts', {
         params: { slug: cleanSlug, _embed: true },
@@ -382,38 +399,60 @@ async function getDetail(slug) {
       if (Array.isArray(res.data) && res.data.length > 0) {
         const post = res.data[0];
         const parsed = parsePostContent(post.content?.rendered || '', post.title?.rendered || '');
-        const posterUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || null;
+        if (parsed.episodes && hasPlayableEps(parsed.episodes)) {
+          const posterUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || null;
 
-        movieResult = {
-          name: parsed.name || post.title?.rendered,
-          origin_name: parsed.origin_name || null,
-          slug: post.slug,
-          year: parsed.year,
-          type: parsed.episodes.length > 1 || (parsed.episodes[0]?.server_data?.length > 1) ? 'series' : 'single',
-          poster_url: posterUrl,
-          thumb_url: posterUrl,
-        };
-        allEpisodes = [...parsed.episodes];
+          movieResult = {
+            name: parsed.name || post.title?.rendered,
+            origin_name: parsed.origin_name || null,
+            slug: post.slug,
+            year: parsed.year,
+            type: parsed.episodes.length > 1 || (parsed.episodes[0]?.server_data?.length > 1) ? 'series' : 'single',
+            poster_url: posterUrl,
+            thumb_url: posterUrl,
+          };
+          allEpisodes = [...parsed.episodes];
+        }
       }
     } catch (err) {}
   }
 
   // Tier 3: PhimAPI mirror detail lookup (to ensure working M3U8 streams)
-  try {
-    const res = await http.get(`https://phimapi.com/phim/${cleanSlug}`, { timeout: 4000 });
-    const mirrorMovie = res.data?.movie || res.data?.data?.item;
-    const mirrorEpisodes = res.data?.episodes || mirrorMovie?.episodes || [];
-    if (mirrorMovie) {
-      if (!movieResult) {
+  if (!movieResult || !hasPlayableEps(allEpisodes)) {
+    try {
+      const res = await http.get(`https://phimapi.com/phim/${cleanSlug}`, { timeout: 4000 });
+      const mirrorMovie = res.data?.movie || res.data?.data?.item;
+      const mirrorEpisodes = res.data?.episodes || mirrorMovie?.episodes || [];
+      if (mirrorMovie && hasPlayableEps(mirrorEpisodes)) {
         movieResult = mirrorMovie;
+        allEpisodes = [...mirrorEpisodes];
       }
-      if (mirrorEpisodes.length > 0) {
-        allEpisodes = [...allEpisodes, ...mirrorEpisodes];
-      }
-    }
-  } catch (err) {}
+    } catch (err) {}
+  }
 
-  if (movieResult) {
+  // Tier 4: PhimAPI keyword search fallback
+  if (!movieResult || !hasPlayableEps(allEpisodes)) {
+    try {
+      const searchRes = await http.get('https://phimapi.com/v1/api/tim-kiem', {
+        params: { keyword: cleanSlug.replace(/-/g, ' '), limit: 5 },
+        timeout: 4000,
+      });
+      const sItems = searchRes.data?.data?.items || [];
+      for (const sItem of sItems) {
+        if (!sItem.slug) continue;
+        const dRes = await http.get(`https://phimapi.com/phim/${sItem.slug}`, { timeout: 4000 });
+        const mMovie = dRes.data?.movie || dRes.data?.data?.item;
+        const mEps = dRes.data?.episodes || mMovie?.episodes || [];
+        if (mMovie && hasPlayableEps(mEps)) {
+          movieResult = mMovie;
+          allEpisodes = [...mEps];
+          break;
+        }
+      }
+    } catch (err) {}
+  }
+
+  if (movieResult && allEpisodes.length > 0) {
     const result = { movie: movieResult, episodes: allEpisodes };
     detailCache.set(cacheKey, result, 600);
     return result;
@@ -545,7 +584,7 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     let movieData = null;
 
     // Step 1: Lookup via slug
-    if (slug && (slug.startsWith('stp_') || slug.startsWith('stp:'))) {
+    if (slug) {
       movieData = await getDetail(slug);
     }
 
@@ -569,106 +608,153 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       }
     }
 
-    // Step 3: Search with title + fuzzy score matching
+    // Step 3: Search with title + multi-candidate iteration
     if (!movieData && title) {
       const searchItems = await search(title, 1);
       if (searchItems.length > 0) {
-        let bestItem = null;
-        let bestScore = -1;
-        for (const item of searchItems) {
-          const score = scoreMatch(item, title, year, season);
-          if (score > bestScore) {
-            bestScore = score;
-            bestItem = item;
-          }
-        }
-        if (bestItem && bestItem.slug && bestScore >= 0.45) {
-          movieData = await getDetail(bestItem.slug);
-          if (movieData && imdbId) {
-            imdbCache.set(`stp:imdb:${String(imdbId).toLowerCase().trim()}`, bestItem.slug, 86400);
+        const sorted = [...searchItems].sort((a, b) => scoreMatch(b, title, year, season) - scoreMatch(a, title, year, season));
+        for (const item of sorted) {
+          if (scoreMatch(item, title, year, season) < 0.40) continue;
+          const detail = await getDetail(item.slug);
+          if (detail && detail.episodes && detail.episodes.length > 0) {
+            movieData = detail;
+            if (imdbId) {
+              imdbCache.set(`stp:imdb:${String(imdbId).toLowerCase().trim()}`, item.slug, 86400);
+            }
+            break;
           }
         }
       }
     }
 
-    if (!movieData || !movieData.episodes || !movieData.episodes.length) {
-      return [];
-    }
-
-    const { movie, episodes } = movieData;
-    const isMovie = (type === 'movie' || movie.type === 'single') && episode == null;
-    const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
-
-    // Season validation for series
-    if (!isMovie && season != null) {
-      if (!isSeasonMatch(movie, episodes, season, type)) {
-        return [];
-      }
-    }
     const streams = [];
     const b64Ref = encodeBase64(REFERER_HEADER);
+    const isMovie = (type === 'movie' || movieData?.movie?.type === 'single') && episode == null;
+    const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
 
-    for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
-      const server = episodes[sIdx];
-      const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
-      const serverData = server.server_data || [];
-      if (!serverData.length) continue;
+    if (movieData && movieData.episodes && movieData.episodes.length > 0) {
+      const { movie, episodes } = movieData;
 
-      let targetEp = null;
-      if (isMovie || targetEpStr === null) {
-        targetEp = serverData[0];
-      } else {
-        const epNum = parseInt(targetEpStr, 10);
-        if (!isNaN(epNum) && epNum <= 0) {
-          targetEp = null;
-        } else {
-          targetEp = serverData.find((ep) => {
-            if (!ep) return false;
-            const nameStr = String(ep.name || '').trim();
-            const slugStr = String(ep.slug || '').trim();
-            if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
-            if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
-            if (!isNaN(epNum) && epNum > 0) {
-              const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
-              if (numFromName === epNum) return true;
-              const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
-              if (numFromSlug === epNum) return true;
+      // Season validation for series
+      if (isMovie || season == null || isSeasonMatch(movie, episodes, season, type)) {
+        for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
+          const server = episodes[sIdx];
+          const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
+          const serverData = server.server_data || [];
+          if (!serverData.length) continue;
+
+          let targetEp = null;
+          if (isMovie || targetEpStr === null) {
+            targetEp = serverData[0];
+          } else {
+            const epNum = parseInt(targetEpStr, 10);
+            if (!isNaN(epNum) && epNum <= 0) {
+              targetEp = null;
+            } else {
+              targetEp = serverData.find((ep) => {
+                if (!ep) return false;
+                const nameStr = String(ep.name || '').trim();
+                const slugStr = String(ep.slug || '').trim();
+                if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
+                if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
+                if (!isNaN(epNum) && epNum > 0) {
+                  const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
+                  if (numFromName === epNum) return true;
+                  const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
+                  if (numFromSlug === epNum) return true;
+                }
+                if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
+                  try {
+                    const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
+                    if (re.test(nameStr) || re.test(slugStr)) return true;
+                  } catch {}
+                }
+                return false;
+              });
+
+              if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
+                targetEp = serverData[epNum - 1];
+              }
             }
-            if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
-              try {
-                const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
-                if (re.test(nameStr) || re.test(slugStr)) return true;
-              } catch {}
-            }
-            return false;
-          });
-
-          if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
-            targetEp = serverData[epNum - 1];
           }
+
+          if (!targetEp || (!targetEp.link_m3u8 && !targetEp.link_embed)) continue;
+
+          const rawStreamUrl = targetEp.link_m3u8 || targetEp.link_embed;
+          if (!rawStreamUrl || isDeadOrBadUrl(rawStreamUrl)) continue;
+
+          const epLabel = formatEpisodeLabel(targetEp.name);
+          const audio = classifyAudioType(rawServerName, movie.name || title);
+          const titleHeader = `[VIP 4 • STP] ${audio.label}${epLabel} (HLS Proxy) [VIP • STP]`;
+          const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(rawStreamUrl)}&ref=${b64Ref}`;
+
+          // STRICT INVARIANT: url only, STRICTLY NO externalUrl
+          streams.push({
+            name: 'VIP Movies 🎬',
+            title: `${titleHeader}\n⚡ Server STP • sieutamphim.pro`,
+            url: streamUrl,
+            behaviorHints: {
+              notSupported: false,
+              bingeGroup: `stp-${movie.slug || slug || 'stream'}`,
+            },
+          });
         }
       }
+    }
 
-      if (!targetEp || (!targetEp.link_m3u8 && !targetEp.link_embed)) continue;
+    // Step 5: Mirror fallback if no playable streams found
+    if (streams.length === 0 && (title || slug)) {
+      const query = title || String(slug).replace(/^stp[_:]/, '').replace(/-/g, ' ');
+      try {
+        const sRes = await http.get('https://phimapi.com/v1/api/tim-kiem', {
+          params: { keyword: query, limit: 5 },
+          timeout: 4000,
+        });
+        const sItems = sRes.data?.data?.items || [];
+        for (const sItem of sItems) {
+          if (!sItem.slug) continue;
+          const dRes = await http.get(`https://phimapi.com/phim/${sItem.slug}`, { timeout: 4000 });
+          const mMovie = dRes.data?.movie || dRes.data?.data?.item;
+          const mEps = dRes.data?.episodes || mMovie?.episodes || [];
+          if (mMovie && mEps.length > 0) {
+            const isMovieFallback = (type === 'movie' || mMovie.type === 'single') && episode == null;
+            if (isMovieFallback || season == null || isSeasonMatch(mMovie, mEps, season, type)) {
+              for (let sIdx = 0; sIdx < mEps.length; sIdx++) {
+                const server = mEps[sIdx];
+                const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
+                const serverData = server.server_data || [];
+                if (!serverData.length) continue;
 
-      const rawStreamUrl = targetEp.link_m3u8 || targetEp.link_embed;
-      if (!rawStreamUrl || rawStreamUrl.includes('short.icu')) continue;
+                let targetEp = isMovieFallback || targetEpStr === null ? serverData[0] : serverData.find((ep) => {
+                  const nameStr = String(ep.name || '').trim();
+                  const slugStr = String(ep.slug || '').trim();
+                  if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
+                  if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
+                  return false;
+                }) || serverData[0];
 
-      const epLabel = formatEpisodeLabel(targetEp.name);
-      const audio = classifyAudioType(rawServerName, movie.name || title);
-      const titleHeader = `[VIP 4 • STP] ${audio.label}${epLabel} (HLS Proxy) [VIP • STP]`;
-      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(rawStreamUrl)}&ref=${b64Ref}`;
+                if (!targetEp || !targetEp.link_m3u8 || isDeadOrBadUrl(targetEp.link_m3u8)) continue;
 
-      // STRICT INVARIANT: url only, STRICTLY NO externalUrl
-      streams.push({
-        name: 'VIP Movies 🎬',
-        title: `${titleHeader}\n⚡ Server STP • sieutamphim.pro`,
-        url: streamUrl,
-        behaviorHints: {
-          notSupported: false,
-          bingeGroup: `stp-${movie.slug || slug || 'stream'}`,
-        },
-      });
+                const epLabel = formatEpisodeLabel(targetEp.name);
+                const audio = classifyAudioType(rawServerName, mMovie.name || title);
+                const titleHeader = `[VIP 4 • STP] ${audio.label}${epLabel} (HLS Proxy) [VIP • STP]`;
+                const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${b64Ref}`;
+
+                streams.push({
+                  name: 'VIP Movies 🎬',
+                  title: `${titleHeader}\n⚡ Server STP • sieutamphim.pro`,
+                  url: streamUrl,
+                  behaviorHints: {
+                    notSupported: false,
+                    bingeGroup: `stp-${mMovie.slug || slug || 'stream'}`,
+                  },
+                });
+              }
+              if (streams.length > 0) break;
+            }
+          }
+        }
+      } catch (err) {}
     }
 
     return streams;

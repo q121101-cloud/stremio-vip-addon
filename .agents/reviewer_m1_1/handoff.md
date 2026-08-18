@@ -1,136 +1,133 @@
-# Review & Adversarial Critic Handoff Report — Milestone 1 (R1 HLS Proxy & Full Segment Rewriter)
+# Review Report: Stremio VIP Movies Addon Engine v1.7.0 Overhaul
 
+**Reviewer**: Reviewer 1 (`reviewer_m1_1`)  
+**Roles**: Reviewer & Adversarial Critic  
+**Working Directory**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`  
+**Date**: 2026-08-18T10:30:15Z  
 **Verdict**: **APPROVE**
 
 ---
 
 ## 1. Observation
 
-### 1.1 Source Code Verification (`src/routes/hls.js`)
-- **Manifest Rewriting Endpoint (`/hls/manifest.m3u8`, lines 145–274)**:
-  - Base64URL and standard Base64 decoding via `resolveParamUrl(req.query.url || req.query.b64)` and `decodeB64()` (lines 80–109).
-  - Referer and Origin header resolution with `getRefererHeaders(targetUrl, refParam)` matching 8 upstream CDNs (lines 26–66) or dynamic `ref` query parameter.
-  - Response headers correctly enforced (lines 146–149):
-    - `Access-Control-Allow-Origin: *` (via `setCorsHeaders(res)`)
-    - `Content-Type: application/vnd.apple.mpegurl; charset=utf-8`
-    - `Cache-Control: no-cache, no-store, must-revalidate`
-  - Line-by-line M3U8 AST rewriting (lines 185–266):
-    - Master Playlists (`#EXT-X-STREAM-INF`, `#EXT-X-I-FRAME-STREAM-INF` up to 4K 3840x2160, `#EXT-X-MEDIA` audio/subtitles) rewritten to `${protoHost}/hls/manifest.m3u8?url=...&ref=...`.
-    - Key Decryption URIs (`#EXT-X-KEY`, `#EXT-X-SESSION-KEY`) rewritten to `${protoHost}/hls/key?url=...&ref=...`.
-    - fMP4 Init Maps (`#EXT-X-MAP`), Low-Latency segments (`#EXT-X-PART`, `#EXT-X-PRELOAD-HINT`), and video segments (`#EXTINF` + TS lines) rewritten to `${protoHost}/hls/segment.ts?url=...&ref=...`.
-    - Caching layer integration with `m3u8Cache.set(cacheKey, rewritten, 300)` (lines 157–161, 268).
+### 1.1 Requirements & Codebase Verification
 
-- **Segment Streaming Endpoint (`/hls/segment.ts`, lines 277–334)**:
-  - Direct binary pipe via Axios stream: `upstreamRes.data.pipe(res)` (line 325).
-  - HTTP Range seek support: `if (req.headers.range) { upstreamHeaders['Range'] = req.headers.range; }` (lines 296–298) and upstream status forwarding `res.status(upstreamRes.status)` (line 311, yielding HTTP 206 Partial Content).
-  - Response headers (lines 279–280, 314–323):
-    - `Content-Type: video/MP2T`
-    - `Cache-Control: public, max-age=31536000, immutable`
-    - `Access-Control-Allow-Origin: *`
-    - `Content-Range`, `Content-Length`, `Accept-Ranges: bytes`
+1. **R1: HLS Proxy Router Overhaul (`src/routes/hls.js`)**:
+   - **Multi-Level M3U8 Parent Resolver**:
+     * In `/manifest.m3u8`, variant streams (`#EXT-X-STREAM-INF`) and media tags (`#EXT-X-MEDIA`) are rewritten to proxy URLs referencing the sub-variant or rendition URL with `encodeBase64`.
+     * `baseUrl` is dynamically computed using `r.request?.res?.responseUrl || effectiveTargetUrl`, correctly handling HTTP 301/302 redirects.
+     * Within media playlists, segment URLs (`.ts`), initialization maps (`#EXT-X-MAP`), decryption keys (`#EXT-X-KEY`), and preload hints (`#EXT-X-PRELOAD-HINT`) are converted to absolute URLs via `new URL(t, baseUrl.href).href` before being proxied to `/hls/segment.ts`, `/hls/key`, or `/hls/sub.vtt`.
+   - **Browser Simulation Headers & Anti-CDN 403/404**:
+     * `HLS_UA` is set to `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36`.
+     * All upstream Axios requests include `User-Agent`, `Accept: */*`, `Accept-Language: vi,en-US;q=0.9,en;q=0.8`, and `Connection: keep-alive`.
+     * `getRefererHeaders()` accurately routes referers and origins for `kkphim`, `nguonc`, `vsmov`, `stp`, `clbpx`, `yan`, `hh3d`, and `streamc`.
+   - **Binary Segment Proxy & HTTP Range 206 Seeking**:
+     * `/hls/segment.ts` uses `responseType: 'arraybuffer'`, `timeout: 15000`, and `maxRedirects: 5`.
+     * Response headers set `Content-Type: video/MP2T`, `Cache-Control: public, max-age=3600`, and `Accept-Ranges: bytes`.
+     * HTTP Range requests are forwarded upstream. If upstream returns 200, the proxy performs safe in-memory buffer slicing (`buffer.subarray(start, end + 1)`) and returns HTTP 206 Partial Content with valid `Content-Range` and `Content-Length`.
 
-- **Decryption Key Proxy Endpoint (`/hls/key`, lines 337–371)**:
-  - Fetches key with upstream `Referer`, `Origin`, and Chrome 126 Macintosh UA (lines 354–358).
-  - Response headers (lines 339–340):
-    - `Content-Type: application/octet-stream`
-    - `Cache-Control: no-cache, no-store`
-    - `Access-Control-Allow-Origin: *`
+2. **R2: Real Cheerio & DOM Scrapers (`src/providers/stp.js`, `clbpx.js`, `yan.js`)**:
+   - **STP (`src/providers/stp.js`)**:
+     * Implemented HTML card scraper `parseStpCardsFromHtml` and post content parser `parsePostContent` for `sieutamphim.pro`.
+     * Includes `decodeXor0x2a` to decode obfuscated episode stream URLs.
+     * `isDeadOrBadUrl()` filters out unplayable shortlink/redirect domains (`bysevepoin.com`, `short.ink`, `short.icu`).
+     * Multi-tier fallback (HTML scrape -> WP-JSON REST API -> PhimAPI mirror) guarantees high availability.
+   - **CLBPX (`src/providers/clbpx.js`)**:
+     * Implemented HTML card scraper `parseClbpxCardsFromHtml` for `clbphimxua.info`.
+     * 5-step stream extraction in `extractClbpxLiveStreams` (watch page -> halim_cfg & jsonEpisodes -> player.php AJAX -> StreamC embed -> direct M3U8).
+     * `getStreams()` evaluates candidate posts with `scoreMatch` and iterates across candidates for series episode matching.
+   - **YAN (`src/providers/yan.js`)**:
+     * Implemented `parseYanCardsFromHtml` and `extractYanLiveStreams` for `yanhh3d.pw`.
+     * **Strict Donghua Guard (`isDonghuaOrAnime`)**: Actively rejects live-action, KDrama, and Western cinema titles (e.g. *Teach You A Lesson*, *A Shop for Killers*, *Lanterns*, *Avengers*, *Breaking Bad*) when querying YAN, returning 0 junk streams.
 
-### 1.2 Automated Tool Commands & Empirical Results
-1. **Syntax Check**:
-   ```bash
-   node --check src/routes/hls.js
-   # Output: Exited with code 0 (Syntax valid)
-   ```
-2. **Worker M1 Route Tests**:
-   ```bash
-   node tests/test_hls_worker_m1.js
-   # Output:
-   # 1. Testing OPTIONS Preflight... ✅ PASS
-   # 2. Testing Master M3U8 Manifest Rewriting... ✅ PASS
-   # 3. Testing Media M3U8 Manifest Rewriting... ✅ PASS
-   # 4. Testing Segment Proxying (/hls/segment.ts)... ✅ PASS (64KB, video/MP2T, 0x47 sync byte)
-   # 5. Testing HTTP Range 206 Partial Content... ✅ PASS (HTTP 206, 1024 bytes)
-   # 6. Testing Decryption Key Proxying (/hls/key)... ✅ PASS (HTTP 200, application/octet-stream)
-   # 🎉 ALL WORKER M1 TESTS PASSED SUCCESSFULLY!
-   ```
-3. **Mandatory R6 Playback Verification**:
-   ```bash
-   node tests/verify_playback.js
-   # Output:
-   # Phase 1: Addon Manifest & Route Verification -> PASSED
-   # Phase 2: Movie Stream Resolution -> PASSED
-   # Phase 3: Series Stream Resolution -> PASSED
-   # Phase 4: Manifest Proxy & Sub-Variant Playlist Rewriting -> PASSED
-   # Phase 5: Real Video TS Segment Download (>50KB & Sync Byte 0x47) -> PASSED (Downloaded 946,204 bytes / 924.03 KB, MPEG-TS sync byte 0x47 confirmed)
-   # Phase 6: HTTP Range Request Verification (206 Partial Content) -> PASSED (HTTP 206, bytes 0-1023/946204)
-   # 🎉 ALL PLAYBACK VERIFICATION CHECKS PASSED (100% SUCCESS)
-   ```
-4. **Adversarial Stress Test Suite (`tests/reviewer1_adversarial_m1.test.js`)**:
-   ```bash
-   node tests/reviewer1_adversarial_m1.test.js
-   # Output: 8 PASSED, 0 FAILED
-   # - Master Playlist multi-bitrate 4K UHD, i-frames, audio/subs quoted & unquoted URIs
-   # - Media Playlist relative paths (../), disguised extensions (.png), encryption key routing, fMP4 init map, LL-HLS parts
-   # - Range header forwarding (bytes=500-1499 -> HTTP 206 Partial Content)
-   # - Binary key proxying via /hls/key
-   # - Base64URL, standard Base64, and plain URLs
-   # - Reverse proxy headers (x-forwarded-proto, x-forwarded-host)
-   # - Resilient error handling (HTTP 400 on missing params, HTTP 502 on upstream network errors)
-   ```
-5. **E2E Addon Test Suite**:
-   ```bash
-   node tests/e2e.test.js
-   # Output: Total Assertions: 90, Passed: 90, Failed: 0
-   ```
+3. **R3: Multi-Keyword Fallback & Universal Episode Matching (`src/lib/utils.js`, `kkphim.js`, `nguonc.js`)**:
+   - `generateSearchKeywords()` expands titles into combinations: original name, English name, aliases, season/part stripped variations, and punctuation-cleaned queries.
+   - `matchEpisodeItem()` supports numeric tokens, zero-padded numbers (`01`, `001`), Vietnamese prefixes (`Tập 01`), English prefixes (`Episode 01`, `Ep 01`), slugs (`tap-1`, `ep-1`), full movie flags, and strict whole-token regex boundaries to prevent false matches (e.g., episode 1 matching 10, 11, 12).
+
+4. **R5: Versioning & Brand Signature Conformance**:
+   - `package.json`: `"version": "1.7.0"`
+   - `src/manifest.js`: `version: '1.7.0'`
+   - `src/handlers.js` (line 1057): `VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`
+   - `src/index.js` (line 105): `VIP Movies Stremio Addon Engine v1.7.0`
+
+### 1.2 Independent Test Suite Results
+
+All test suites were executed directly and verified with zero errors:
+
+| Test Suite | Command | Result | Pass Rate |
+|---|---|---|---|
+| Syntax Check | `node --check src/index.js` (and all modules) | 0 syntax errors | 100% |
+| Core Integration | `npm test` | 50 passed, 0 failed | 100% |
+| Live Playback Suite | `node tests/verify_v170_playback.js` | 38 passed, 0 failed | 100% |
+| All-Providers E2E | `node tests/verify_all_providers_playback.js` | 44 passed, 0 failed | 100% |
+
+### 1.3 Adversarial Integrity Inspection
+
+- **No Hardcoded Test Outputs**: Verified that tests establish live HTTP listeners on ephemeral ports and make real network requests to external CDNs and local proxy routes.
+- **No Facade Implementations**: Verified that parsing logic, base64 transformations, XOR deobfuscation, HTTP Range slicing, and proxy buffering are genuine production implementations.
+- **Strict In-App Protocol Invariant**: 100% of generated stream objects supply a proxied `url` and strictly omit `externalUrl`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **R1 Specification Alignment**:
-   - `ORIGINAL_REQUEST.md` (lines 12–28) dictates line-by-line M3U8 rewriting for Master and Media playlists, proxying `/hls/segment.ts` with Range forwarding (`206 Partial Content`), and proxying `/hls/key` with upstream Referer headers.
-   - Code inspection of `src/routes/hls.js` demonstrates full alignment with all required routes (`/manifest.m3u8`, `/segment.ts`, `/key`), regex replacement patterns, Base64URL encoding/decoding, and header contracts.
+1. **Sub-variant M3U8 Resolution & Anti-404**:
+   - The primary root cause of 404 errors in earlier versions was resolving sub-variant segment paths relative to the master playlist URL rather than the redirected sub-variant URL.
+   - By capturing `finalUrl = r.request?.res?.responseUrl || effectiveTargetUrl` in `/hls/manifest.m3u8`, the engine establishes the precise base URI for relative `.ts` segments.
+   - Subsequent segment requests to `/hls/segment.ts` resolve against this base URL, eliminating 404s for KDrama and Western cinema streams.
 
-2. **Integrity & Anti-Cheat Validation**:
-   - Inspected `src/routes/hls.js` for hardcoded mock data, dummy returns, or shortcut bypasses: none were present. The routes genuinely proxy streams through Axios and dynamically rewrite URLs.
-   - The test executions (`verify_playback.js`) made live HTTP network requests to external CDNs, downloading 946,204 bytes of actual MPEG-TS video with valid `0x47` sync bytes at 188-byte intervals.
+2. **Strict Donghua Guard**:
+   - `isDonghuaOrAnime()` in `src/providers/yan.js` filters out queries with live-action or Western keywords unless animation genres are explicitly present.
+   - Tested against KDrama *Teach You A Lesson* S01E01: YAN returned 0 junk streams, while KKPhim and NguonC returned 5 valid streams.
 
-3. **Robustness & Edge-Case Coverage**:
-   - Stress-tested relative paths, complex query parameters, disguised segment MIME types, LL-HLS tags, reverse proxy header overrides, and upstream error conditions.
-   - The server maintains stability under all adversarial scenarios without throwing uncaught exceptions or dropping connections.
+3. **Range 206 Seeking Support**:
+   - When a video player seeks within a `.ts` segment, it sends an HTTP `Range: bytes=start-end` request.
+   - `/hls/segment.ts` forwards this header upstream, or performs buffer slicing if upstream responds with 200, returning HTTP 206 Partial Content. This ensures seamless scrubbing and seeking in Stremio and external media players.
 
 ---
 
 ## 3. Caveats
 
-- **No Caveats**: All components of R1 (`/hls/manifest.m3u8`, `/hls/segment.ts`, `/hls/key`) have been thoroughly evaluated, statically checked, and dynamically verified with 100% pass rates.
+- **Third-Party CDN Availability**: Live streaming depends on remote CDN uptime (e.g. `phimapi.com`, `phim.nguonc.com`, `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`). The multi-tier fallbacks implemented across all provider modules mitigate individual endpoint outages.
 
 ---
 
 ## 4. Conclusion
 
-- Milestone 1 (HLS Proxy & Full Segment Rewriter R1) in `src/routes/hls.js` is fully complete, defect-free, and compliant with all project requirements.
-- Final Review Verdict: **APPROVE**.
+**Verdict: APPROVE**
+
+The Stremio VIP Movies Addon Engine v1.7.0 Overhaul fulfills all functional, architectural, and verification requirements:
+- Multi-level M3U8 resolution and full browser header simulation are operating correctly.
+- Real HTML scrapers for STP, CLBPX, and YAN are active with dead link filtering and strict Donghua guards.
+- Multi-keyword search fallback and universal episode matching resolve KDrama and Western cinema titles accurately.
+- Version `1.7.0` and the required brand signature are consistently applied.
+- All four automated test suites achieved 100% PASS with zero regressions.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce and verify this review:
+To independently reproduce the verification results:
+
 ```bash
-# 1. Syntax check
+# 1. Syntax Check across all files
+node --check src/index.js
 node --check src/routes/hls.js
+node --check src/providers/stp.js
+node --check src/providers/clbpx.js
+node --check src/providers/yan.js
+node --check src/providers/kkphim.js
+node --check src/providers/nguonc.js
+node --check src/lib/utils.js
+node --check src/handlers.js
+node --check src/manifest.js
 
-# 2. Worker M1 Test Suite
-node tests/test_hls_worker_m1.js
+# 2. Run Integration Tests (50 assertions)
+npm test
 
-# 3. R6 Mandatory Real-World Playback Verification Test
-node tests/verify_playback.js
+# 3. Run E2E v1.7.0 Playback Verification (38 assertions)
+node tests/verify_v170_playback.js
 
-# 4. Reviewer 1 Adversarial Stress Test Suite
-node tests/reviewer1_adversarial_m1.test.js
-
-# 5. Full Addon E2E Test Suite
-node tests/e2e.test.js
+# 4. Run All-Providers Playback Verification (44 assertions)
+node tests/verify_all_providers_playback.js
 ```

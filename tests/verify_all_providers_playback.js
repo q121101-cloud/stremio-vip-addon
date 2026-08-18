@@ -2,7 +2,7 @@
 
 /**
  * ==============================================================================
- *  VIP Movies Addon — tests/verify_all_providers_playback.js (Engine v1.6.2)
+ *  VIP Movies Addon — tests/verify_all_providers_playback.js (Engine v1.7.0)
  *  Requirement R5: Comprehensive E2E Playback & Catalog Verification Suite
  *
  *  Validates:

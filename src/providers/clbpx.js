@@ -137,6 +137,19 @@ function parseClbpxCardsFromHtml(html) {
   return items;
 }
 
+function isDeadOrBadUrl(url) {
+  if (!url || typeof url !== 'string') return true;
+  return /bysevepoin|short\.ink|short\.icu|streamc\.xyz\/eyJo/i.test(url);
+}
+
+function hasPlayableEps(eps) {
+  if (!Array.isArray(eps) || eps.length === 0) return false;
+  return eps.some((srv) => {
+    const sData = srv.server_data || [];
+    return sData.some((e) => (e.link_m3u8 || e.link_embed) && !isDeadOrBadUrl(e.link_m3u8 || e.link_embed));
+  });
+}
+
 /**
  * 5-Step Direct Stream Extraction on clbphimxua.info
  * Scrapes watch page -> halim_cfg & jsonEpisodes -> player.php -> StreamC embed -> data-obf -> direct M3U8
@@ -254,27 +267,8 @@ async function extractClbpxLiveStreams(slug, episodeNum = 1) {
     });
     const embedHtml = String(embedRes.data || '');
 
-    const obfMatch = embedHtml.match(/data-obf=[\x22\x27]([^"'\s]+)[\x22\x27]/i);
-    if (obfMatch) {
-      try {
-        const decodedJson = JSON.parse(Buffer.from(obfMatch[1], 'base64').toString('utf8'));
-        if (decodedJson && decodedJson.sUb) {
-          const embedOrigin = new URL(iframeSrc).origin;
-          const directM3u8 = `${embedOrigin}/${decodedJson.sUb}`;
-          return [{
-            server_name: 'Server CLBPX VIP',
-            server_data: [{
-              name: String(episodeNum || 1),
-              slug: `tap-${episodeNum || 1}`,
-              link_m3u8: directM3u8,
-            }],
-          }];
-        }
-      } catch {}
-    }
-
     const directM3u8Match = embedHtml.match(/https?:\/\/[^"'\s<>]+\.m3u8[^"'\s<>]*/i);
-    if (directM3u8Match) {
+    if (directM3u8Match && !isDeadOrBadUrl(directM3u8Match[0])) {
       return [{
         server_name: 'Server CLBPX VIP',
         server_data: [{
@@ -383,29 +377,52 @@ async function getDetail(slug) {
 
       // Try to extract live watch stream
       const liveStream = await extractClbpxLiveStreams(cleanSlug, 1);
-      if (liveStream && liveStream.length > 0) {
+      if (liveStream && liveStream.length > 0 && hasPlayableEps(liveStream)) {
         allEpisodes = [...liveStream];
       }
     }
   } catch (err) {}
 
   // Tier 2: PhimAPI mirror detail lookup (to ensure working M3U8 streams)
-  try {
-    const res = await http.get(`https://phimapi.com/phim/${cleanSlug}`, { timeout: 4000 });
-    const mirrorMovie = res.data?.movie || res.data?.data?.item;
-    const mirrorEpisodes = res.data?.episodes || mirrorMovie?.episodes || [];
-    if (mirrorMovie) {
-      if (!movieResult) {
-        movieResult = mirrorMovie;
+  if (!movieResult || !hasPlayableEps(allEpisodes)) {
+    try {
+      const res = await http.get(`https://phimapi.com/phim/${cleanSlug}`, { timeout: 4000 });
+      const mirrorMovie = res.data?.movie || res.data?.data?.item;
+      const mirrorEpisodes = res.data?.episodes || mirrorMovie?.episodes || [];
+      if (mirrorMovie) {
+        if (!movieResult) {
+          movieResult = mirrorMovie;
+        }
+        if (mirrorEpisodes.length > 0) {
+          allEpisodes = [...allEpisodes, ...mirrorEpisodes];
+        }
       }
-      if (mirrorEpisodes.length > 0) {
-        allEpisodes = [...allEpisodes, ...mirrorEpisodes];
-      }
-    }
-  } catch (err) {}
+    } catch (err) {}
+  }
 
-  // If movieResult has episodes, cache and return
-  if (movieResult && allEpisodes.length > 0) {
+  // Tier 3: PhimAPI search fallback
+  if (!movieResult || !hasPlayableEps(allEpisodes)) {
+    try {
+      const res = await http.get('https://phimapi.com/v1/api/tim-kiem', {
+        params: { keyword: cleanSlug.replace(/-/g, ' '), limit: 5 },
+        timeout: 4000,
+      });
+      const items = res.data?.data?.items || [];
+      for (const it of items) {
+        if (!it.slug) continue;
+        const dRes = await http.get(`https://phimapi.com/phim/${it.slug}`, { timeout: 4000 });
+        const mMovie = dRes.data?.movie || dRes.data?.data?.item;
+        const mEps = dRes.data?.episodes || mMovie?.episodes || [];
+        if (mMovie && hasPlayableEps(mEps)) {
+          movieResult = mMovie;
+          allEpisodes = [...mEps];
+          break;
+        }
+      }
+    } catch (err) {}
+  }
+
+  if (movieResult && hasPlayableEps(allEpisodes)) {
     const result = { movie: movieResult, episodes: allEpisodes };
     detailCache.set(cacheKey, result, 600);
     return result;
@@ -498,6 +515,80 @@ async function getCatalog(type, page = 1, extra = {}) {
   }
 }
 
+function extractStreamsFromMovieData(movieData, isMovie, episode, rawTitle, proxyBase, b64Ref) {
+  if (!movieData || !movieData.episodes || !movieData.episodes.length) return [];
+  const { movie, episodes } = movieData;
+  const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
+  const streams = [];
+
+  for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
+    const server = episodes[sIdx];
+    const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
+    const serverData = server.server_data || [];
+    if (!serverData.length) continue;
+
+    let targetEp = null;
+    if (isMovie || targetEpStr === null) {
+      targetEp = serverData[0];
+    } else {
+      const epNum = parseInt(targetEpStr, 10);
+      if (!isNaN(epNum) && epNum <= 0) {
+        targetEp = null;
+      } else {
+        targetEp = serverData.find((ep) => {
+          if (!ep) return false;
+          const nameStr = String(ep.name || '').trim();
+          const slugStr = String(ep.slug || '').trim();
+          if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
+          if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
+          if (!isNaN(epNum) && epNum > 0) {
+            const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
+            if (numFromName === epNum) return true;
+            const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
+            if (numFromSlug === epNum) return true;
+          }
+          if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
+            try {
+              const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
+              if (re.test(nameStr) || re.test(slugStr)) return true;
+            } catch {}
+          }
+          return false;
+        });
+
+        if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
+          targetEp = serverData[epNum - 1];
+        }
+      }
+    }
+
+    if (!targetEp || (!targetEp.link_m3u8 && !targetEp.link_embed)) continue;
+    const streamLink = targetEp.link_m3u8 || targetEp.link_embed;
+
+    const epLabel = formatEpisodeLabel(targetEp.name);
+    const isTM = /thuy.{1,5}t minh/i.test(rawServerName);
+    const titleHeader = isTM
+      ? `[VIP 5 • CLBPX] Thuyết Minh Cổ Điển${epLabel} (HLS Proxy) [VIP • CLBPX]`
+      : `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển${epLabel} (HLS Proxy) [VIP • CLBPX]`;
+
+    const streamRef = /streamc\.|amass2\.top/i.test(streamLink) ? 'https://embed15.streamc.xyz/' : REFERER_HEADER;
+    const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(streamLink)}&ref=${encodeBase64(streamRef)}`;
+
+    // STRICT INVARIANT: url only, NO externalUrl
+    streams.push({
+      name: 'VIP Movies 🎬',
+      title: `${titleHeader}\n⚡ Server CLBPX • clbphimxua.info`,
+      url: streamUrl,
+      behaviorHints: {
+        notSupported: false,
+        bingeGroup: `clbpx-${movie?.slug || 'stream'}`,
+      },
+    });
+  }
+
+  return streams;
+}
+
 /**
  * Get streams for Classic Wuxia & TVB
  */
@@ -541,159 +632,133 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
   const b64Ref = encodeBase64(REFERER_HEADER);
 
   try {
-    let movieData = null;
-
-    // Step 1: Lookup via slug
-    if (slug && (slug.startsWith('clbpx_') || slug.startsWith('clbpx:'))) {
-      movieData = await getDetail(slug);
+    // Step 1: Direct slug lookup
+    if (slug) {
+      const movieData = await getDetail(slug);
+      if (movieData && movieData.episodes && movieData.episodes.length > 0) {
+        const isMovie = (type === 'movie' || movieData.movie?.type === 'single') && episode == null;
+        if (isMovie || season == null || isSeasonMatch(movieData.movie, movieData.episodes, season, type)) {
+          const directStreams = extractStreamsFromMovieData(movieData, isMovie, episode, title || movieData.movie?.name, proxyBase, b64Ref);
+          if (directStreams.length > 0) return directStreams;
+        }
+      }
     }
 
-    // Step 2: Lookup via IMDb ID (cached or API)
-    if (!movieData && imdbId) {
+    // Step 2: IMDb ID lookup
+    if (imdbId) {
       const cleanImdb = String(imdbId).toLowerCase().trim();
       const cachedSlug = imdbCache.get(`clbpx:imdb:${cleanImdb}`);
       if (cachedSlug) {
-        movieData = await getDetail(cachedSlug);
-      }
-      if (!movieData) {
-        try {
-          const res = await http.get(`https://phimapi.com/imdb/title/${cleanImdb}`, { timeout: 4000 });
-          const movie = res.data?.movie || res.data?.data?.item;
-          const episodes = res.data?.episodes || movie?.episodes || [];
-          if (movie) {
-            movieData = { movie, episodes };
-            imdbCache.set(`clbpx:imdb:${cleanImdb}`, movie.slug || slug, 86400);
-          }
-        } catch {}
-      }
-    }
-
-    // Step 3: Search with title + fuzzy score matching
-    if (!movieData && title) {
-      const searchItems = await search(title, 1);
-      if (searchItems.length > 0) {
-        let bestItem = null;
-        let bestScore = -1;
-        for (const item of searchItems) {
-          const score = scoreMatch(item, title, year, season);
-          if (score > bestScore) {
-            bestScore = score;
-            bestItem = item;
-          }
-        }
-        if (bestItem && bestItem.slug && bestScore >= 0.45) {
-          movieData = await getDetail(bestItem.slug);
-          if (movieData && imdbId) {
-            imdbCache.set(`clbpx:imdb:${String(imdbId).toLowerCase().trim()}`, bestItem.slug, 86400);
+        const movieData = await getDetail(cachedSlug);
+        if (movieData && movieData.episodes && movieData.episodes.length > 0) {
+          const isMovie = (type === 'movie' || movieData.movie?.type === 'single') && episode == null;
+          if (isMovie || season == null || isSeasonMatch(movieData.movie, movieData.episodes, season, type)) {
+            const streams = extractStreamsFromMovieData(movieData, isMovie, episode, title || movieData.movie?.name, proxyBase, b64Ref);
+            if (streams.length > 0) return streams;
           }
         }
       }
-    }
-
-    // Step 4: Try Direct Live StreamC Extraction if movie slug is available
-    if (movieData?.movie?.slug) {
       try {
-        const liveStreams = await extractClbpxLiveStreams(movieData.movie.slug, isNaN(epNumTarget) || epNumTarget <= 0 ? 1 : epNumTarget);
-        if (liveStreams && liveStreams.length > 0 && liveStreams[0].server_data?.[0]?.link_m3u8) {
-          const epData = liveStreams[0].server_data[0];
-          const epLabel = formatEpisodeLabel(epData.name || episode);
-          const titleHeader = `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển${epLabel} (HLS Proxy) [VIP • CLBPX]`;
-          const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(epData.link_m3u8)}&ref=${b64Ref}`;
-
-          return [{
-            name: 'VIP Movies 🎬',
-            title: `${titleHeader}\n⚡ Server CLBPX • clbphimxua.info`,
-            url: streamUrl,
-            behaviorHints: {
-              notSupported: false,
-              bingeGroup: `clbpx-${movieData.movie.slug}`,
-            },
-          }];
+        const res = await http.get(`https://phimapi.com/imdb/title/${cleanImdb}`, { timeout: 4000 });
+        const movie = res.data?.movie || res.data?.data?.item;
+        const episodes = res.data?.episodes || movie?.episodes || [];
+        if (movie && episodes.length > 0) {
+          const movieData = { movie, episodes };
+          imdbCache.set(`clbpx:imdb:${cleanImdb}`, movie.slug || slug, 86400);
+          const isMovie = (type === 'movie' || movie.type === 'single') && episode == null;
+          if (isMovie || season == null || isSeasonMatch(movie, episodes, season, type)) {
+            const streams = extractStreamsFromMovieData(movieData, isMovie, episode, title || movie.name, proxyBase, b64Ref);
+            if (streams.length > 0) return streams;
+          }
         }
       } catch {}
     }
 
-    if (!movieData || !movieData.episodes || !movieData.episodes.length) {
-      return [];
-    }
+    // Step 3: Multi-candidate search iteration
+    if (title) {
+      const searchItems = await search(title, 1);
+      if (searchItems.length > 0) {
+        const scoredCandidates = searchItems
+          .map((item) => ({ item, score: scoreMatch(item, title, year, season) }))
+          .filter((c) => c.score >= 0.40)
+          .sort((a, b) => b.score - a.score);
 
-    const { movie, episodes } = movieData;
-    const isMovie = (type === 'movie' || movie.type === 'single') && episode == null;
-    const targetEpStr = !isMovie && episode != null ? String(episode).trim() : null;
+        for (const candidate of scoredCandidates) {
+          const item = candidate.item;
+          if (!item.slug) continue;
 
-    // Season validation for series
-    if (!isMovie && season != null) {
-      if (!isSeasonMatch(movie, episodes, season, type)) {
-        return [];
-      }
-    }
+          // 3a. Try Direct Live StreamC Extraction on clbphimxua.info
+          try {
+            const liveStreams = await extractClbpxLiveStreams(item.slug, isNaN(epNumTarget) || epNumTarget <= 0 ? 1 : epNumTarget);
+            if (liveStreams && liveStreams.length > 0 && liveStreams[0].server_data?.[0]?.link_m3u8) {
+              const epData = liveStreams[0].server_data[0];
+              const epLabel = formatEpisodeLabel(epData.name || episode);
+              const titleHeader = `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển${epLabel} (HLS Proxy) [VIP • CLBPX]`;
+              const streamRef = /streamc\.|amass2\.top/i.test(epData.link_m3u8) ? 'https://embed15.streamc.xyz/' : REFERER_HEADER;
+              const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(epData.link_m3u8)}&ref=${encodeBase64(streamRef)}`;
 
-    const streams = [];
+              if (imdbId) {
+                imdbCache.set(`clbpx:imdb:${String(imdbId).toLowerCase().trim()}`, item.slug, 86400);
+              }
 
-    for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
-      const server = episodes[sIdx];
-      const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
-      const serverData = server.server_data || [];
-      if (!serverData.length) continue;
-
-      let targetEp = null;
-      if (isMovie || targetEpStr === null) {
-        targetEp = serverData[0];
-      } else {
-        const epNum = parseInt(targetEpStr, 10);
-        if (!isNaN(epNum) && epNum <= 0) {
-          targetEp = null;
-        } else {
-          targetEp = serverData.find((ep) => {
-            if (!ep) return false;
-            const nameStr = String(ep.name || '').trim();
-            const slugStr = String(ep.slug || '').trim();
-            if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
-            if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
-            if (!isNaN(epNum) && epNum > 0) {
-              const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
-              if (numFromName === epNum) return true;
-              const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
-              if (numFromSlug === epNum) return true;
+              return [{
+                name: 'VIP Movies 🎬',
+                title: `${titleHeader}\n⚡ Server CLBPX • clbphimxua.info`,
+                url: streamUrl,
+                behaviorHints: {
+                  notSupported: false,
+                  bingeGroup: `clbpx-${item.slug}`,
+                },
+              }];
             }
-            if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
-              try {
-                const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
-                if (re.test(nameStr) || re.test(slugStr)) return true;
-              } catch {}
-            }
-            return false;
-          });
+          } catch {}
 
-          if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
-            targetEp = serverData[epNum - 1];
+          // 3b. Try getDetail on this candidate
+          const candDetail = await getDetail(item.slug);
+          if (candDetail && candDetail.episodes && candDetail.episodes.length > 0) {
+            const isMovie = (type === 'movie' || candDetail.movie?.type === 'single') && episode == null;
+            if (isMovie || season == null || isSeasonMatch(candDetail.movie, candDetail.episodes, season, type)) {
+              const candStreams = extractStreamsFromMovieData(candDetail, isMovie, episode, title || candDetail.movie?.name, proxyBase, b64Ref);
+              if (candStreams.length > 0) {
+                if (imdbId) {
+                  imdbCache.set(`clbpx:imdb:${String(imdbId).toLowerCase().trim()}`, item.slug, 86400);
+                }
+                return candStreams;
+              }
+            }
           }
         }
       }
-
-      if (!targetEp || !targetEp.link_m3u8) continue;
-
-      const epLabel = formatEpisodeLabel(targetEp.name);
-      const isTM = /thuy.{1,5}t minh/i.test(rawServerName);
-      const titleHeader = isTM
-        ? `[VIP 5 • CLBPX] Thuyết Minh Cổ Điển${epLabel} (HLS Proxy) [VIP • CLBPX]`
-        : `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển${epLabel} (HLS Proxy) [VIP • CLBPX]`;
-
-      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${b64Ref}`;
-
-      // STRICT INVARIANT: url only, NO externalUrl
-      streams.push({
-        name: 'VIP Movies 🎬',
-        title: `${titleHeader}\n⚡ Server CLBPX • clbphimxua.info`,
-        url: streamUrl,
-        behaviorHints: {
-          notSupported: false,
-          bingeGroup: `clbpx-${movie.slug || slug || 'stream'}`,
-        },
-      });
     }
 
-    return streams;
+    // Step 4: Mirror search fallback for Series / Movies on PhimAPI / Ophim
+    if (title) {
+      try {
+        const res = await http.get('https://phimapi.com/v1/api/tim-kiem', {
+          params: { keyword: title, limit: 8 },
+          timeout: 4000,
+        });
+        const items = res.data?.data?.items || [];
+        for (const it of items) {
+          if (!it.slug) continue;
+          const dRes = await http.get(`https://phimapi.com/phim/${it.slug}`, { timeout: 4000 });
+          const mMovie = dRes.data?.movie || dRes.data?.data?.item;
+          const mEps = dRes.data?.episodes || mMovie?.episodes || [];
+          if (mMovie && mEps.length > 0) {
+            const isMovie = (type === 'movie' || mMovie.type === 'single') && episode == null;
+            if (isMovie || season == null || isSeasonMatch(mMovie, mEps, season, type)) {
+              const mirrorDetail = { movie: mMovie, episodes: mEps };
+              const candStreams = extractStreamsFromMovieData(mirrorDetail, isMovie, episode, title || mMovie.name, proxyBase, b64Ref);
+              if (candStreams.length > 0) {
+                return candStreams;
+              }
+            }
+          }
+        }
+      } catch (err) {}
+    }
+
+    return [];
   } catch (err) {
     console.warn(`[CLBPX/getStreams] Error:`, err.message);
     return [];

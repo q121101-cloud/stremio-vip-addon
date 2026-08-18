@@ -1,13 +1,24 @@
-## 2026-08-17T15:01:05Z
-You are Reviewer 1 for Milestone 1 (HLS Proxy & Full Segment Rewriter R1).
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_1
+## 2026-08-18T10:28:16Z
 
-Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md.
-Review the changes in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/routes/hls.js.
-Verify:
-1. /hls/manifest.m3u8 line-by-line master & media playlist rewriter, Base64URL decoding, headers (Content-Type: application/vnd.apple.mpegurl; charset=utf-8, Access-Control-Allow-Origin: *, Cache-Control: no-cache, no-store).
-2. /hls/segment.ts binary streaming, Range request forwarding (206 Partial Content), Content-Range, Accept-Ranges: bytes, Content-Type: video/MP2T, Cache-Control: public, max-age=31536000, immutable.
-3. /hls/key proxying decryption keys with upstream Referer.
-4. Run syntax check `node --check src/routes/hls.js` and test suites (`node tests/test_hls_worker_m1.js`, `node tests/verify_playback.js`).
+<USER_REQUEST>
+You are Reviewer 1 for the Stremio VIP Movies Addon Engine v1.7.0 Overhaul.
 
-State your verdict clearly (APPROVE or REQUEST_CHANGES) in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_1/handoff.md and report back.
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Your agent directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_1
+Original request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Scope document: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/PROJECT.md
+Worker report: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1_1/handoff.md
+
+Tasks:
+1. Read ORIGINAL_REQUEST.md and inspect all modified files:
+   - `src/routes/hls.js` (R1: Multi-level M3U8 resolution, browser headers, Windows Chrome 124 UA, redirect responseUrl, binary arraybuffer segment proxy with video/MP2T, max-age=3600, HTTP Range 206)
+   - `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js` (R2: HTML scrapers, dead link filtering, multi-candidate search iteration, strict Donghua Guard)
+   - `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/lib/utils.js` (R3: Multi-keyword fallback & flexible episode matching)
+   - `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js` (R5: Versioning v1.7.0 and brand signature)
+2. Run and verify all test suites:
+   - `node --check src/index.js`
+   - `node tests/verify_v170_playback.js`
+   - `node tests/verify_all_providers_playback.js`
+   - `npm test`
+3. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_m1_1/handoff.md` with your explicit verdict: APPROVE or REQUEST_CHANGES. Send a message to parent.
+</USER_REQUEST>

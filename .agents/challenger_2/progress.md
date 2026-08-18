@@ -1,15 +1,13 @@
-# Progress Tracker — Challenger 2
+# Progress — Challenger 2 Engine v1.7.0 Overhaul
 
-**Last visited**: 2026-08-18T16:28:15+07:00
-**Current Milestone**: Engine v1.6.2 Adversarial Verification
+**Last visited**: 2026-08-18T17:33:00+07:00
+**Current Status**: Complete. All empirical stress tests and test matrices passed with 100% success rate. Verdict: APPROVE.
 
-## Status Overview
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Codebase & architecture investigation for Engine v1.6.2 stream aggregation, timeouts, sorting, and segment proxy
-- [x] Construct comprehensive test harness (`tests/challenger2_v162_aggregator_stress.test.js`):
-  - [x] Stream sorting (4K/UHD > Vietsub > Thuyết Minh > Lồng Tiếng, preserving provider priority)
-  - [x] Timeout safety (slow/dead providers timeout <= 4500ms without crashing or hanging aggregator)
-  - [x] In-app protocol invariant (no externalUrl, all streams route via /hls proxy)
-  - [x] Live/mock segment fetching (>100KB chunks, MPEG-TS sync byte 0x47 validation, HTTP Range 206)
-- [x] Run test suite and existing verification scripts (100% pass across all suites)
-- [x] Produce handoff report and verdict (APPROVE)
+## Tasks
+- [x] Received dispatch and initialized BRIEFING.md & progress.md
+- [x] Investigate implementation files (`src/routes/hls.js`, `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/lib/utils.js`, `src/handlers.js`)
+- [x] Design & write adversarial empirical test suite (`tests/challenger2_v170_stress.test.js`)
+- [x] Run empirical challenger test suite (207/207 passed)
+- [x] Run required test matrix (`node --check`, `verify_v170_playback.js`, `verify_all_providers_playback.js`, `npm test`, `test_routing_and_22_catalogs.js`)
+- [x] Write handoff.md with APPROVE verdict
+- [ ] Send coordination message to parent

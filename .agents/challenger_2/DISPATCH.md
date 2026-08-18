@@ -27,3 +27,25 @@ Adversarially test the stream aggregation, timeout safety, and stream sorting me
 
 Execute tests and provide a clear verdict in your handoff report: either `APPROVE` or `REQUEST_CHANGES`.
 Write your handoff to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_2/handoff.md` and send message to parent when done.
+
+## 2026-08-18T10:28:16Z
+You are Challenger 2 for the Stremio VIP Movies Addon Engine v1.7.0 Overhaul.
+
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Your agent directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_2
+Original request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Scope document: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/PROJECT.md
+
+Tasks:
+1. Conduct empirical stress-testing on Engine v1.7.0:
+   - Test HLS Proxy (`src/routes/hls.js`): M3U8 multi-level rewriting, sub-variant baseUrl resolution, binary TS segment Range 206 chunk slicing, Content-Type `video/MP2T`, `max-age=3600`, and Chrome 124 UA / headers.
+   - Test Providers: STP, CLBPX, and YAN.
+   - Test Strict Donghua Guard in YAN: Verify complete rejection (0 streams) on KDrama (*Teach You A Lesson*, *A Shop for Killers*, *Crash Landing on You*), US-UK (*Lanterns*, *Avengers*, *Breaking Bad*, *Oppenheimer*), and Live-action titles.
+   - Test Multi-keyword fallback and flexible episode matching in `src/lib/utils.js`: Verify no false-positive multi-digit matches (e.g. Ep 1 matching Ep 10, 11, 100).
+2. Run the full test matrix:
+   - `node --check src/index.js`
+   - `node tests/verify_v170_playback.js`
+   - `node tests/verify_all_providers_playback.js`
+   - `npm test`
+3. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_2/handoff.md` with your explicit verdict: APPROVE or REJECT. Send a message to parent.
+

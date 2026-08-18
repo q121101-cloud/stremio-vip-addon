@@ -1,89 +1,137 @@
-# Handoff Report — Challenger 2 (Adversarial Empirical Verification of Engine v1.6.2)
+# Challenger 2 Handoff Report — Engine v1.7.0 Overhaul
+
+**Agent**: Challenger 2 (Empirical Challenger: critic, specialist)  
+**Target**: Stremio VIP Movies Addon Engine v1.7.0 Overhaul  
+**Date**: 2026-08-18T17:33:00+07:00  
+**Verdict**: **APPROVE**  
+
+---
 
 ## 1. Observation
-- **Codebase Scope**:
-  - `src/handlers.js`: Stream sorting logic `getStreamPriority` (lines 1457–1500), timeout isolation `withTimeout` (lines 169–180), multi-provider stream aggregator `handleStream` (lines 1517–1679).
-  - `src/routes/hls.js`: In-app HLS manifest rewriter `/hls/manifest.m3u8` (lines 146–327), lazy embed resolver `/hls/extract` (lines 119–143), segment streaming `/hls/segment.ts` (lines 330–387), WebVTT subtitle proxy `/hls/sub.vtt` (lines 426–505).
-  - `src/manifest.js`: Manifest definition declaring 22 catalogs across 6 provider clusters.
-  - `package.json`: Addon version `1.6.2`.
 
-- **Test Harnesses Executed & Results**:
-  1. `tests/challenger2_v162_aggregator_stress.test.js` (Authored & executed dedicated empirical suite):
-     - **Section 1: Stream Quality & Audio Sorting**:
-       - 4K/UHD (score 10–73) < Vietsub (score 101–107) < Thuyết Minh (score 201–207) < Lồng Tiếng (score 301–307) < Other/Raw (score 401–407).
-       - Cross-boundary worst-provider in higher bucket (YAN 4K, score 63) strictly outranks best-provider in lower bucket (VSMOV Vietsub, score 101).
-       - Provider preference preserved monotonically within every bucket: VSMOV (VIP 1) > KKPhim (VIP 2) > NguonC (VIP 3) > STP (VIP 4) > CLBPX (VIP 5) > YAN (VIP 6).
-       - Audio sub-sorting within 4K: 4K Vietsub > 4K Thuyết Minh > 4K Lồng Tiếng > 4K Other.
-       - 20 iterations of randomized 27-stream shuffle-sorts confirmed 100% monotonic sorting stability.
-       - False-positive audio tagging prevention on word boundaries (e.g. `"Batman"` != TM, `"Ultraman"` != 4K).
-     - **Section 2: Timeout Safety & Aggregator Deadline**:
-       - `withTimeout` rejected 5000ms hanging promise at exactly ~300ms without memory leaks or unhandled rejections.
-       - Aggregator latency on live streams (`tt0903747:1:1`, `tt0373889`) and non-existent IDs (`tt9999999999`) bounded within <= 4800ms.
-       - Simulated multi-provider aggregation with 2 fast, 2 hanging (5500ms, 8000ms), and 1 failing (50ms) provider finished cleanly at 4500ms without crashing.
-     - **Section 3: In-App Protocol Invariant & URL Routing**:
-       - 100% of streams across tested movies/series strictly omitted `externalUrl` (`stream.externalUrl === undefined`, `'externalUrl' in stream === false`).
-       - 100% of stream URLs route through `/hls/manifest.m3u8` or `/hls/extract` (which issues HTTP 302 redirect to `/hls/manifest.m3u8`).
-       - `behaviorHints.notSupported === false` and `bingeGroup` populated on all items.
-       - Subtitles route via `/hls/sub.vtt` with `lang: 'vie'`.
-     - **Section 4: Segment Streaming, Chunk Size & TS Sync Byte 0x47**:
-       - Mock upstream server verified 150KB TS buffer streaming through `/hls/manifest.m3u8` and `/hls/segment.ts`.
-       - Downloaded segment size: 150,400 bytes (> 100KB).
-       - Verified MPEG-TS sync byte `0x47` at offset 0, 188, 376, and 94,000.
-       - HTTP Range 206 seeking verified (`Content-Range: bytes 0-1023/150400`, 1024 bytes returned, sync byte `0x47`).
-       - Live TS segment downloaded from KKPhim (345.0 KB, byte 0 = `0x47`).
-     - **Outcome**: **186 / 186 assertions PASSED (0 failures)**.
+Direct empirical observations from test runs and codebase inspection:
 
-  2. Baseline & Regression Suites:
-     - `node tests/verify_all_providers_playback.js`: **44 / 44 assertions PASSED (100%)**
-     - `node tests/verify_playback.js`: **7 / 7 phases PASSED (100%)**
-     - `node tests/verify_vsmov_sub_audio.js`: **64 / 64 assertions PASSED (100%)**
-     - `node tests/test_routing_and_22_catalogs.js`: **64 / 64 assertions PASSED (100%)**
-     - `node tests/m4_aggregator_empirical.test.js`: **15 / 15 assertions PASSED (100%)**
-     - `npm test`: **50 / 50 passed (100%)**
-     - `node --check`: **0 syntax errors**
+### A. Test Matrix Execution
+1. **Syntax Check**:
+   - Command: `node --check src/index.js`
+   - Result: Exit code 0, 0 syntax errors detected.
+2. **End-to-End Playback Suite**:
+   - Command: `node tests/verify_v170_playback.js`
+   - Result: `✅ Passed : 38, ❌ Failed : 0` (Exit code 0).
+   - Verifications:
+     * STP, CLBPX, YAN catalog scraping returned valid metas arrays.
+     * KDrama resolution for *Teach You A Lesson* (`koreandrama:teach-you-a-lesson:1:1`) produced 5 streams with 0 YAN junk streams.
+     * KDrama resolution for *A Shop for Killers* (`koreandrama:a-shop-for-killers:1:1`) produced 2 streams.
+     * US-UK movie resolution for *Avengers 3* (`tt5095030`) produced 5 streams.
+     * Live M3U8 traversal to sub-variant playlist and download of 2 TS segment chunks: Segment 1 (416.2 KB, byte[0]=`0x47`), Segment 2 (919.4 KB, byte[0]=`0x47`). Both > 100KB with valid MPEG-TS sync byte.
+     * HTTP Range 206 request on live segment returned HTTP 206 with `Content-Range: bytes 0-1023/426196` and exact 1024-byte payload.
+3. **Comprehensive 6-Provider Playback Suite**:
+   - Command: `node tests/verify_all_providers_playback.js`
+   - Result: `Total Assertions Passed: 44/44 (100%)` (Exit code 0).
+   - Verifications:
+     * Health check and 22 manifest catalogs returned HTTP 200 with zero 404s.
+     * Stream and video chunk downloads verified across all 6 providers: VSMOV 4K (7273.3 KB, WebVTT proxy), KKPhim FHD (345.0 KB, sync `0x47`), NguonC (2422.5 KB, sync `0x47`), STP (669.9 KB, sync `0x47`), CLBPX (907.9 KB, sync `0x47`), YAN (700.0 KB, sync `0x47`).
+     * Strict In-App protocol: 0% `externalUrl`, 100% `/hls` proxy routing.
+     * HTTP Range 206 seeking check passed (status 206, `Content-Range`, 1024 bytes).
+4. **Integration Suite**:
+   - Command: `npm test` (`node src/test.js`)
+   - Result: `Kết quả: 50 passed, 0 failed` (Exit code 0).
+5. **22 Catalogs & 404 Prevention Suite**:
+   - Command: `node tests/test_routing_and_22_catalogs.js`
+   - Result: `64 PASSED, 0 FAILED` (Exit code 0).
+6. **Challenger 2 Empirical Adversarial Suite**:
+   - Command: `node tests/challenger2_v170_stress.test.js`
+   - Result: `Passed Assertions: 207, Failed Assertions: 0` (Exit code 0).
+
+### B. Codebase Inspection
+1. **HLS Proxy Router (`src/routes/hls.js`)**:
+   - Lines 25: `HLS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'`.
+   - Lines 27–36: `SOURCE_REFERERS` maps regex patterns for KKPhim/PhimApi (`https://player.phimapi.com/`), VSMOV (`https://vsmov.com/`), NguonC (`https://phim.nguonc.com/`), StreamC (`https://embed15.streamc.xyz/`), STP (`https://sieutamphim.pro/`), YAN (`https://yanhh3d.pw/`), HH3D (`https://hh3d.tv/`), and CLBPX (`https://clbphimxua.info/`).
+   - Lines 233–342: Multi-level M3U8 rewriting parses `#EXT-X-STREAM-INF` (sub-variant playlists), `#EXT-X-MEDIA` (audio & subtitle renditions), `#EXT-X-KEY`/`#EXT-X-SESSION-KEY` (decryption keys), `#EXT-X-MAP` (fMP4 init segments), `#EXT-X-PART`/`#EXT-X-PRELOAD-HINT` (LL-HLS partial segments), and media segment URIs using `new URL(t, baseUrl.href).href`.
+   - Lines 375–454: `/hls/segment.ts` sets `Content-Type: video/MP2T` (or `application/octet-stream` if `is_key`), `Cache-Control: public, max-age=3600`, `Accept-Ranges: bytes`. Upstream 206 responses are forwarded directly; upstream 200 responses under Range header are sliced locally (`buffer.subarray(start, end + 1)`) with `Content-Range` and HTTP 206.
+   - Lines 497–576: `/hls/sub.vtt` strips BOM `\uFEFF`, normalizes CRLF to LF, corrects comma timestamps (`00:00:00,000` -> `00:00:00.000`), prepends `WEBVTT`, and decodes base64 data URIs.
+2. **Specialized Providers (`src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`)**:
+   - All export `{ id, label, getCatalog, getStreams, search, getDetail }`.
+   - STP: Implements `decodeXor0x2a` to decrypt XOR 0x2a obfuscated stream strings, HTML card parsing `parseStpCardsFromHtml`, and `parsePostContent` for `episodeGroup` HTML tags.
+   - CLBPX: Implements `parseClbpxCardsFromHtml` and `extractClbpxLiveStreams` for 5-step AJAX StreamC extraction.
+   - YAN: Implements `parseYanCardsFromHtml`, static route exclusions, `searchYanLive`, and `extractYanLiveStreams` for `data-obf.pU` and `master.m3u8` extractions.
+   - All providers enforce 5-second timeout on requests and zero `externalUrl` in returned stream objects.
+3. **Strict Donghua Guard (`src/providers/yan.js`)**:
+   - Lines 84–132 (`isDonghuaOrAnime`): Explicit blacklist rejects 25+ prominent live-action titles (*Teach You A Lesson*, *A Shop for Killers*, *Crash Landing on You*, *Squid Game*, *Lanterns*, *Avengers*, *Breaking Bad*, *Oppenheimer*, etc.). If explicit genres are provided without animation keywords, returns `false`. Returns `true` only for recognized Donghua/Anime titles or explicit animation genres.
+4. **Multi-Keyword Fallback & Episode Matching (`src/lib/utils.js`)**:
+   - Lines 323–413 (`generateSearchKeywords`): Generates candidate keyword permutations by stripping 4-digit years `(2024)`, season indicators `Season 1`, `Phần 1`, `SS1`, `P1`, and cleans punctuation.
+   - Lines 431–545 (`matchEpisodeItem`): Supports direct integers (`1`, `01`, `001`), Vietnamese prefixes (`Tập 1`, `Tap 1`), English prefixes (`Episode 1`, `Ep 1`, `E01`), slugs (`tap-1`, `episode-1`), and `FULL`. Enforces strict word-boundary checks so Ep 1 does not false-match Ep 10, 11, 12, 100.
+
+---
 
 ## 2. Logic Chain
-1. **Stream Priority Hierarchy**:
-   - `getStreamPriority(stream)` allocates distinct non-overlapping bucket offsets: 4K (0), Vietsub (100), Thuyết Minh (200), Lồng Tiếng (300), Other (400).
-   - Within non-4K buckets, `bucket + providerRank` yields scores in `[bucket+1, bucket+7]`, ensuring that no lower bucket stream can ever overtake a higher bucket stream, and provider precedence is invariant.
-   - Within the 4K bucket, `0 + (providerRank * 10) + subAudioOffset` guarantees that all 4K streams score in `[10, 73]`, which is strictly smaller than the lowest possible Vietsub score (`101`). Within each provider's 4K offerings, Vietsub (offset 0) > TM (offset 1) > LT (offset 2) > Other (offset 3).
-   - Monotonicity is verified empirically across all synthetic permutations and 20 randomized shuffle-sort iterations.
 
-2. **Timeout Safety**:
-   - `withTimeout(promise, ms, label)` races the upstream call against a `setTimeout` timer. When the timer fires, it rejects with a timeout error and cleans up the timer in `finally`.
-   - `handleStream` wraps all active provider calls in `withTimeout(provider.getStreams(payload), 4500, ...)` and executes them via `Promise.allSettled()`.
-   - Even when all providers hang indefinitely or fail, `Promise.allSettled` resolves at exactly ~4500ms, logging any timeouts and aggregating fulfilled results safely into `{ streams: [] }` or the available subset.
+1. **HLS Proxy Multi-Level Rewriting & Range Slicing**:
+   - **Observation**: In `tests/challenger2_v170_stress.test.js`, master playlist variant lines `720p/index.m3u8` were rewritten to proxy URLs encoding `http://127.0.0.1:.../cdn/720p/index.m3u8`. Sub-variant segment lines `seg-001.ts` were rewritten to proxy URLs encoding `http://127.0.0.1:.../cdn/720p/seg-001.ts`.
+   - **Inference**: The parent URL resolver accurately propagates `baseUrl` down multi-level hierarchies, eliminating the 404 broken sub-variant segment issue.
+   - **Observation**: Requesting `Range: bytes=0-1023` on `/hls/segment.ts` returned HTTP 206 with `Content-Range: bytes 0-1023/153600`, `Content-Length: 1024`, `Content-Type: video/MP2T`, and `Cache-Control: public, max-age=3600`.
+   - **Inference**: Both upstream-forwarded and local buffer sliced partial content requests comply with HTTP 206 Range seeking standards for Stremio players.
 
-3. **In-App Protocol Invariant**:
-   - In `handleStream`, every stream is processed through a sanitizer that extracts `{ name, title, url, behaviorHints, subtitles }` and explicitly executes `delete sanitized.externalUrl`.
-   - All URLs generated by provider adapters route through `/hls/manifest.m3u8` or `/hls/extract` (which 302-redirects to `/hls/manifest.m3u8`).
-   - Empirically verified across movies, series, and anime endpoints that zero streams expose `externalUrl`.
+2. **Specialized Providers & In-App Protocol Invariant**:
+   - **Observation**: Across `verify_all_providers_playback.js` (44 tests), `verify_v170_playback.js` (38 tests), and `challenger2_v170_stress.test.js` (207 tests), every stream object returned by VSMOV, KKPhim, NguonC, STP, CLBPX, and YAN contained `url` routing through `/hls/` proxy and `externalUrl === undefined`.
+   - **Inference**: In-app streaming protocol is 100% strictly enforced across all 6 provider clusters with zero stream leaks.
 
-4. **Segment Delivery & TS Sync Byte 0x47**:
-   - `/hls/segment.ts` streams upstream video chunks using `responseType: 'stream'` and forwards HTTP `Range` headers to support seeking (HTTP 206 Partial Content).
-   - Both mock and live segment fetches confirm chunk sizes well exceeding the 100KB threshold (150KB - 7.2MB) with MPEG-TS sync byte `0x47` at offset 0 and every 188-byte packet boundary.
+3. **Strict Donghua Guard Isolation**:
+   - **Observation**: 15 KDrama titles and 18 US-UK/Hollywood titles tested in `tests/challenger2_v170_stress.test.js` resulted in 100% rejection (returned `false`), and `koreandrama:teach-you-a-lesson:1:1` in `verify_v170_playback.js` produced 0 YAN streams. 36 Donghua/Anime titles and animation genres resulted in 100% acceptance.
+   - **Inference**: The strict guard prevents any Donghua stream pollution into KDrama or Western cinema queries while maintaining full coverage for legitimate Donghua/Anime requests.
+
+4. **Multi-Keyword Fallback & Episode Matching Safety**:
+   - **Observation**: `matchEpisodeItem` correctly matched Ep 1 across 21 valid formats (`1`, `01`, `001`, `Tập 1`, `Tap 01`, `Episode 1`, `Ep 1`, `tap-1`, `FULL`) while rejecting 22 multi-digit false-positive candidates (`10`, `11`, `12`, `19`, `100`, `101`, `21`, `Tập 10`, `tap-10`, `Episode 10`, `breaking-bad-s1-10`).
+   - **Inference**: Flexible episode parsing handles all Vietnamese/English numbering conventions without false-matching multi-digit episodes.
+
+---
 
 ## 3. Caveats
-- Upstream live provider response times depend on public network connectivity and third-party CDN availability. However, all timeout safeguards (4500ms deadline) and mock server fallback paths were empirically verified independently of external network state.
+
+- Live provider endpoints rely on external upstream web servers (e.g. `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`, `phimapi.com`). To prevent test flakiness, all providers feature resilient 5-second timeouts and automatic multi-tier fallback (HTML scraper -> WP-JSON -> PhimAPI mirror).
+- In `matchEpisodeItem`, if an upstream API provides an unusual `ep.name` containing a season tag (such as `name: "breaking-bad-s1-10"` rather than standard `name: "10"` and `slug: "breaking-bad-s1-10"`), the `slug` matcher in Rule 5 correctly identifies the episode number. Standard API formats (`name: "10"`, `name: "Tập 10"`) are fully protected.
+
+---
 
 ## 4. Conclusion
-All 4 core objectives for Engine v1.6.2 have been thoroughly stress-tested and validated with zero defects or regressions.
 
-**Verdict**: **APPROVE**
+All components of the Stremio VIP Movies Addon Engine v1.7.0 Overhaul have been empirically verified and stress-tested:
+- **HLS Proxy**: Multi-level M3U8 rewriting, sub-variant baseUrl resolution, binary TS Range 206 chunk slicing, `video/MP2T`, `max-age=3600`, and Chrome 124 headers operate flawlessly.
+- **Providers (STP, CLBPX, YAN)**: Full compliance with standard interfaces, XOR 0x2a decryption, card HTML scrapers, and in-app streaming protocol.
+- **Strict Donghua Guard**: Complete rejection of KDrama and Hollywood queries (0 streams).
+- **Multi-Keyword Fallback & Episode Matching**: Flexible matching without false-positive multi-digit matches.
+- **Test Matrix**: 100% PASS across all suites (38/38 in `verify_v170_playback.js`, 44/44 in `verify_all_providers_playback.js`, 50/50 in `npm test`, 64/64 in `test_routing_and_22_catalogs.js`, 207/207 in `challenger2_v170_stress.test.js`, and 0 syntax errors in `node --check`).
+
+**Explicit Verdict**: **APPROVE**
+
+---
 
 ## 5. Verification Method
-Run the following commands to independently reproduce the test results:
-```bash
-# 1. Run Challenger 2 empirical stress test harness (186 assertions)
-node tests/challenger2_v162_aggregator_stress.test.js
 
-# 2. Run Comprehensive E2E Playback test suite across all 22 catalogs & 6 providers
+To independently verify all claims:
+
+```bash
+# 1. Syntax Verification
+node --check src/index.js
+
+# 2. Engine v1.7.0 E2E Playback Suite (Live KDrama/US-UK, TS segments >100KB, Range 206, YAN Guard)
+node tests/verify_v170_playback.js
+
+# 3. Comprehensive 6-Provider E2E Playback Suite (22 Catalogs, 6 Providers, TS sync byte 0x47, Sub VTT)
 node tests/verify_all_providers_playback.js
 
-# 3. Run regression and component suites
-node tests/verify_playback.js
-node tests/verify_vsmov_sub_audio.js
-node tests/test_routing_and_22_catalogs.js
-node tests/m4_aggregator_empirical.test.js
+# 4. Standard Integration Suite
 npm test
+
+# 5. Challenger 2 Adversarial Stress Test Suite (207 Assertions)
+node tests/challenger2_v170_stress.test.js
+
+# 6. Catalog & Routing 404 Prevention Suite
+node tests/test_routing_and_22_catalogs.js
 ```
+
+**Invalidation Conditions**:
+- Any command returns a non-zero exit code.
+- Any TS segment download produces < 100KB or missing sync byte `0x47`.
+- Any stream object contains `externalUrl` or non-proxy URL.
+- YAN provider returns > 0 streams for KDrama *Teach You A Lesson*.

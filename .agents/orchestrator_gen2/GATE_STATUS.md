@@ -1,19 +1,19 @@
-# GATE STATUS — VIP Movies Addon Engine v1.5.0
+# Gate Status — Engine v1.7.0 Overhaul
 
-| Milestone | Worker | Reviewer 1 | Reviewer 2 | Challenger 1 | Challenger 2 | Auditor | Gate Result |
-|---|---|---|---|---|---|---|---|
-| M1: HLS Proxy & Segment Rewriter | worker_m1_hls (DONE) | APPROVE | APPROVE | APPROVE | APPROVE | CLEAN | **PASS** |
-| M2: Multi-Provider Engine | worker_m2_remediation_2 (DONE) | APPROVE | APPROVE | APPROVE | APPROVE | CLEAN | **PASS** |
-| M3 & M4: Routing, 22 Catalogs & Fail-Safe Aggregator | worker_m3_m4_gen2 (DONE) | APPROVE | APPROVE | APPROVE | APPROVE | CLEAN | **PASS** |
-| M5: E2E Playback Verification | Pending | - | - | - | - | - | PLANNED |
-| M6: UI, Versioning & Deployment | Pending | - | - | - | - | - | PLANNED |
-
-### Milestone 3 & 4 Gate Evaluation (Gen 2)
-- Reviewer 1: APPROVE (handoff.md)
-- Reviewer 2: APPROVE (handoff.md)
-- Challenger 1: APPROVE (handoff.md)
-- Challenger 2: APPROVE (handoff.md)
-- Auditor: CLEAN (handoff.md)
+## Gate — Iteration 1
+| Agent | Role | Verdict | Source |
+|-------|------|---------|--------|
+| worker_m1_1 | teamwork_preview_worker | DONE (All tests passed 100%) | handoff.md |
+| reviewer_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
+| reviewer_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
+| challenger_1 | teamwork_preview_challenger | APPROVE | handoff.md |
+| challenger_2 | teamwork_preview_challenger | APPROVE | handoff.md |
+| auditor_final_gen2 | teamwork_preview_auditor | CLEAN | handoff.md |
 
 Gate Result: **PASS**
-Milestones 3 & 4 (Routing with/without :config, 22 Catalogs K20 Standard, Search 404 Prevention, Fail-Safe Stream Aggregator & Cinemeta Resolver with 4000ms Timeout) are completed and verified.
+- Build and tests pass: 100% (50/50 in npm test, 38/38 in verify_v170_playback.js, 44/44 in verify_all_providers_playback.js).
+- Reviewer 1 verdict: APPROVE.
+- Reviewer 2 verdict: APPROVE.
+- Challenger 1 verdict: APPROVE.
+- Challenger 2 verdict: APPROVE.
+- Forensic Auditor verdict: CLEAN.
