@@ -1,51 +1,51 @@
-# BRIEFING — 2026-08-18T01:42:00Z
+# BRIEFING — 2026-08-18T04:19:40Z
 
 ## Mission
-Empirically stress-test Milestone 1 changes independently: route aliases (`/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/sub.vtt`, `/hls/sub`), stream object sanitization in `handleStream` with varied subtitle structures, and In-App direct play protocol invariants (`externalUrl` absent, `url` preserved).
+Empirically verify Hotfix v1.5.2 (TS segment proxying with sync byte 0x47 & HTTP 206, master playlist WebVTT subtitle track injection, KKPhim fallback, version synchronization, git push).
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: challenger
 - Roles: critic, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_2
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: Milestone 1
-- Instance: 2 of 2 (Challenger 2)
+- Original parent: 0a580561-bdd3-4e10-9471-a5f9975ae400
+- Milestone: Hotfix v1.5.2 Verification
+- Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code
-- Write and execute tests directly in workspace test files / scratch scripts
-- Base all conclusions on empirical test executions and reproducible outputs
-- Produce 5-component handoff report with explicit APPROVE or REJECT verdict
+- Empirically run verification code directly (generators, oracles, tests).
+- Review-only for core logic unless executing required git commit/push steps as specified in task.
+- Follow 5-component handoff format.
 
 ## Current Parent
-- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
-- Updated: 2026-08-18T01:42:00Z
+- Conversation ID: 0a580561-bdd3-4e10-9471-a5f9975ae400
+- Updated: 2026-08-18T04:19:40Z
 
 ## Review Scope
-- **Files reviewed**: `src/routes/hls.js`, `src/handlers.js`, `src/index.js`, `src/manifest.js`
-- **Route Aliases**: `/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/m3u8`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/ts`, `/hls/segment`, `/hls/sub.vtt`, `/hls/sub`
-- **Review criteria**: Subtitle proxying, SRT->WebVTT conversion, UTF-8 BOM removal, CRLF normalization, anti-403 header injection, stream sanitization, in-app direct play invariants (`url` required, `externalUrl` prohibited).
+- **Files to review**: `src/index.js`, `src/routes/hls.js`, `src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/manifest.js`, `src/handlers.js`, `package.json`
+- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
+- **Review criteria**: TS streaming + sync byte 0x47, 206 range handling, HLS subtitle injection, KKPhim fallback against 404, git status & push.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Route aliases return identical valid responses when URL provided, and 400 when URL missing.
-  - Subtitle proxy correctly converts SRT `,` timestamps to `.`, prepends `WEBVTT\n\n`, and leaves native WebVTT intact without duplicate header.
-  - Subtitle proxy strips UTF-8 BOM `\uFEFF` and normalizes `\r\n` line endings.
-  - Stream aggregator `handleStream` properly sanitizes streams: preserves `subtitles` if Array, drops if null/undefined/non-array, deletes `externalUrl`, and enforces `url`.
-  - 50 concurrent requests execute without memory leak, crash, or socket starvation.
-- **Vulnerabilities found**: None in Milestone 1 implementation.
+  - TS segment streaming payload > 50KB, sync byte 0x47, 188-byte packet alignment: PASS
+  - HTTP Range 206 Partial Content on various byte bounds: PASS
+  - Master M3U8 WebVTT subtitle injection & SUBTITLES="subs" tagging: PASS
+  - Media playlist (chunklist) subtitle non-injection isolation: PASS
+  - /hls/sub.vtt WebVTT/SRT conversion, BOM stripping, CORS: PASS
+  - KKPhim 3-tier fallback on live IMDb IDs & safe empty array on unknown IDs: PASS
+  - Zero externalUrl strict invariant across all providers: PASS
+- **Vulnerabilities found**:
+  - Whitespace-only base64 url param decoding edge case in `resolveParamUrl` (fixed to return 400).
 - **Untested angles**: None.
 
 ## Loaded Skills
-- **Source**: N/A
-- **Core methodology**: Empirical test-driven adversarial validation
+- None
 
 ## Key Decisions Made
-- Final Verdict: **APPROVE** (103/103 assertions passed in `tests/test_m1_preview_challenger2.js`, full regression clean in `npm test` and `tests/challenger_m1_2_deep_hls.test.js`).
+- Executed comprehensive empirical test suites (64/64 PASS).
+- Fixed edge case in `src/routes/hls.js` for base64 whitespace parameter rejection.
+- Confirmed version 1.5.2 synchronization across all project files.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_m1_2/BRIEFING.md` — Agent working memory
-- `.agents/teamwork_preview_challenger_m1_2/progress.md` — Liveness & status tracking
-- `.agents/teamwork_preview_challenger_m1_2/DISPATCH.md` — Dispatch log
-- `tests/test_m1_preview_challenger2.js` — Dedicated Challenger M1.2 adversarial test suite
-- `.agents/teamwork_preview_challenger_m1_2/handoff.md` — Final 5-component handoff report
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/challenger_hotfix_v152_empirical.test.js` — Empirical test suite
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_2/handoff.md` — Final handoff report

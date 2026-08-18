@@ -1,24 +1,12 @@
-## Milestone 1 Challenger 2 Dispatch
-Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
-Agent Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_2
-Target Module: `src/lib/cinemeta.js` and `src/lib/cache.js`
-Original Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+## 2026-08-18T04:17:06Z
+You are a Challenger agent conducting empirical verification of Hotfix v1.5.2.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_2
 
-Task:
-1. Write and execute edge-case test harness for `src/lib/cinemeta.js`:
-   - Concurrency stress test (50 concurrent requests for same/different IDs).
-   - Season/episode string parsing variations (`tt1234567:1:1`, `tt1234567`, `tt1234567:2:15`).
-   - Year parsing on edge-case metadata.
-   - Synchronous cache method `getCachedCinemeta`.
-2. Provide an empirical verdict in handoff.md: **APPROVE** or **REJECT**.
+Read `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`.
 
-## 2026-08-18T01:41:00Z
-Task:
-As an adversarial challenger, test the Milestone 1 changes independently:
-- Create an empirical verification script in your working directory.
-- Verify:
-  - Route aliases `/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/sub.vtt`, `/hls/sub`.
-  - Stream object sanitization in `handleStream` with various subtitle structures (null, empty array, objects with id/lang/url, malformed subtitle items).
-  - In-App direct play invariant: ensure `externalUrl` is never present and `url` is always preserved.
-- Conclude with a clear verdict: `APPROVE` or `REJECT`.
-Report: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_2/handoff.md
+Your tasks:
+1. Empirically verify TS segment streaming, sync byte 0x47, and HTTP 206 partial content range requests.
+2. Verify master playlist rewrite contains `#EXT-X-MEDIA:TYPE=SUBTITLES` when `sub` parameter is present and `SUBTITLES="subs"` is added to `#EXT-X-STREAM-INF`.
+3. Check git repository status, verify version 1.5.2 synchronization, and execute git push if pending (`git add . && git commit -m "Hotfix v1.5.2: Injected VSMOV 4K WebVTT Subtitles into HLS/Stremio & Added KKPhim Smart-Search Fallback against 404" && git push origin main`).
+4. Write your findings and verdict to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_2/handoff.md`.
+When done, message parent with your verdict.

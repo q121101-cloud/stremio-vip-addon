@@ -1,17 +1,11 @@
-# Progress — teamwork_preview_challenger_m1_1
+# Progress — Hotfix v1.5.2 Verification
 
-Last visited: 2026-08-18T01:42:35Z
+Last visited: 2026-08-18T04:17:55Z
 
-## Status
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Inspected codebase (`src/routes/hls.js`, `src/handlers.js`, `tests/`)
-- [x] Designed adversarial empirical test suite (`stress_test.js`) covering:
-  - Base64 encoding edge cases & URL parsing
-  - Payload sizes (>1MB - 4MB) & memory usage
-  - Malformed SRT/VTT structures (timestamps, BOM, formatting, styling)
-  - Concurrency burst & stress testing (100 parallel requests)
-  - HTTP error codes & resilience (403, 404, 500, 502, connection refused)
-  - Subtitle pass-through & In-App protocol compliance
-- [x] Executed empirical tests (78/78 assertions passed, 0 failures, 0 warnings)
-- [x] Evaluated findings & wrote handoff.md with verdict (APPROVE)
-- [ ] Send completion message to parent
+- [x] Initial briefing & workspace setup
+- [ ] Run base verification suite `node tests/verify_hotfix_vsmov_kkphim.js`
+- [ ] Create and run comprehensive adversarial edge case test suite
+- [ ] Verify Subtitle proxy (`/hls/sub.vtt`) edge cases: empty (400), whitespace (400), SRT CRLF, comma to dots, BOM stripping
+- [ ] Verify KKPhim 3-Tier fallback: IMDb IDs with no direct mapping (tt5095030, tt1375666), episode matching ("1", "01", "Tập 1", "tap-1", "tap-01")
+- [ ] Verify VSMOV stream subtitles: `subtitles[0]` contains `id: "vi_vsmov"`, `lang: "vie"`, `title: "Tiếng Việt (VSMOV VIP)"` and valid URL
+- [ ] Document results in `handoff.md` and report to caller

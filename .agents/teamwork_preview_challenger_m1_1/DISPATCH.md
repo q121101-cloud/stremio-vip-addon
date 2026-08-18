@@ -1,19 +1,14 @@
-## 2026-08-18T01:41:00Z
-
-You are teamwork_preview_challenger_m1_1.
+## 2026-08-18T04:17:06Z
+You are a Challenger agent conducting empirical adversarial verification of Hotfix v1.5.2.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
 
-As an adversarial challenger, test the Milestone 1 changes in `src/routes/hls.js` and `src/handlers.js`:
-- Create an empirical stress / edge-case test script in your working directory.
-- Test adversarial cases for `/hls/sub.vtt`:
-  - Malformed base64 strings, URL-encoded URLs, spaces, nested URLs.
-  - Large subtitle payloads (>1MB).
-  - Malformed SRTs (multiple linebreaks, non-standard timestamp digits, no trailing newlines, BOM variations).
-  - WebVTT headers already present with styling cues vs plain SRT.
-  - Fast burst concurrency requests to `/hls/sub.vtt`.
-- Verify server stability, memory safety, and proper HTTP status code handling.
-- Conclude with a clear verdict: `APPROVE` or `REJECT`.
+Read `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`.
 
-Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1/handoff.md` and send a message back to parent.
+Your tasks:
+1. Run and verify `node tests/verify_hotfix_vsmov_kkphim.js`.
+2. Empirically test edge cases:
+   - Subtitle proxy (`/hls/sub.vtt`): test empty URL (400), whitespace URL (400), SRT with CRLF, SRT with comma timestamps converted to WebVTT dots, UTF-8 BOM stripping.
+   - KKPhim 3-Tier fallback: test lookup of movies without direct IMDb mapping on phimapi (e.g. `tt5095030`, `tt1375666`), test episode matching with `"1"`, `"01"`, `"Tập 1"`, `tap-1`, `tap-01`.
+   - VSMOV stream subtitles: verify `subtitles[0]` contains `id: "vi_vsmov"`, `lang: "vie"`, `title: "Tiếng Việt (VSMOV VIP)"` and valid URL.
+3. Write your empirical test results and verdict to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1/handoff.md`.
+When done, message parent with your verdict.

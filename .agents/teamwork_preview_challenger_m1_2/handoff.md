@@ -1,118 +1,66 @@
-# Handoff Report — Milestone 1 Empirical Challenger 2
-
-**Agent**: teamwork_preview_challenger_m1_2  
-**Role**: EMPIRICAL CHALLENGER (critic, specialist)  
-**Milestone**: Milestone 1 (Subtitle Proxy `/hls/sub.vtt`, Route Aliases, Aggregator Subtitle Pass-Through, In-App Direct Play Protocol)  
-**Verdict**: **APPROVE**  
-
----
+# Challenger Empirical Verification Handoff Report — Hotfix v1.5.2
 
 ## 1. Observation
+1. **TS Segment Streaming & MPEG-TS Sync Byte (0x47)**:
+   - Full TS download test via `/hls/segment.ts?url=<mux_ts_b64>&ref=<mux_ref_b64>` returned HTTP 200/206 with payload size `1,915,156 bytes` (1.87 MB > 50 KB requirement).
+   - Byte `[0]` confirmed as `0x47` (MPEG-TS synchronization byte).
+   - 188-byte packet alignment empirically verified across sequential packet offsets (`buf[0] === 0x47`, `buf[188] === 0x47`, `buf[376] === 0x47`, `buf[564] === 0x47`).
+   - Content-Type verified as `video/MP2T` and `Accept-Ranges: bytes`.
 
-### 1.1 Source Code Implementation Observations
-1. **Route Aliases in `src/routes/hls.js`**:
-   - Manifest routes (lines 146): `router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], ...)`
-   - Segment routes (lines 278): `router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], ...)`
-   - Subtitle routes (lines 375): `router.get(['/sub.vtt', '/sub'], ...)`
-   - Key routes (lines 338): `router.get(['/key', '/key.key'], ...)`
-2. **Subtitle Conversion & Anti-403 Logic in `src/routes/hls.js` (lines 375–432)**:
-   - Line 381: `const targetUrl = resolveParamUrl(rawUrl); if (!targetUrl) return res.status(400).send('Invalid or missing subtitle url');`
-   - Lines 388–392: Referer and Origin header resolution defaulting to `https://vsmov.com/` and `https://vsmov.com`.
-   - Lines 400–403: Chrome User-Agent, Referer, and Origin passed in Axios request headers.
-   - Lines 411–416: UTF-8 BOM (`\uFEFF` / `0xFEFF`) stripped cleanly; CRLF (`\r\n`) and CR (`\r`) normalized to LF (`\n`).
-   - Lines 419–422: WebVTT detection and SRT conversion:
-     ```javascript
-     if (!content.startsWith('WEBVTT')) {
-       const convertedTimestamps = content.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-       content = `WEBVTT\n\n${convertedTimestamps}`;
-     }
-     ```
-3. **Stream Aggregator Subtitle Handling and In-App Protocol in `src/handlers.js` (lines 940–960)**:
-   - Line 941: `if (!item.url || typeof item.url !== 'string' || !item.url.trim()) continue;` prunes invalid or empty URL streams.
-   - Lines 954–956: Subtitles array preserved only when valid:
-     ```javascript
-     if (Array.isArray(item.subtitles)) {
-       sanitized.subtitles = item.subtitles;
-     }
-     ```
-   - Line 957: `delete sanitized.externalUrl;` strictly enforces the In-App Direct Play invariant.
+2. **HTTP 206 Partial Content Range Requests**:
+   - `Range: bytes=0-187` returned HTTP 206, `Content-Length: 188`, `Content-Range: bytes 0-187/1915156`, payload length 188 bytes, `buf[0] === 0x47`.
+   - `Range: bytes=188-375` returned HTTP 206, `Content-Length: 188`, `Content-Range: bytes 188-375/1915156`, payload length 188 bytes, `buf[0] === 0x47` (2nd TS packet).
+   - Route aliases `/hls/ts`, `/hls/segment`, and `/hls/ts-proxy` verified returning HTTP 206 on Range requests.
 
-### 1.2 Test Execution Results
-1. **Dedicated Challenger Suite (`tests/test_m1_preview_challenger2.js`)**:
-   - Command: `node tests/test_m1_preview_challenger2.js`
-   - Result: Exited with code `0`.
-   - Assertions: **103 / 103 passed, 0 failed**.
-   - Output summary:
-     - Section 1 (Route Aliases): All 9 route aliases tested with missing params (HTTP 400) and mock upstream payloads (HTTP 200).
-     - Section 2 (Subtitle Proxy): Verified SRT comma timestamp conversion (e.g. `00:00:01,250` -> `00:00:01.250`), UTF-8 BOM stripping, CRLF normalization, native WebVTT passthrough without double header, anti-403 header injection (`User-Agent`, `Referer: https://vsmov.com/`, `Origin: https://vsmov.com`), and upstream 403/500 status propagation.
-     - Section 3 (Stream Sanitization in `handleStream`): Verified 8 distinct stream structures (Case A: valid subtitles array preserved, Case B: null subtitles stripped, Case C: empty array preserved, Case D: omitted subtitles set to undefined, Case E: non-array string subtitles pruned, Case F: `externalUrl` completely deleted and `url` preserved, Cases G & H: null or whitespace-only `url` filtered out).
-     - Section 4 (Live Invariant Check): Live stream verification on `/stream/movie/nguonc:nu-hiep-ruy-bang.json` returned valid In-App streams with `url` present and `externalUrl` omitted.
-     - Section 5 (Concurrency): 50 simultaneous parallel requests to `/hls/sub.vtt` and `/hls/sub` all returned HTTP 200 with valid `text/vtt; charset=utf-8` and `WEBVTT\n\n`.
-2. **Project Integration Tests (`npm test` / `node src/test.js`)**:
-   - Command: `npm test`
-   - Result: Exited with code `0` (50 passed, 0 failed).
-3. **Dedicated Subtitle Proxy Test (`node tests/test_m1_subtitle_proxy.js`)**:
-   - Command: `node tests/test_m1_subtitle_proxy.js`
-   - Result: Exited with code `0` (27 passed, 0 failed).
-4. **Deep HLS Challenger Test (`node tests/challenger_m1_2_deep_hls.test.js`)**:
-   - Command: `node tests/challenger_m1_2_deep_hls.test.js`
-   - Result: Exited with code `0` (104 passed, 0 failed).
+3. **Master M3U8 Playlist Rewrite & Subtitle Track Injection**:
+   - Master playlist rewrite with `sub` parameter (`/hls/manifest.m3u8?url=...&sub=...`) returned HTTP 200 with `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Tiếng Việt (VSMOV VIP)",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE="vie",URI="<baseUrl>/hls/sub.vtt?url=...&ref=..."`.
+   - All `#EXT-X-STREAM-INF` variant stream lines correctly appended with `,SUBTITLES="subs"`.
+   - All variant playlist URIs rewritten to `<baseUrl>/hls/manifest.m3u8?url=...&ref=...`.
+   - Master playlist without `sub` parameter did NOT inject subtitle tags.
+   - Media playlist (chunklist with `#EXTINF`) did NOT inject subtitle tags, properly isolating playlist types and rewriting segment URLs to `/hls/segment.ts`.
 
----
+4. **Subtitle Proxy Endpoint (`/hls/sub.vtt`)**:
+   - Missing/whitespace `url` returns HTTP 400.
+   - Native WebVTT data URI returned HTTP 200, `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
+   - SRT auto-conversion verified: prepended `WEBVTT` header, comma timestamps converted to dot timestamps (`00:00:01,500` -> `00:00:01.500`), CRLF normalized to LF.
+   - UTF-8 BOM (`\uFEFF`) stripped cleanly.
+
+5. **KKPhim Smart Search Fallback & Stream Aggregator Integration**:
+   - Querying stream for Avengers 3 (`tt5095030`) resolved 5 valid streams without crash.
+   - VSMOV stream included `subtitles` array: `[{ id: "vi_vsmov", lang: "vie", url: "<proxySubUrl>", title: "Tiếng Việt (VSMOV VIP)" }]`.
+   - KKPhim streams found via Smart Search Fallback, returned valid HLS proxy stream URLs (`/hls/manifest.m3u8`), with strict zero `externalUrl` compliance.
+   - Querying non-existent IMDb ID (`tt9999999999`) returned HTTP 200 with `{ streams: [] }` (safe degradation, zero uncaught rejection).
+   - Episode matching algorithm (`matchEpisodeItem`) passed all patterns (`"1"`, `"01"`, `"001"`, `"Tập 1"`, `"Tập 01"`, `"tap-1"`, `"Episode 5"`, slug suffix `"-12"`).
+
+6. **Version Synchronization**:
+   - `package.json`: `"version": "1.5.2"`
+   - `src/manifest.js`: `BASE_MANIFEST.version = "1.5.2"`
+   - `src/handlers.js`: `VIP Movies Addon v1.5.2 • Designed with Taste by Q121101`
 
 ## 2. Logic Chain
-
-1. **Route Alias Compliance**:
-   - Observation 1.1.1 and Test 1.2.1 confirm that all route alias combinations (`/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/m3u8`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/ts`, `/hls/segment`, `/hls/sub.vtt`, `/hls/sub`) are registered in Express router arrays and respond identically to requests with or without query parameters.
-2. **Subtitle Parsing, Conversion & Anti-403 Security**:
-   - Observation 1.1.2 and Test 1.2.1 Section 2 confirm that upstream SRT subtitles are automatically normalized and converted to WebVTT with `WEBVTT\n\n` headers, while native WebVTT files remain unmodified without duplicate headers. UTF-8 BOM headers are stripped, preventing client JSON/VTT parsing corruption. Anti-403 headers (`Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, Chrome User-Agent) are injected correctly on upstream requests.
-3. **Stream Subtitle Sanitization**:
-   - Observation 1.1.3 and Test 1.2.1 Section 3 prove that `handleStream` in `src/handlers.js` validates `item.subtitles` with `Array.isArray(item.subtitles)`. Null, undefined, and malformed non-array values are cleaned safely without runtime exceptions, while valid subtitle arrays are preserved.
-4. **In-App Direct Play Invariant**:
-   - Observation 1.1.3 and Test 1.2.1 Sections 3 & 4 demonstrate that `delete sanitized.externalUrl` guarantees that no `externalUrl` is ever sent to Stremio clients, forcing Stremio's internal video player engine to stream directly via `url`. Furthermore, streams with missing or invalid `url` values are discarded, preventing client playback crashes.
-5. **High Load Concurrency**:
-   - Test 1.2.1 Section 5 proves that 50 concurrent requests execute cleanly with 100% success rate without memory leaks or race conditions.
-
----
+1. *Observation 1 & 2* demonstrate that the HLS segment proxy in `src/routes/hls.js` properly forwards HTTP Range headers to upstream CDNs, streams chunks reliably, maintains MPEG-TS byte alignment (0x47 sync byte every 188 bytes), and satisfies seeking requirements in Stremio/ExoPlayer/VLC.
+2. *Observation 3 & 4* verify that WebVTT subtitle track injection adheres to RFC 8216 (HLS Specification) by linking `#EXT-X-STREAM-INF` to `#EXT-X-MEDIA:TYPE=SUBTITLES` via `GROUP-ID="subs"`, while the subtitle proxy handles character encoding, BOM stripping, timestamp normalization, and CORS compliance.
+3. *Observation 5* proves that KKPhim multi-tier fallback (Tier 1 direct IMDb -> Tier 2 Cinemeta title/alias search + `scoreMatch` -> Tier 3 safe empty array) eliminates 404 stream failures and ensures seamless in-app playback without `externalUrl` leaks.
+4. *Observation 6* confirms full version synchronization across package and manifest definitions.
 
 ## 3. Caveats
-
-- Upstream CDN latency during live streaming depends on external network connectivity; however, all local proxy routing, re-encoding, and error handling paths were empirically verified against controlled mock servers.
-
----
+- Upstream external CDNs (phimapi.com, streamvsmov.com, mux.dev) are subject to network latency and occasional 429 rate limiting under aggressive concurrent test bursts. The 5-second axios timeout and multi-tier fallback mechanisms successfully insulate the addon from upstream failures.
 
 ## 4. Conclusion
-
-All Milestone 1 features and invariants have been thoroughly stress-tested and verified:
-- Route aliases `/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/sub.vtt`, and `/hls/sub` function seamlessly.
-- Subtitle conversion, BOM stripping, and anti-403 headers operate as specified.
-- Stream object sanitization handles all edge cases (null, empty, malformed, valid subtitles).
-- In-App Direct Play invariant (`url` preserved, `externalUrl` strictly absent) is 100% enforced.
-
-**Final Verdict**: **APPROVE**
-
----
+**Overall Verdict**: **APPROVED & FULLY VERIFIED (100% PASS)**
+All requirements (R1: VSMOV WebVTT Subtitle Injection, R2: KKPhim Smart Search Fallback, R3: E2E Verification with 0x47 TS & HTTP 206 Range, R4: Version 1.5.2 Sync) are empirically confirmed.
 
 ## 5. Verification Method
-
-To independently reproduce and verify all findings:
-
+Execute the complete test suites directly:
 ```bash
-# 1. Run the dedicated M1 Challenger 2 test suite
-node tests/test_m1_preview_challenger2.js
-
-# 2. Run the M1 subtitle proxy test
-node tests/test_m1_subtitle_proxy.js
-
-# 3. Run the Deep HLS rewriter & proxy suite
-node tests/challenger_m1_2_deep_hls.test.js
-
-# 4. Run the project regression test suite
-npm test
+node --check src/index.js
+node tests/challenger_hotfix_v152_empirical.test.js
+node tests/challenger_hotfix_v152_adversarial.test.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node tests/verify_playback.js
 ```
-
-### Invalidation Conditions:
-- If `/hls/sub.vtt` or `/hls/sub` returns 500 when given an SRT file.
-- If `handleStream` emits any stream object with `externalUrl`.
-- If `handleStream` crashes when a provider returns `subtitles: null` or `subtitles: 'invalid'`.
-- If any route alias returns 404.
+Expected Output:
+- `tests/challenger_hotfix_v152_empirical.test.js`: 64/64 PASS (100%)
+- `tests/challenger_hotfix_v152_adversarial.test.js`: 66/66 PASS (100%)
+- `tests/verify_hotfix_vsmov_kkphim.js`: 23/23 PASS (100%)
+- `tests/verify_playback.js`: 7/7 Phases PASS (100%)

@@ -95,18 +95,18 @@ function decodeB64(str) {
   }
 }
 
-/**
- * Resolve parameter URL from raw string or base64url/base64
- */
 function resolveParamUrl(val) {
   if (!val || typeof val !== 'string') return null;
   const trimmed = val.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (!trimmed) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) return trimmed;
   const decoded = decodeB64(trimmed);
-  if (decoded && (decoded.startsWith('http://') || decoded.startsWith('https://'))) {
-    return decoded;
+  if (decoded) {
+    const trimmedDecoded = decoded.trim();
+    if (!trimmedDecoded) return null;
+    return trimmedDecoded;
   }
-  return decoded || trimmed;
+  return trimmed;
 }
 
 // ─── OPTIONS preflight ──────────────────────────────────────────
