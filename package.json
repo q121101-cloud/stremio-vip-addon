@@ -1,6 +1,6 @@
 {
   "name": "stremio-nguonc-addon",
-  "version": "1.6.0",
+  "version": "1.6.2",
   "description": "Stremio Addon for NguonC - Xem phim Vietsub, thuyết minh từ phim.nguonc.com",
   "main": "src/index.js",
   "scripts": {

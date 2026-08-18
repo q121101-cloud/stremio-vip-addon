@@ -2,9 +2,9 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/handlers.js  (Engine v1.6.0)
+ *  VIP Movies Addon — src/handlers.js  (Engine v1.6.2)
  *  Stremio Addon Express Route Handlers
- *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov)
+ *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov + STP + CLBPX + YAN)
  *  - Dynamic Catalog & Meta Router
  *  - Interactive Cyber-Glassmorphism Configurator Dashboard
  * ============================================================
@@ -117,34 +117,56 @@ function getCatTypeFromCatalogId(catalogId) {
   if (!catalogId) return 'movie';
   const id = String(catalogId).toLowerCase().trim();
 
-  // Specific mappings for all 22 standard catalogs + aliases
-  if (id === 'vsmov-4k') return '4k';
+  // 1. VSMOV
+  if (id === 'vsmov-4k' || id === 'vsmov-4k-sieu-net') return '4k';
   if (id === 'vsmov-thuyet-minh' || id === 'vsmov-tm') return 'thuyet-minh';
-  if (id === 'stp-au-my' || id === 'stp-western') return 'au-my';
-  if (id === 'stp-han-quoc' || id === 'stp-korean') return 'han-quoc';
-  if (id === 'stp-phim-le' || id === 'stp-single') return 'movie';
-  if (id === 'stp-phim-bo' || id === 'stp-series') return 'series';
+
+  // 2. KKPhim
+  if (id === 'kkphim-movie-latest' || id === 'kkphim-phim-le') return 'movie';
+  if (id === 'kkphim-series-latest' || id === 'kkphim-phim-bo') return 'series';
+  if (id === 'kkphim-cinema-latest' || id === 'kkphim-chieu-rap') return 'cinema';
+  if (id === 'kkphim-anime-latest' || id === 'kkphim-hoat-hinh') return 'anime';
+
+  // 3. NguonC
+  if (id === 'nguonc-movie-latest' || id === 'nguonc-phim-le') return 'movie';
+  if (id === 'nguonc-series-latest' || id === 'nguonc-phim-bo') return 'series';
+  if (id === 'nguonc-cinema-latest' || id === 'nguonc-chieu-rap') return 'cinema';
+  if (id === 'nguonc-anime-latest' || id === 'nguonc-moi-cap-nhat') return 'phim-moi-cap-nhat';
+
+  // 4. STP (Sưu Tầm Phim)
+  if (id === 'stp-au-my' || id === 'stp-dien-anh-au-my' || id === 'stp-western') return 'au-my';
+  if (id === 'stp-han-quoc' || id === 'stp-phim-han-quoc' || id === 'stp-korean') return 'han-quoc';
+  if (id === 'stp-phim-le' || id === 'stp-single' || id === 'stp_movies_phimle' || id === 'stp_movies_dacsac') return 'movie';
+  if (id === 'stp-phim-bo' || id === 'stp-series' || id === 'stp_series_phimbo') return 'series';
+
+  // 5. HH3D (Hoạt Hình 3D)
   if (id === 'hh3d-phim-le' || id === 'hh3d-single') return 'movie';
   if (id === 'hh3d-phim-bo' || id === 'hh3d-series') return 'series';
-  if (id === 'hh3d-tien-hiep' || id === 'hh3d-donghua') return 'tien-hiep';
-  if (id === 'yan-phim-le' || id === 'yan-single') return 'movie';
-  if (id === 'yan-phim-bo' || id === 'yan-series') return 'series';
-  if (id === 'yan-dang-chieu' || id === 'yan-ongoing') return 'dang-chieu';
-  if (id === 'clbpx-kiem-hiep' || id === 'clbpx-wuxia') return 'kiem-hiep';
-  if (id === 'clbpx-hong-kong' || id === 'clbpx-tvb') return 'hong-kong';
+  if (id === 'hh3d-tien-hiep' || id === 'hh3d-donghua' || id === 'hh3d-kiem-hiep') return 'tien-hiep';
 
+  // 6. YAN (Donghua)
+  if (id === 'yan-phim-le' || id === 'yan-single' || id === 'yan_movies') return 'movie';
+  if (id === 'yan-phim-bo' || id === 'yan-series' || id === 'yan_series_3d' || id === 'yan_series_donghua') return 'series';
+  if (id === 'yan-dang-chieu' || id === 'yan-ongoing') return 'dang-chieu';
+
+  // 7. CLBPX (Phim Xưa)
+  if (id === 'clbpx-kiem-hiep' || id === 'clbpx-kiem-hiep-xua' || id === 'clbpx-wuxia' || id === 'clbpx_series_kiemhiep') return 'kiem-hiep';
+  if (id === 'clbpx-hong-kong' || id === 'clbpx-phim-hong-kong' || id === 'clbpx-tvb' || id === 'clbpx_series_tvb') return 'hong-kong';
+  if (id === 'clbpx_movies_xua' || id === 'clbpx-phim-le') return 'movie';
+
+  // Generic fallback checks
   if (id.includes('series') || id.includes('phim-bo')) return 'series';
   if (id.includes('single') || id.includes('movie') || id.includes('phim-le')) return 'movie';
   if (id.includes('cinema') || id.includes('chieu-rap')) return 'cinema';
   if (id.includes('anime') || id.includes('hoat-hinh') || id.includes('donghua')) return 'anime';
-  if (id.includes('recent') || id.includes('latest')) return 'latest';
+  if (id.includes('recent') || id.includes('latest') || id.includes('moi-cap-nhat')) return 'latest';
 
   const parts = id.replace(/_/g, '-').split('-');
   if (parts.length >= 2) return parts.slice(1).join('-');
   return 'movie';
 }
 
-function withTimeout(promise, ms = 4000, label = 'Provider') {
+function withTimeout(promise, ms = 4500, label = 'Provider') {
   let timer;
   if (promise && typeof promise.catch === 'function') {
     promise.catch(() => {});
@@ -878,7 +900,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
           <span></span>
           <div class="pulse-ping-dot"></div>
         </span>
-        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.6.0
+        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.6.2
       </div>
     </header>
 
@@ -1032,7 +1054,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
     <!-- Brand Signature Footer -->
     <footer class="taste-footer">
-      VIP Movies Addon v1.6.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>
+      VIP Movies Addon v1.6.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>
     </footer>
   </div>
 
@@ -1247,7 +1269,7 @@ async function handleCatalog(req, res) {
 
       const results = await Promise.allSettled(
         providersToRun.map((p) =>
-          withTimeout(p.getCatalog(catType, page, { search: searchQuery, genre: genreFilter, skip }), 4000, p.name || 'CatalogProvider')
+          withTimeout(p.getCatalog(catType, page, { search: searchQuery, genre: genreFilter, skip }), 4500, p.name || 'CatalogProvider')
         )
       );
 
@@ -1275,7 +1297,7 @@ async function handleCatalog(req, res) {
 
     const items = await withTimeout(
       provider.getCatalog(catType, page, { search: searchQuery, genre: genreFilter, skip }),
-      4000,
+      4500,
       provider.name || providerId
     ).catch((err) => {
       console.warn(`[Catalog Provider Error] ${providerId}:`, err.message);
@@ -1433,32 +1455,48 @@ router.get('/:config/meta/:type/:id', handleMeta);
 const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
 
 function getStreamPriority(stream) {
-  if (!stream) return 200;
+  if (!stream) return 999;
   const title = (stream.title || '').toLowerCase();
   const name = (stream.name || '').toLowerCase();
-  const combined = `${name} ${title}`;
+  const text = `${name} ${title}`;
 
-  // 1. VSMOV 4K Ultra HD (VIP 1)
-  if (combined.includes('vsmov') && (combined.includes('4k') || combined.includes('ultra hd') || combined.includes('3840x2160'))) return 10;
-  // 2. VSMOV Thuyết Minh / Other (VIP 1)
-  if (combined.includes('vsmov') || combined.includes('vip 1')) return 20;
-  // 3. KKPhim Vietsub (VIP 2)
-  if ((combined.includes('kkphim') || combined.includes('vip 2')) && combined.includes('vietsub')) return 30;
-  // 4. KKPhim Thuyết Minh / Lồng Tiếng / Other (VIP 2)
-  if (combined.includes('kkphim') || combined.includes('vip 2')) return 40;
-  // 5. NguonC Vietsub (VIP 3)
-  if ((combined.includes('nguonc') || combined.includes('vip 3')) && combined.includes('vietsub')) return 50;
-  // 6. NguonC Thuyết Minh / Other (VIP 3)
-  if (combined.includes('nguonc') || combined.includes('vip 3')) return 60;
-  // 7. STP (Western & K-Drama)
-  if (combined.includes('stp') || combined.includes('suutamphim')) return 70;
-  // 8. HH3D (3D Donghua)
-  if (combined.includes('hh3d') || combined.includes('hoathinh3d')) return 80;
-  // 9. YAN (Donghua Ongoing)
-  if (combined.includes('yan') || combined.includes('yandonghua')) return 90;
-  // 10. CLBPX (Wuxia & TVB)
-  if (combined.includes('clbpx') || combined.includes('clbphimxua')) return 100;
-  return 200;
+  // Provider rank (VIP 1 VSMOV -> VIP 2 KKPhim -> VIP 3 NguonC -> VIP 4 STP -> VIP 5 CLBPX -> VIP 6 YAN)
+  let providerRank = 7;
+  if (text.includes('vsmov') || text.includes('vip 1')) providerRank = 1;
+  else if (text.includes('kkphim') || text.includes('vip 2')) providerRank = 2;
+  else if (text.includes('nguonc') || text.includes('vip 3')) providerRank = 3;
+  else if (text.includes('stp') || text.includes('vip 4') || text.includes('sieutamphim') || text.includes('suutamphim')) providerRank = 4;
+  else if (text.includes('clbpx') || text.includes('vip 5') || text.includes('clbphimxua')) providerRank = 5;
+  else if (text.includes('yan') || text.includes('vip 6') || text.includes('hh3d') || text.includes('yanhh3d') || text.includes('hoathinh3d')) providerRank = 6;
+
+  // Global priority strictly follows: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng
+  const is4K = text.includes('4k') || text.includes('ultra hd') || text.includes('3840x2160') || text.includes('uhd');
+  const isVietsub = text.includes('vietsub') || text.includes('phụ đề') || text.includes('phu de');
+  const isThuyetMinh = text.includes('thuyết minh') || text.includes('thuyet minh') || /\btm\b/.test(text) || text.includes('voiceover');
+  const isLongTieng = text.includes('lồng tiếng') || text.includes('long tieng') || /\blt\b/.test(text) || text.includes('dub');
+
+  let bucket = 400; // default / other
+  if (is4K) {
+    bucket = 0;
+  } else if (isVietsub) {
+    bucket = 100;
+  } else if (isThuyetMinh) {
+    bucket = 200;
+  } else if (isLongTieng) {
+    bucket = 300;
+  }
+
+  // Within 4K bucket, sub-sort: 4K Vietsub -> 4K TM -> 4K LT -> 4K Other
+  if (is4K) {
+    let subAudioOffset = 0;
+    if (isVietsub) subAudioOffset = 0;
+    else if (isThuyetMinh) subAudioOffset = 1;
+    else if (isLongTieng) subAudioOffset = 2;
+    else subAudioOffset = 3;
+    return bucket + (providerRank * 10) + subAudioOffset;
+  }
+
+  return bucket + providerRank;
 }
 
 function normalizeStreamKey(stream) {
@@ -1583,10 +1621,10 @@ async function handleStream(req, res) {
       .filter((k) => ALL_PROVIDERS[k])
       .map((k) => ALL_PROVIDERS[k]);
 
-    // CHẠY SONG SONG BẤT ĐỒNG BỘ với Promise.allSettled & strict 4000ms timeout per provider
+    // CHẠY SONG SONG BẤT ĐỒNG BỘ với Promise.allSettled & strict 4500ms timeout per provider
     const results = await Promise.allSettled(
       providersToRun.map((provider) =>
-        withTimeout(provider.getStreams(payload), 4000, provider.name || provider.id || 'Provider')
+        withTimeout(provider.getStreams(payload), 4500, provider.name || provider.id || 'Provider')
       )
     );
 
@@ -1617,7 +1655,7 @@ async function handleStream(req, res) {
       }
     }
 
-    // Sort streams: VSMOV 4K -> KKPhim -> NguonC -> Specialized
+    // Sort streams: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng (sub-sorted by provider rank)
     mergedStreams.sort((a, b) => getStreamPriority(a) - getStreamPriority(b));
 
     // Deduplicate streams by normalized stream key
@@ -1671,5 +1709,10 @@ router.post('/admin/cache/clear', (req, res) => {
   ic.clear(); mc.clear(); cc.clear(); dc.clear();
   sendJSON(res, { message: 'Tất cả cache đã được xóa (NodeCache + LRU)' });
 });
+
+router.getStreamPriority = getStreamPriority;
+router.getCatTypeFromCatalogId = getCatTypeFromCatalogId;
+router.getProviderFromCatalogId = getProviderFromCatalogId;
+router.withTimeout = withTimeout;
 
 module.exports = router;

@@ -1,14 +1,14 @@
-# BRIEFING — 2026-08-18T02:34:00Z
+# BRIEFING — 2026-08-18T09:26:00Z
 
 ## Mission
-Perform comprehensive quality and adversarial review of Hotfix v1.5.1 for stremio-nguonc-addon.
+Perform comprehensive code review and adversarial challenge of Engine v1.6.2 for stremio-nguonc-addon (Requirements R1-R6).
 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_1
-- Original parent: bd1246e0-6215-4530-925a-ca6d5fbeb2fe
-- Milestone: Hotfix v1.5.1 Review
+- Original parent: 9690458b-e1e2-43b3-aca3-2dded3ba2878
+- Milestone: Engine v1.6.2 Comprehensive Quality & Adversarial Review
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
@@ -17,40 +17,42 @@ Perform comprehensive quality and adversarial review of Hotfix v1.5.1 for stremi
 - Issue a clear verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: bd1246e0-6215-4530-925a-ca6d5fbeb2fe
-- Updated: not yet
+- Conversation ID: 9690458b-e1e2-43b3-aca3-2dded3ba2878
+- Updated: 2026-08-18T09:26:00Z
 
 ## Review Scope
-- **Files to review**: `src/providers/vsmov.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `package.json`, `src/manifest.js`, `src/handlers.js`, `tests/verify_playback.js`
+- **Files to review**: `src/manifest.js`, `src/handlers.js`, `src/routes/hls.js`, `src/providers/` (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `clbpx.js`, `yan.js`, `hh3d.js`), `package.json`, `tests/verify_all_providers_playback.js`
 - **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
-- **Review criteria**: correctness, robustness, security, edge cases, integrity
+- **Review criteria**: R1-R6 compliance, code correctness, robustness, security, integrity, no regressions
 
 ## Review Checklist
 - **Items reviewed**:
-  - `src/providers/vsmov.js` (Multi-server audio separation, binge groups, subtitle extraction, strict In-App stream protocol: `url` present, `externalUrl` omitted)
-  - `src/routes/hls.js` (`/hls/sub.vtt` endpoint, BOM stripping, SRT to WebVTT conversion, CORS `*`, Cache-Control)
-  - `src/providers/kkphim.js` (Container normalization, flexible `matchEpisodeItem`, CDN referer headers `https://player.phimapi.com/`, Base64URL security param preservation)
-  - `package.json`, `src/manifest.js`, `src/handlers.js` (Version bump to 1.5.1, Cyber-Glassmorphism branding footer)
-  - `tests/verify_playback.js` (7-phase E2E test suite)
+  - `src/manifest.js` (22 standard catalogs across 6 clusters, skip/genre/search extra options, ALL_ID_PREFIXES, dynamic buildManifest)
+  - `src/handlers.js` (Catalog routing & alias dispatch, parallel 6-provider stream aggregation via Promise.allSettled with 4500ms timeout, global stream sorting: 4K/UHD -> Vietsub -> TM -> LT -> Provider Rank, strict in-app protocol)
+  - `src/routes/hls.js` (RFC 3986 relative URI resolution, base64url encoding/decoding, SOURCE_REFERERS dynamic routing, streamed segment responseType with Range 206 seeking support, WebVTT subtitle proxy)
+  - `src/providers/*.js` (`vsmov`, `kkphim`, `nguonc`, `stp`, `clbpx`, `yan`, `hh3d` standard interface `{ id, label, getCatalog, getStreams, search, getDetail }`, 3-tier fallback, `src/lib/utils.js` scoring & normalization)
+  - `package.json` (version 1.6.2)
+  - `tests/verify_all_providers_playback.js` (ephemeral port bootstrap, 22 catalog query HTTP 200, 6 provider stream resolution & >100KB TS segment chunk download with sync byte 0x47, Range 206 seeking, WebVTT subtitle proxy)
 - **Verdict**: APPROVE
-- **Unverified claims**: None (all claims empirically verified via automated test runs and code inspection)
+- **Unverified claims**: None (all claims verified via independent automated execution of 4 test suites and manual code inspection)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Subtitle proxy with malformed query parameters (missing, empty, non-base64) -> passed (returns 400 or handled cleanly).
-  - Subtitle upstream failure (404, 403, 500, ECONNREFUSED) -> passed (status forwarded without crash).
-  - SRT with BOM and CRLF line breaks -> passed (BOM stripped, CRLF converted, comma timestamps converted to period).
-  - Stream object protocol invariant -> passed (0 occurrences of externalUrl across 42 streams).
-  - Real MPEG-TS chunk download (>50KB) -> passed (7,447,877 bytes, sync byte 0x47 verified).
-- **Vulnerabilities found**: 0 critical / major vulnerabilities found.
+  - Upstream 404 in NguonC cinema catalog -> Handled gracefully via fallback to phim-le and phim-moi-cap-nhat (returns HTTP 200).
+  - Malformed or missing Range headers in HLS proxy -> Handled cleanly; bytes=0-1023 returns HTTP 206 with Content-Range and exactly 1024 bytes.
+  - Streaming slow or hanging providers -> withTimeout bounds execution to 4500ms and Promise.allSettled prevents failure cascading.
+  - In-app stream protocol invariant -> Zero externalUrl fields across all providers (100% compliant).
+  - TS chunk integrity -> Video chunk downloads verified (>100KB, MPEG-TS sync byte 0x47 confirmed).
+- **Vulnerabilities found**: 0 critical / 0 major vulnerabilities found.
 - **Untested angles**: None.
 
 ## Key Decisions Made
-- Confirmed full compliance with all Hotfix v1.5.1 requirements and integrity standards.
-- Issued verdict: APPROVE.
+- Fully verified all 6 requirements (R1 - R6) with 100% test pass rate across all 4 suites.
+- Verified absence of integrity violations (no dummy logic, no hardcoded results, no fabricated verifications).
+- Issued final verdict: APPROVE.
 
 ## Artifact Index
 - DISPATCH.md — Incoming dispatch instructions
-- BRIEFING.md — Persistent state memory
+- BRIEFING.md — Persistent situational awareness
 - progress.md — Liveness heartbeat
-- handoff.md — Final review report
+- handoff.md — Comprehensive 5-component review report

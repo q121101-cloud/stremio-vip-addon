@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/routes/hls.js (Engine v1.6.0)
+ *  VIP Movies Addon — src/routes/hls.js (Engine v1.6.2)
  *  HLS Proxy Router: Anti-403, Full Segment & Key Rewriter, HTTP Range 206
  *
  *  Routes:
@@ -25,7 +25,7 @@ const { m3u8Cache }            = require('../lib/cache');
 const HLS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 const SOURCE_REFERERS = [
-  { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
+  { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim|opstream|vlcdn/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
   { pattern: /vsmov|streamvsmov|p25\.streamvsmov/i,        referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
   { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
   { pattern: /streamc\.|amass2\.top/i,                     referer: 'https://embed15.streamc.xyz/', origin: 'https://embed15.streamc.xyz' },

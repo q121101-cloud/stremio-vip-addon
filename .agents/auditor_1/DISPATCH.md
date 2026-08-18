@@ -1,24 +1,18 @@
-## 2026-08-18T02:32:21Z
+## 2026-08-18T09:23:43Z
 
-You are the Forensic Auditor for Hotfix v1.5.1.
+You are auditor_1.
+Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_1
+Project Root: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Original Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
 
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_1
-Scope document: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-Original user request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Worker handoff report: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_hotfix/handoff.md
+Objective:
+Perform a forensic integrity audit on all source code and test implementations of Engine v1.6.2.
+Check for any integrity violations:
+1. No hardcoding of expected test outputs or mock bypasses in production source code (`src/**/*.js`).
+2. No dummy/facade implementations masquerading as real proxy or provider logic.
+3. Authentic HLS proxy implementation: genuine relative URL rewriting, authentic base64url encode/decode, real upstream CDN header forwarding, real binary stream piping.
+4. Authentic test suites: verify `tests/verify_all_providers_playback.js`, `tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, and `tests/verify_new_providers.js` actually execute real network requests or valid local server requests and assert real byte payloads without hardcoded success flags.
+5. In-App protocol verification: verify strict presence of `url` and absolute absence of `externalUrl`.
 
-Auditor Scope:
-1. Perform forensic integrity audit across all modified code:
-   - `src/providers/vsmov.js`
-   - `src/routes/hls.js`
-   - `src/providers/kkphim.js`
-   - `tests/verify_playback.js`
-   - `package.json`, `src/manifest.js`, `src/handlers.js`
-2. Check for Integrity Violations:
-   - Check if any test responses, video segments, manifests, subtitles, or IMDb responses are hardcoded or faked.
-   - Verify that VSMOV audio separation logic actually parses server groups and makes genuine network/embed calls.
-   - Verify that KKPhim flexible matching logic actually processes episode items and queries upstream APIs.
-   - Verify that `/hls/sub.vtt` actually converts SRT and proxies subtitles.
-   - Verify that `tests/verify_playback.js` actually starts an Express server, makes real HTTP calls to live upstreams, downloads real binary TS data, and parses MPEG-TS sync bytes.
-3. Issue a binary verdict: CLEAN or INTEGRITY VIOLATION.
-4. Write your full forensic report to /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_1/handoff.md and send message back.
+Provide a clear verdict in your handoff report: either `CLEAN` or `INTEGRITY VIOLATION`.
+Write your handoff to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/auditor_1/handoff.md` and send message to parent when done.

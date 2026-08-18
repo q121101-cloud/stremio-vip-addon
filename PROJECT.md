@@ -1,55 +1,67 @@
-# Project: Stremio VIP Movies Addon Engine v1.6.0 Upgrade
+# Project: Stremio VIP Movies Addon Engine v1.6.2
 
 ## Architecture
-- **Framework & Engine**: Express.js Stremio v2 Addon Engine with integrated HLS Proxy rewriter.
-- **Providers Directory**: `src/providers/` (`stp.js`, `clbpx.js`, `yan.js`, `vsmov.js`, `kkphim.js`, `nguonc.js`, `hh3d.js`).
-- **HLS Proxy Router**: `src/routes/hls.js` handling manifest rewriting (`/manifest.m3u8`), segment streaming with Range 206 (`/segment.ts`), AES key resolution (`/key`), and subtitle proxy (`/sub.vtt`).
-- **Handlers & Manifest**: `src/handlers.js`, `src/manifest.js`, `src/index.js`.
-- **E2E Test Suites**: `tests/verify_new_providers.js`, `tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, `src/test.js`.
+- **Server Entry**: `src/index.js` (Express app mounting `/hls` proxy, root `/manifest.json`, and `/catalog`, `/stream`, `/meta` handlers).
+- **Manifest**: `src/manifest.js` (22 active catalogs across 6 provider clusters: VSMOV, KKPhim, NguonC, STP, CLBPX, YAN).
+- **Handlers**: `src/handlers.js` (Catalog routing, parallel 6-provider stream aggregation via `Promise.allSettled` with 4500ms timeout, stream sorting: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng, in-app stream protocol sanitizer).
+- **HLS Proxy Router**: `src/routes/hls.js` (Relative URI resolution with RFC 3986 `new URL(uri, base)`, base64url token preservation, dynamic Referer/Origin headers per CDN, streaming responseType with Range 206 seeking support, WebVTT subtitle conversion).
+- **Provider Modules**: `src/providers/` (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `clbpx.js`, `yan.js`, `hh3d.js`) exporting standard interface `{ id, label, getCatalog, getStreams, search, getDetail }`.
+- **Shared Utilities**: `src/lib/utils.js` (scoring, slugging, keywords, season matching, normalization).
+- **Test Infrastructure**: `tests/` (`verify_all_providers_playback.js`, `verify_playback.js`, `verify_hotfix_vsmov_kkphim.js`, `verify_new_providers.js`, `challenger1_v162_adversarial_empirical.test.js`, `challenger2_v162_aggregator_stress.test.js`).
+
+## Code Layout
+- `package.json` — Root configuration and version string (`1.6.2`)
+- `src/index.js` — Server startup, route binding, error handling
+- `src/manifest.js` — Addon manifest, 22 catalogs, genre definitions, idPrefixes (`1.6.2`)
+- `src/handlers.js` — Catalog routing, stream aggregation, metadata resolution, landing page HTML (`1.6.2`)
+- `src/routes/hls.js` — HLS proxy, manifest rewrite, segment streaming, WebVTT subtitles
+- `src/routes/manifest.js` — Manifest route handler
+- `src/config.js` — Configuration loader & environment variables
+- `src/lib/utils.js` — Canonical text and string matching utilities
+- `src/providers/` — Provider adapters for 6+ upstream streaming sources
+- `tests/` — Automated verification and regression test suites
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
-|---|---|---|---|---|
-| 1 | STP Domain & Header Update | Update `src/providers/stp.js` with `sieutamphim.pro` domain, `Referer: https://sieutamphim.pro/`, `Origin: https://sieutamphim.pro` | M1 | Survey 1 |
-| 2 | STP Multi-Tier Extraction | WP-JSON search + XOR `0x2a` decoding with HTML / mirror fallback and safe `[]` | M1 | Survey 1 |
-| 3 | STP Stream Labeling | Exact brand format `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro` | M1 | Survey 1 |
-| 4 | CLBPX Domain & Header Update | Update `src/providers/clbpx.js` with `clbphimxua.info`, `Referer: https://clbphimxua.info/`, `Origin: https://clbphimxua.info` | M1 | Survey 2 |
-| 5 | CLBPX Multi-Tier Extraction | Classic TVB/Wuxia Ophim endpoints + HTML search fallback and safe `[]` | M1 | Survey 2 |
-| 6 | CLBPX Stream Labeling | Exact brand format `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info` | M1 | Survey 2 |
-| 7 | YAN Domain & Header Update | Update `src/providers/yan.js` with `yanhh3d.pw`, `Referer: https://yanhh3d.pw/`, `Origin: https://yanhh3d.pw` | M1 | Survey 2 |
-| 8 | YAN Multi-Tier Extraction | Direct live scraping (`data-obf.pU` / `master.m3u8`) + Ophim JSON fallback and safe `[]` | M1 | Survey 2 |
-| 9 | YAN Stream Labeling | Exact brand format `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw` | M1 | Survey 2 |
-| 10 | HLS Proxy Referer Routing | Update `SOURCE_REFERERS` in `src/routes/hls.js` for `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw` | M1 | Survey 3 |
-| 11 | Provider Invariants Enforcement | Zero `externalUrl`, only `url` (HLS Proxy), import `scoreMatch` from `src/lib/utils.js` | M1 | Survey 1, 2 |
-| 12 | E2E Test Suite Creation | Create `tests/verify_new_providers.js` covering server lifecycle, health, manifest, streams, proxy rewriting, segment sync byte `0x47` | M2 | Survey 3 |
-| 13 | Zero-Regression Verification | Verify 7/7 on `verify_playback.js` and 27/27 on `verify_hotfix_vsmov_kkphim.js` | M2 | Survey 3 |
-| 14 | Version Bump v1.6.0 | Bump version to `1.6.0` in `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js`, `src/config.js`, `src/routes/hls.js` | M3 | Survey 3 |
-| 15 | Git Deployment | Commit and push to GitHub repository with token per instructions | M3 | User Request |
+|---|---------|-------------|-----------|--------|
+| 1 | HLS Proxy Relative URL Resolver | Resolve relative segment, key, and playlist URIs via `new URL()` | M1 | R1 |
+| 2 | Base64URL Encoding & Token Safety | Use `base64url` for parameters and tokens without truncation | M1 | R1 |
+| 3 | Dynamic CDN Referer/Origin Headers | Configure specific Referer/Origin for KKPhim, NguonC, VSMOV, STP, CLBPX, YAN | M1 | R1 |
+| 4 | Streamed Segment & HTTP Range 206 | `responseType: 'stream'`, maxRedirects: 5, Range seek support | M1 | R1 |
+| 5 | 22 Manifest Catalogs | Define 22 catalogs across 6 providers with skip/genre/search extra options | M2 | R2 |
+| 6 | Catalog Routing & Alias Dispatch | Map all catalog IDs and aliases to correct providers | M3 | R3 |
+| 7 | 6-Provider Parallel Stream Aggregation | `Promise.allSettled()` with 4500ms timeout per provider | M3 | R3 |
+| 8 | Stream Quality & Audio Sorting | Sort streams: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng -> Provider Rank | M3 | R3 |
+| 9 | Strict In-App Stream Protocol | Ensure stream objects have valid `url` (HLS proxy) and no `externalUrl` | M3 | R3 |
+| 10 | Provider Interface & Utility Standardization | Standard `{ id, label, getCatalog, getStreams, search, getDetail }`, reuse `src/lib/utils.js` | M4 | R4 |
+| 11 | 3-Tier Fallback Mechanism | Multi-level episode matching and graceful `[]` return on missing sources | M4 | R4 |
+| 12 | Comprehensive E2E Playback Test Suite | `tests/verify_all_providers_playback.js` testing all 22 catalogs and 6 providers (>100KB TS chunk with 0x47 sync byte) | M5 | R5 |
+| 13 | Zero-Regression Suite Pass | Pass `verify_playback.js`, `verify_hotfix_vsmov_kkphim.js`, `verify_new_providers.js` 100% | M5 | R5 |
+| 14 | Version Sync & Signature | Bump to `1.6.2` in `package.json`, `src/manifest.js`, `src/handlers.js` | M6 | R6 |
+| 15 | Git Commit & Push | Commit with standard message and push to GitHub repository | M6 | R6 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
-|---|---|---|---|---|
-| M1 | Provider Upgrades & HLS Routing | Features 1-11: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js` | none | DONE |
-| M2 | E2E Verification & Zero Regression | Features 12-13: `tests/verify_new_providers.js`, running full regression suites | M1 | DONE |
-| M3 | Version Bump & Git Deploy | Features 14-15: Version string updates, Git commit & push | M2 | IN_PROGRESS |
+|---|------|-------|-------------|--------|
+| M1 | HLS Proxy & Dynamic Headers | `src/routes/hls.js` refinement (regex defense-in-depth, Range seek) | None | DONE |
+| M2 | Manifest Catalogs (22 Catalogs) | `src/manifest.js` verification and catalog configuration | None | DONE |
+| M3 | Routing & 6-Provider Stream Aggregator | `src/handlers.js` (4500ms timeout, 4-tier sort, alias routing) | M1, M2 | DONE |
+| M4 | Provider Standardization & 3-Tier Fallback | `src/providers/*.js` compliance with standard interface and utilities | None | DONE |
+| M5 | E2E Playback & Regression Hardening | `tests/verify_all_providers_playback.js` + full test suite pass | M1, M2, M3, M4 | DONE |
+| M6 | Versioning & Deployment | Version `1.6.2` synchronization, git commit & push | M5 | IN_PROGRESS |
 
 ## Interface Contracts
-### Provider Contract (`stp`, `clbpx`, `yan` -> `src/handlers.js`)
-- Must export: `{ id: string, label: string, search(keyword, page), getDetail(slug), getCatalog(type, page, extra), getStreams(payload) }`
-- `getStreams(payload)` input: `{ type, id, season, episode, proxyBase }`
-- `getStreams(payload)` output: `Array<{ name: 'VIP Movies 🎬', title: string, url: string, behaviorHints: object }>`
-- Invariants: `externalUrl` MUST NOT be set or present. `url` must point to `${proxyBase}/hls/manifest.m3u8?...`.
+### Provider Interface (`src/providers/*.js`)
+- `id`: `string`
+- `label`: `string`
+- `getCatalog({ type, id, extra, page })`: `Promise<{ metas: Array<Meta> }>`
+- `getStreams({ type, id })`: `Promise<Array<Stream>>`
+- `search(query, type)`: `Promise<Array<Meta>>`
+- `getDetail(id, type)`: `Promise<Meta>`
 
-### HLS Proxy Contract (`src/routes/hls.js` ↔ Providers & Clients)
-- Manifest URL: `/hls/manifest.m3u8?url=<base64url>&ref=<base64url>` -> returns HTTP 200 `#EXTM3U` with rewritten segment URLs.
-- Segment URL: `/hls/segment.ts?url=<base64url>&ref=<base64url>` -> returns HTTP 200/206 video/MP2T binary with MPEG-TS sync byte `0x47`.
-
-## Code Layout
-- `src/providers/stp.js`: STP Provider (sieutamphim.pro)
-- `src/providers/clbpx.js`: CLBPX Provider (clbphimxua.info)
-- `src/providers/yan.js`: YAN Provider (yanhh3d.pw)
-- `src/routes/hls.js`: HLS Proxy Router & Referer Routing
-- `src/lib/utils.js`: Shared matching and normalization utilities
-- `src/handlers.js`: Addon request routing & HTML UI
-- `src/manifest.js`: Stremio addon manifest descriptor
-- `tests/verify_new_providers.js`: E2E verification test suite for M1-M3
+### Stream Object Contract (`src/handlers.js` -> Stremio)
+- `name`: `string` (formatted `[VIP N • BRAND] Audio/Quality (HLS Proxy)`)
+- `title`: `string` (details, server host, episode info)
+- `url`: `string` (proxied `/hls/manifest.m3u8?url=...&ref=...`)
+- `behaviorHints`: `{ notWebReady: false, headers: { ... } }`
+- Strict exclusion: `externalUrl` MUST NOT be present.

@@ -1,121 +1,132 @@
-# Challenge & Verification Handoff Report — Hotfix v1.5.1
+# Challenger 1 Empirical Challenge & Adversarial Verification Report (Engine v1.6.2)
 
-**Agent**: `challenger_1` (Critic & Specialist)  
-**Project**: Stremio VIP Movies Addon Engine v1.5.1  
-**Timestamp**: 2026-08-18T02:36:00Z  
-**Verdict**: **APPROVE**
+**Target**: VIP Movies Stremio Addon Engine v1.6.2  
+**Date**: 2026-08-18T09:28:43Z  
+**Verdict**: **`APPROVE`**
 
 ---
 
 ## 1. Observation
 
-Direct empirical execution of adversarial test suites and integration verification was performed on live local instances with ephemeral port binding:
+Empirical testing was executed across four primary adversarial challenge dimensions targeting the Engine v1.6.2 implementation:
 
-### 1.1 `node --check` (Syntax Verification)
-```bash
-node --check src/index.js src/handlers.js src/manifest.js src/providers/vsmov.js src/providers/kkphim.js src/routes/hls.js
-```
-- **Exit code**: `0` (Zero syntax errors across all core and provider modules).
+### 1.1 Test Execution Commands & Outputs
 
-### 1.2 `npm test` (Core Integration Suite)
-- **Result**: `50 passed, 0 failed` (100% PASS).
-- Verified manifest routes, 22 catalogs, search query filters, metadata retrieval for movies and series, stream generation, and `/health` returning version `1.5.1`.
+#### A. Comprehensive Regression Suite Execution
+1. `node tests/verify_all_providers_playback.js`:
+   - **Result**: `44/44 (100%)` assertions passed in `16.89s`.
+   - Verified 22 manifest catalogs across 6 provider clusters (VSMOV 4K, KKPhim, NguonC, STP, CLBPX, YAN).
+   - Real video segments downloaded for all 6 providers (>100KB, MPEG-TS sync byte `0x47` confirmed).
+   - HTTP Range 206 partial content verified (`Content-Range: bytes 0-1023/716844`).
 
-### 1.3 `node tests/verify_playback.js` (E2E Playback & Subtitle Verification)
-- **Result**: `7/7 phases PASSED (100% SUCCESS)`.
-  - **Phase 1 (Manifest & Route Integrity)**: `GET /manifest.json` returned HTTP 200 with version `1.5.1` and 22 declared catalogs.
-  - **Phase 2 (Harry Potter `tt0373889` VSMOV Multi-Server Audio Separation)**: Resolved 2 distinct VSMOV streams (`Vietsub` and `Lồng Tiếng`), distinct binge groups (`vsmov-vietsub-4k-vip-1`, `vsmov-longtieng-4k-vip-1`), and attached subtitle proxy URL `http://127.0.0.1:58287/hls/sub.vtt?url=...`.
-  - **Phase 3 (Subtitle Proxy Endpoint `/hls/sub.vtt`)**: Fetched live subtitle; verified HTTP 200, `Content-Type: text/vtt; charset=utf-8`, CORS `Access-Control-Allow-Origin: *`, and body starting with `WEBVTT`.
-  - **Phase 4 (KKPhim Series Anti-404 `tt0903747:1:1`)**: Returned HTTP 200 with 2 high-speed streams, manifest proxy URL returning HTTP 200 `#EXTM3U` playlist with zero 404s.
-  - **Phase 5 (M3U8 Master & Sub-Variant Rewriting)**: Fetched master playlist, traversed sub-variant playlist, verified `#EXTM3U` and rewritten segment URL `http://127.0.0.1:58287/hls/segment.ts?url=...`.
-  - **Phase 6 (Real Binary Video Segment Download)**: Downloaded TS segment of **7,447,877 bytes (~7.27 MB > 50KB)**; MPEG-TS sync byte `0x47` confirmed across 188-byte packet boundaries.
-  - **Phase 7 (HTTP Range Seeking)**: `Range: bytes=0-1023` returned **HTTP 206 Partial Content** with header `Content-Range: bytes 0-1023/7447877`.
+2. `node tests/verify_playback.js`:
+   - **Result**: `7/7 Phases PASSED (100%)` in `5.69s`.
+   - VSMOV Harry Potter `tt0373889` audio separation (Vietsub + Multi-Audio) verified.
+   - KKPhim Breaking Bad `tt0903747:1:1` anti-404 playback verified.
+   - Real video chunk downloaded: `7,447,877 bytes` (7.27 MB), sync byte `0x47` verified.
 
-### 1.4 `node tests/verify_vsmov_sub_audio.js` & `node tests/test_m1_subtitle_proxy.js`
-- **Result**: `61/61 assertions passed` and `26/26 assertions passed`.
-- Verified SRT to WebVTT comma-to-period timestamp conversions (`00:00:01,000` -> `00:00:01.000`), UTF-8 BOM stripping (`\uFEFF`), CRLF normalization, route aliases (`/hls/sub`, `/hls/sub.vtt`), parameter aliases (`url`, `b64`, `sub`), and upstream 404/500 forwarding.
+3. `node tests/verify_hotfix_vsmov_kkphim.js`:
+   - **Result**: `24/24 assertions PASSED (100%)`.
 
-### 1.5 `node tests/challenger_hotfix_v151_empirical.test.js` (Adversarial Stress Harness)
-- **Result**: `107/107 checks PASSED (100% SUCCESS)`.
-  - **Phase 1 (Manifest & Health Integrity)**: Version `1.5.1`, 22 catalogs, CORS `*`.
-  - **Phase 2 (VSMOV Audio Separation & Live Subtitle Fetch)**: Harry Potter `tt0373889` resolved 2 audio options (Vietsub & Lồng Tiếng) with distinct binge groups, valid `subtitles` array with proxied `/hls/sub.vtt` URL, and live WebVTT delivery with CORS `*`.
-  - **Phase 3 (KKPhim Flexible Episode Matching & Anti-404 Series)**:
-    - 15/15 unit matrix tests on `kkphim.matchEpisodeItem()` passed (exact numbers, zero pads `01`/`001`, labels `Tập 1`/`Tập 01`/`Episode 1`/`EP 01`, slug suffixes `-1`/`-01`, regex extractions `Tập 15`, negative/null safety).
-    - Breaking Bad `tt0903747:1:1` returned HTTP 200, 2 active streams, `#EXTM3U` manifest (no 404).
-    - Game of Thrones `tt0944947:1:1` returned HTTP 200, 2 active streams, valid proxy URLs.
-  - **Phase 4 (Live Binary TS Chunk Download)**:
-    - VSMOV segment (7,447,877 bytes > 50KB) verified with `0x47` sync byte at 188-byte boundaries.
-    - KKPhim standard TS segment (946,204 bytes > 50KB) verified with `0x47` sync byte at offset 0, 188, 376.
-  - **Phase 5 (HTTP Range Seeking 206)**: Both VSMOV and KKPhim TS segments returned HTTP 206 Partial Content with exact 2048-byte slices and verified `0x47` sync bytes.
-  - **Phase 6 (Adversarial Subtitle Proxy Stress)**: Raw SRT conversion, CRLF normalization, UTF-8 BOM stripping, Native WebVTT passthrough, Base64URL decoding, Vietnamese Unicode character preservation, missing URL HTTP 400 validation with CORS `*`, and upstream 404/500 status forwarding.
-  - **Phase 7 (High-Concurrency Burst Stress)**: 25 concurrent requests across manifest, health, and subtitle proxy completed with 100% HTTP 200.
-  - **Phase 8 (In-App Stream Protocol Invariant)**: 100% of emitted stream objects have `typeof url === 'string'`, `'externalUrl' in stream === false`, `stream.externalUrl === undefined`, and `behaviorHints.notSupported === false`.
+4. `node tests/verify_new_providers.js`:
+   - **Result**: `26/26 checks PASSED (100%)` in `7.66s`.
+   - STP (`sieutamphim.pro`), CLBPX (`clbphimxua.info`), YAN (`yanhh3d.pw`) providers verified.
+
+#### B. Dedicated Empirical Adversarial Challenge Suite (`tests/challenger1_v162_adversarial_empirical.test.js`)
+- **Result**: `127/127 (100%)` assertions passed in `37.53s`.
+- Specific targets tested:
+
+1. **Target 1: Catalog Edge Cases & 22 Catalog Stress Tests (64 Assertions)**:
+   - *22 Manifest Catalogs*: All 22 catalogs in `ALL_CATALOGS` (`src/manifest.js:63-363`) responded with HTTP 200 and non-empty `metas` arrays conforming to Stremio meta schema (`id`, `name`, `type`, `poster`).
+   - *Unknown & Non-Existent Catalog IDs (13 tests)*: IDs such as `unknown-catalog-12345`, `invalid_cluster_foo`, `kkphim-nonexistent-cat`, `nguonc-invalid-id`, `stp-fake-single`, `yan-unknown-donghua`, `clbpx-nonexistent-sub`, `---`, `___`, `null`, `undefined`, `!@#$%^&*()`, `select*from*movies` returned HTTP 200 with `{ metas: [] }` without server exceptions (`src/handlers.js:1294-1296`).
+   - *Empty & Malformed Query Parameters (9 tests)*: `search=`, `genre=`, `skip=`, `search=&genre=&skip=`, `%20&%20`, `&&&&`, `invalid_no_equal_sign`, `=value_without_key`, Thai Unicode queries returned HTTP 200.
+   - *Boundary Skip Values (9 tests)*: Negative skips (`skip=-1`, `skip=-999999`) normalized to page 1 (`src/handlers.js:91-94`), large skips (`skip=99999999`) converted to page 10000000 cleanly, non-numeric (`skip=abc`, `skip=NaN`, `skip=15.5`, `skip=1e5`) handled safely.
+   - *Hostile Genre Names Across Catalogs (10 tests)*: `Phim 18+`, `Hành Động`, `Kinh Dị`, Vietnamese Unicode with diacritics, SQL injection payload `'; DROP TABLE movies; --`, XSS payload `<script>alert("xss")</script>`, and 500-char string returned HTTP 200 without SQL or injection errors.
+
+2. **Target 2: Stream Edge Cases & Adversarial Invariants (37 Assertions)**:
+   - *Malformed & Hostile Stream IDs (19 tests)*: `tt`, `tt_invalid`, `tt9999999999999`, `tt0000000`, `::::`, `vsmov:`, `kkphim:`, `nguonc:`, `stp:`, `yan:`, `clbpx:`, `hh3d:`, `undefined`, `null`, `tt01234<script>`, `tt01234' OR 1=1--`, 500-char IDs returned HTTP 200 with safe `{ streams: [] }` arrays (`src/handlers.js:1527-1678`).
+   - *Missing & Irregular Episode Numbers (11 tests)*: `tt0903747:1`, `tt0903747::`, `tt0903747:0:0`, `tt0903747:-1:-1`, `tt0903747:9999:9999`, `kkphim:breaking-bad:`, `vsmov:harry-potter:1`, `clbpx:thien-long-bat-bo:1`, `yan:dau-la-dai-luc:1` resolved gracefully with HTTP 200.
+   - *Unsupported Media Types (6 tests)*: `/stream/other/`, `/stream/audio/`, `/stream/tv/`, `/stream/channel/`, `/stream/radio/`, `/stream/custom_xyz/` returned HTTP 200 `{ streams: [] }`.
+   - *Concurrency Burst (50 Parallel Requests)*: 50 concurrent requests simultaneously dispatched against mixed valid and hostile endpoints; all 50 completed with HTTP 200, zero socket dropouts, zero uncaught rejections. Upstream 429 and timeouts were caught within the per-provider 4500ms limit (`src/handlers.js:169-180`).
+   - *Strict In-App Stream Protocol*: All emitted stream objects contain a valid proxied `url` and strictly omit `externalUrl` (`src/handlers.js:1652`).
+
+3. **Target 3: HLS Proxy Resilience & Subtitle Parsing (23 Assertions)**:
+   - *Base64URL Resilience (9 tests)*: Empty URL returned HTTP 400 (`src/routes/hls.js:152`). Malformed characters (`???!!!`, `!@#$%^&*()`, plain numbers `12345`, `javascript:`, HTML data URIs) returned HTTP 502 without crashing the Express process. Base64URL, standard Base64, and raw unencoded URLs returned HTTP 200.
+   - *Relative Path Resolution in M3U8 Rewriting (7 tests)*:
+     - Parent directory traversal (`../segments/segment_parent_01.ts` -> `http://127.0.0.1:port/video/segments/segment_parent_01.ts`) resolved correctly via `new URL(t, baseUrl.href)`.
+     - Current directory (`./current_segment_02.ts`), root-relative (`/root/relative/segment_03.ts`), and query strings (`?token=secure123&sign=abc`) preserved and encoded into base64url.
+     - `#EXT-X-KEY` rewritten to `/hls/key?url=...`.
+     - `#EXT-X-MAP` init segment rewritten to `/hls/segment.ts?url=...`.
+     - `#EXT-X-MEDIA` subtitles rewritten to `/hls/sub.vtt?url=...`.
+   - *HTTP Range Header Boundaries (4 tests)*:
+     - `bytes=0-0`: HTTP 206, Content-Range `bytes 0-0/1915156`, exactly 1 byte returned.
+     - `bytes=100-200`: HTTP 206, Content-Range `bytes 100-200/1915156`, exactly 101 bytes returned.
+     - `bytes=0-1023`: HTTP 206, Content-Range `bytes 0-1023/1915156`, exactly 1024 bytes returned.
+     - `bytes=invalid-range`: Handled safely without server error.
+   - *Subtitle VTT Parsing (/hls/sub.vtt) (3 tests)*:
+     - Raw SRT converted to WebVTT format, comma timestamps `00:00:01,000` converted to dot format `00:00:01.000` (`src/routes/hls.js:489`).
+     - UTF-8 BOM (`\uFEFF`) stripped cleanly (`src/routes/hls.js:482-484`).
+     - Vietnamese Unicode diacritics (`Ă, Â, Đ, Ê, Ô, Ơ, Ư, ắ, ằ, ẳ, ẵ, ặ, ấ, ầ, ổ, ỡ, ự, ỹ`) preserved intact.
+     - Headers `Content-Type: text/vtt; charset=utf-8` and `Access-Control-Allow-Origin: *` verified.
+
+4. **Target 4: MPEG-TS Chunk Download & Binary Verification (3 Assertions)**:
+   - Full TS chunk downloaded via `/hls/segment.ts`: `1,915,156 bytes` (1.87 MB > 100 KB threshold).
+   - Sync byte `0x47` verified at packet boundaries: offset 0 (`0x47`), 188 (`0x47`), 376 (`0x47`), 564 (`0x47`), 752 (`0x47`).
+   - 50 consecutive 188-byte packet periodicity checked and confirmed 50/50.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Audio Track Separation**:
-   - `src/providers/vsmov.js` traverses all server group tabs in `movieData.episodes` and classifies their audio track via `classifyServerAudio()`.
-   - By assigning distinct `bingeGroup` identifiers (`vsmov-vietsub-4k-vip-1`, `vsmov-longtieng-4k-vip-1`, `vsmov-thuyetminh-4k-vip-1`), Stremio treats them as independent audio options without cross-stream collision.
-   - For Vietsub streams, `resolveEmbedMedia` extracts WebVTT/SRT subtitle files, resolves relative paths, and provides a CORS-enabled proxy URL via `/hls/sub.vtt`.
+1. **Catalog Integrity & Resilience**:
+   - `src/manifest.js` defines 22 catalogs across 6 clusters with extra parameters `['search', 'genre', 'skip']`.
+   - `src/handlers.js:handleCatalog` resolves providers via `getProviderFromCatalogId` and routes type via `getCatTypeFromCatalogId`.
+   - When an unrecognized catalog ID, hostile query, or out-of-bounds skip is passed, the handler safely falls back to `{ metas: [] }` without unhandled exceptions or 500 status codes.
+   - All 22 active catalogs returned valid non-empty arrays with correct Stremio metadata.
 
-2. **Subtitle Proxying & Sanitization**:
-   - `src/routes/hls.js` implements `/hls/sub.vtt` and alias `/sub`.
-   - Upstream headers inject `Referer: https://vsmov.com/` and `Origin: https://vsmov.com` to prevent 403 CDN blocks.
-   - Response sanitization strips UTF-8 BOM (`\uFEFF`), normalizes line endings (`\r\n` -> `\n`), converts comma timestamps (`00:00:01,000` -> `00:00:01.000`), and guarantees the `WEBVTT\n\n` header with CORS `Access-Control-Allow-Origin: *`.
+2. **Stream Aggregator Isolation & Safety**:
+   - `src/handlers.js:handleStream` parses IDs, fetches Cinemeta metadata, and wraps all 6 provider promises in `withTimeout(p.getStreams(), 4500)`.
+   - Handled via `Promise.allSettled()`, ensuring any individual provider network error, rate limit (HTTP 429), or timeout does not block or fail the aggregate response.
+   - All stream objects are sanitized: `url` points to `/hls/manifest.m3u8`, `behaviorHints` populated, and `externalUrl` explicitly deleted.
 
-3. **KKPhim Anti-404 Episode Matching**:
-   - Upstream KKPhim responses vary across `server_data`, `episode_data`, `items`, and `episodes`, with episode labels varying between `"1"`, `"01"`, `"Tập 1"`, `"tap-01"`, and `"ep-1"`.
-   - Normalizing container access and employing `matchEpisodeItem()` resolves any requested episode number to its true upstream media link, completely eliminating 404 stream resolution failures.
+3. **HLS Proxy Correctness & RFC 3986 Compliance**:
+   - `src/routes/hls.js` uses `new URL(t, baseUrl.href).href` to resolve all relative paths (`../`, `./`, `/`, subdirectories) to absolute URLs before base64url encoding.
+   - Decryption keys (`#EXT-X-KEY`), init maps (`#EXT-X-MAP`), audio/subtitles (`#EXT-X-MEDIA`), and video chunks (`#EXTINF`) are rewritten to their dedicated endpoints (`/hls/key`, `/hls/segment.ts`, `/hls/sub.vtt`, `/hls/manifest.m3u8`).
+   - Partial content requests correctly forward upstream `Range` headers and stream responses with `status: 206` and `Content-Range`.
 
-4. **In-App Direct Play Exclusivity**:
-   - All emitted stream objects declare `url` routing through the local `/hls/manifest.m3u8` proxy and strictly omit `externalUrl`.
-   - Binary video downloads confirm real MPEG-TS data (> 50KB with sync byte `0x47`) and Range 206 seeking support.
-
-5. **Version Consistency**:
-   - Synchronous update to `1.5.1` across `package.json`, `src/manifest.js`, `src/handlers.js`, and test suites ensures complete alignment across manifests, health endpoints, and UI banners.
+4. **MPEG-TS Binary Compliance**:
+   - Live chunk downloads verified payload size > 100KB and confirmed MPEG-TS transport stream framing with synchronization byte `0x47` aligned at 188-byte intervals.
 
 ---
 
 ## 3. Caveats
 
-1. **Live Upstream Rate Limiting**: Under rapid burst testing against upstream endpoints (`phimapi.com`), Cloudflare rate limiting (HTTP 429) may occasionally occur. The aggregator's 5s timeout and fallback cache isolate individual provider issues without crashing the addon.
-2. **Releases Without Soft Subtitles**: If an upstream movie release only provides hardcoded subtitles or Vietnamese dubbing without a soft subtitle track, the stream cleanly omits the `subtitles` property rather than proxying a null URL.
+- Upstream CDN latency or third-party rate limits (HTTP 429) can occasionally occur when firing high-frequency burst requests (e.g. 50 parallel requests). The addon handles this gracefully via provider isolation (`Promise.allSettled`) and fallback `[]`.
+- External live streams require active internet connectivity. All tests were executed and verified against live upstream servers and mock servers on ephemeral ports.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict: APPROVE**
+The Engine v1.6.2 implementation is **fully verified, resilient, and robust** across all catalog edge cases, stream aggregation invariants, HLS proxy relative URL rewrites, Range 206 seeking, WebVTT subtitle conversions, and MPEG-TS binary segment downloads.
 
-Hotfix v1.5.1 satisfies all functional, architectural, and adversarial requirements:
-- VSMOV multi-server audio separation and `/hls/sub.vtt` subtitle proxy are operational and verified on live streams.
-- KKPhim flexible episode matching and container normalization prevent 404 errors across series.
-- All streams strictly adhere to In-App Direct Play protocol (`url` only, NO `externalUrl`).
-- Real MPEG-TS chunk download (> 50KB, `0x47` sync byte) and HTTP Range 206 seeking verified.
-- 100% pass rate across all unit, integration, playback, and adversarial test suites.
+Definitive Verdict: **`APPROVE`**
 
 ---
 
 ## 5. Verification Method
 
-To independently execute and verify Hotfix v1.5.1:
+To independently verify the empirical results:
 
 ```bash
-# 1. Syntax Check across all core files
-node --check src/index.js src/handlers.js src/manifest.js src/providers/vsmov.js src/providers/kkphim.js src/routes/hls.js
+# 1. Run the Engine v1.6.2 Adversarial Challenge Suite (127 Assertions)
+node tests/challenger1_v162_adversarial_empirical.test.js
 
-# 2. Core Integration Test Suite
-npm test
+# 2. Run the Comprehensive Provider Playback Suite (44 Assertions)
+node tests/verify_all_providers_playback.js
 
-# 3. 7-Phase E2E Playback & Subtitle Verification
+# 3. Run Hotfix & Regression Suites
 node tests/verify_playback.js
-
-# 4. VSMOV Audio & Subtitle Unit Suite
-node tests/verify_vsmov_sub_audio.js && node tests/test_m1_subtitle_proxy.js
-
-# 5. Comprehensive Challenger Empirical & Adversarial Test Suite (107 checks)
-node tests/challenger_hotfix_v151_empirical.test.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node tests/verify_new_providers.js
 ```
-

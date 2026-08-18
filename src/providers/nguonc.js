@@ -162,14 +162,43 @@ async function getCatalog(type, page = 1, extra = {}) {
       items = raw.map((i) => mapCatalogMeta(i));
     } else {
       let listType = cleanType;
-      if (cleanType === 'movie') listType = 'phim-le';
-      else if (cleanType === 'series') listType = 'phim-bo';
-      else if (cleanType === 'anime') listType = 'hoat-hinh';
-      else if (cleanType === 'cinema') listType = 'phim-chieu-rap';
-      else if (cleanType === 'tvshows') listType = 'tv-shows';
+      if (cleanType === 'movie' || cleanType === 'phim-le') listType = 'phim-le';
+      else if (cleanType === 'series' || cleanType === 'phim-bo') listType = 'phim-bo';
+      else if (cleanType === 'anime' || cleanType === 'hoat-hinh') listType = 'hoat-hinh';
+      else if (cleanType === 'cinema' || cleanType === 'phim-chieu-rap' || cleanType.includes('cinema') || cleanType.includes('chieu-rap')) listType = 'phim-chieu-rap';
+      else if (cleanType === 'tvshows' || cleanType === 'tv-shows') listType = 'tv-shows';
 
-      const res = await http.get(`/films/danh-sach/${listType}`, { params: { page: p } });
-      const raw = res.data?.items || [];
+      let raw = [];
+      const isCinema = cleanType === 'cinema' || listType === 'phim-chieu-rap';
+
+      try {
+        const res = await http.get(`/films/danh-sach/${listType}`, { params: { page: p } });
+        raw = res.data?.items || [];
+      } catch (listErr) {
+        if (isCinema) {
+          // Graceful fallback for cinema catalog: try phim-le, then phim-moi-cap-nhat
+          try {
+            const fallbackRes = await http.get('/films/danh-sach/phim-le', { params: { page: p } });
+            raw = fallbackRes.data?.items || [];
+          } catch {
+            const fallbackRes2 = await http.get('/films/phim-moi-cap-nhat', { params: { page: p } });
+            raw = fallbackRes2.data?.items || [];
+          }
+        } else {
+          throw listErr;
+        }
+      }
+
+      if (isCinema && raw.length === 0) {
+        try {
+          const fallbackRes = await http.get('/films/danh-sach/phim-le', { params: { page: p } });
+          raw = fallbackRes.data?.items || [];
+        } catch {
+          const fallbackRes2 = await http.get('/films/phim-moi-cap-nhat', { params: { page: p } });
+          raw = fallbackRes2.data?.items || [];
+        }
+      }
+
       items = raw.map((i) => mapCatalogMeta(i, cleanType === 'series' ? 'series' : 'movie'));
     }
 

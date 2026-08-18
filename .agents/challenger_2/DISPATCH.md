@@ -16,4 +16,14 @@ Challenger Scope:
    - Multiple concurrent requests
    - Base64URL encoded vs plaintext parameters
    - Anti-hotlinking referer preservation (`https://vsmov.com/`, `https://player.phimapi.com/`)
-3. Write your report to /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_2/handoff.md and send message back.
+
+## 2026-08-18T09:23:43Z
+Objective:
+Adversarially test the stream aggregation, timeout safety, and stream sorting mechanics of Engine v1.6.2.
+1. Test stream sorting behavior under synthetic and live multi-provider stream lists: ensure 4K/UHD is always ranked higher than Vietsub, which is higher than Thuyết Minh, which is higher than Lồng Tiếng, while preserving provider preference within each bucket.
+2. Test timeout handling: verify that slow or failing providers do not hang the aggregator beyond 4500ms.
+3. Test in-app protocol invariant: verify across all generated stream lists that no stream contains `externalUrl` and all URLs route via `/hls/manifest.m3u8`.
+4. Test live/mock segment fetching for chunk size > 100KB and MPEG-TS sync byte 0x47.
+
+Execute tests and provide a clear verdict in your handoff report: either `APPROVE` or `REQUEST_CHANGES`.
+Write your handoff to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_2/handoff.md` and send message to parent when done.

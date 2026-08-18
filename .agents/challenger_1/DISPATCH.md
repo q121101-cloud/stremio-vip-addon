@@ -32,3 +32,20 @@ Challenger Scope:
    - Verify strict In-App stream protocol (`url` exists, `externalUrl` is undefined).
 2. Report pass/fail with concrete evidence.
 3. Write your report to /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_1/handoff.md and send message back.
+
+## 2026-08-18T09:23:43Z
+You are challenger_1.
+Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_1
+Project Root: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Original Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+
+Objective:
+Adversarially challenge and stress-test the Engine v1.6.2 implementation.
+Design and execute adversarial test cases targeting:
+1. Catalog edge cases: unknown catalog IDs, empty query params, boundary skip values, weird genre names across all 22 catalogs.
+2. Stream edge cases: malformed IDs, missing episode numbers, unsupported media types, rapid concurrent stream requests.
+3. HLS Proxy resilience: base64url decoding of malformed or special characters, relative path edge cases (`../`, `./`, root-relative `/`), range header boundary values (`bytes=0-0`, `bytes=100-200`, invalid ranges), subtitle VTT parsing.
+4. MPEG-TS chunk download verification (>100KB with 0x47 sync byte on live or proxied streams).
+
+Execute empirical tests and provide a clear verdict in your handoff report: either `APPROVE` or `REQUEST_CHANGES`.
+Write your handoff to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/challenger_1/handoff.md` and send message to parent when done.

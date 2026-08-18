@@ -1,27 +1,13 @@
-# GATE STATUS
-
-## Milestone 1: Provider Upgrades & HLS Routing — Iteration 1
+## Gate — Iteration 1 (Engine v1.6.2 Verification)
 | Agent | Role | Verdict | Source |
-|---|---|---|---|
-| worker_m1 | teamwork_preview_worker | DONE (build & tests passed) | handoff.md |
-| reviewer_m1_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| reviewer_m1_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| challenger_m1_1 | teamwork_preview_challenger | APPROVE | handoff.md |
-| challenger_m1_2 | teamwork_preview_challenger | APPROVE | handoff.md |
-| auditor_m1_1 | teamwork_preview_auditor | CLEAN | handoff.md |
-
-Gate Result: **PASS**
-
----
-
-## Milestone 2: E2E Verification & Zero-Regression Guard — Iteration 1
-| Agent | Role | Verdict | Source |
-|---|---|---|---|
-| worker_m2 | teamwork_preview_worker | DONE (26/26 PASS, regressions 0) | handoff.md |
-| reviewer_m2_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| reviewer_m2_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
-| challenger_m2_1 | teamwork_preview_challenger | APPROVE | handoff.md |
-| challenger_m2_2 | teamwork_preview_challenger | APPROVE | handoff.md |
-| auditor_m2_1 | teamwork_preview_auditor | CLEAN | handoff.md |
+|-------|------|---------|--------|
+| worker_impl_1 | Core Engine Implementation | DONE (build passed) | handoff.md |
+| test_writer_1 | E2E Playback Test Writer | DONE (44/44 PASS) | handoff.md |
+| worker_opt_1 | Provider Optimization | DONE (fallback verified) | handoff.md |
+| reviewer_1 | Senior Code Reviewer | APPROVE | handoff.md |
+| reviewer_2 | Architecture Reviewer | APPROVE | handoff.md |
+| challenger_1 | Adversarial Challenger | APPROVE | handoff.md |
+| challenger_2 | Stream & Aggregation Challenger | APPROVE | handoff.md |
+| auditor_1 | Forensic Integrity Auditor | CLEAN | handoff.md |
 
 Gate Result: **PASS**

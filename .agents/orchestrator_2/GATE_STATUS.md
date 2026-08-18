@@ -1,12 +1,13 @@
-# Gate Status — VIP Movies Addon Engine v1.5.0 Orchestration (Gen 2)
+# Gate Status — Milestone 3 (Engine v1.6.0 Upgrade & Release)
 
-## Gate — Iteration 1
+## Gate — Milestone 3 Iteration 1
 | Agent | Role | Verdict | Source | Notes |
 |---|---|---|---|---|
-| reviewer_1 | teamwork_preview_reviewer | APPROVE | handoff.md | Verified R1-R5, syntax, 22 catalogs, Cinemeta, in-app streams, UI signature |
-| reviewer_2 | teamwork_preview_reviewer | APPROVE | handoff.md | Verified HLS proxy, anti-403 headers table, M3U8 multi-tag rewriter, Range 206, 121 adversarial checks |
-| challenger_1 | teamwork_preview_challenger | APPROVE | handoff.md | Verified verify_playback.js (>3.4MB TS chunk, sync 0x47, Range 206), test_kkphim_playback.js, e2e.test.js |
-| challenger_2 | teamwork_preview_challenger | APPROVE | handoff.md | Verified 22 catalogs reachable (64/64), adversarial routing (178/178), aggregator empirical (15/15), Cinemeta (16/16) |
-| auditor_1 | teamwork_preview_auditor | CLEAN | handoff.md | Static analysis (0 hardcoded mocks), runtime tracing (>3.4MB TS chunk from upstream CDN), protocol invariants clean |
+| worker_m3_deploy | teamwork_preview_worker | DONE | handoff.md | Version bump v1.6.0, 5 test suites 100% PASS, git push commit ee95e5e to main, sanitized remote URL |
+| reviewer_m3_1_deploy | teamwork_preview_reviewer | APPROVE | handoff.md | Verified v1.6.0 strings, 110/110 test assertions pass, clean git tree & remote sync |
+| reviewer_m3_2_deploy | teamwork_preview_reviewer | APPROVE | handoff.md | Verified brand signature, provider invariants, HLS routing, zero token leaks |
+| challenger_m3_1_deploy | teamwork_preview_challenger | APPROVE | handoff.md | 65 adversarial stress/fuzzing tests passed, edge cases handled gracefully |
+| challenger_m3_2_deploy | teamwork_preview_challenger | APPROVE | handoff.md | 378 invariant/adversarial checks passed, zero externalUrl verified across all providers |
+| auditor_m3_deploy | teamwork_preview_auditor | CLEAN | handoff.md | Real MPEG-TS chunk downloads verified (>1.9MB, sync byte 0x47, Range 206), zero mocks, clean remote |
 
-Gate Result: **PASS** (All criteria satisfied: 2 Approvals, 2 Challenger Approvals, 1 Clean Audit, 100% test pass rate)
+Gate Result: **PASS** (All criteria satisfied: 2 Approvals, 2 Challenger Approvals, 1 Clean Forensic Audit, 100% test pass rate)

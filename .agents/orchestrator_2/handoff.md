@@ -1,71 +1,73 @@
-# Orchestrator Handoff Report — VIP Movies Addon Engine v1.5.0 Release
+# Milestone 3 & Final Completion Handoff Report: Engine v1.6.0 Upgrade
 
-**Orchestrator**: Generation 2 (`orchestrator_2`)  
-**Project**: Stremio VIP Movies Addon Engine v1.5.0  
-**Project Root**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`  
-**Status**: ✅ **100% COMPLETE & VERIFIED (GATE PASSED)**  
+## 1. Observation
 
----
+### Completed Deliverables (Milestones 1 - 3)
+1. **Milestone 1 (Provider Updates & HLS Referer Routing)**:
+   - `src/providers/stp.js`: Domain updated to `https://sieutamphim.pro`, Referer/Origin headers configured, WP-JSON search + XOR `0x2a` bitwise decoding, multi-tier fallback, stream label `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`, zero `externalUrl`, `scoreMatch` centralized import.
+   - `src/providers/clbpx.js`: Domain updated to `https://clbphimxua.info`, Referer/Origin headers configured, Ophim JSON API + HTML scraping fallback, stream label `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`, zero `externalUrl`, `scoreMatch` centralized import.
+   - `src/providers/yan.js`: Domain updated to `https://yanhh3d.pw`, Referer/Origin headers configured, direct live stream scraping (`data-obf.pU`, `master.m3u8` from `fbcdn.cloud`) + Ophim fallback, stream label `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`, zero `externalUrl`, `scoreMatch` centralized import.
+   - `src/routes/hls.js`: `SOURCE_REFERERS` table updated with precise mappings for `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw`.
+   - Gate status: **PASS** (Approved by Reviewers, Challengers, and Forensic Auditor).
 
-## 1. Executive Summary
+2. **Milestone 2 (E2E Verification & Zero-Regression Guard)**:
+   - `tests/verify_new_providers.js`: 6 verification phases covering Server lifecycle, Direct Provider Extraction (STP XOR 0x2a, CLBPX, YAN), Manifest proxy rewriting, Stream aggregator safety, TS segment binary inspection (> 10KB, sync byte `0x47`), and HTTP Range 206 partial content streaming.
+   - Verified 26/26 assertions passed.
+   - Zero-regression test suites verified: `tests/verify_playback.js` (7/7 PASS), `tests/verify_hotfix_vsmov_kkphim.js` (27/27 PASS), `src/test.js` (50/50 PASS).
+   - Gate status: **PASS** (Approved by Reviewers, Challengers, and Forensic Auditor).
 
-All milestones (R1 through R5) of the Stremio VIP Movies Addon Engine v1.5.0 overhaul have been completed, reviewed, challenged, and forensically audited with zero defects and 100% test pass rates:
-
-1. **R1: Provider Standardization & Conflict Resolution** (`src/lib/utils.js`, `src/providers/*.js`):
-   - Canonical exports in `src/lib/utils.js`: `scoreMatch`, `normalizeText`, `escapeRegExp`, `safeExtra`, `safeSlug`, `safeKeyword`, `safePage`, `extractSeasonNumber`, `isSeasonMatch`.
-   - Zero duplicate function declarations across all 7 provider files (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`).
-   - Strict in-app streaming protocol: `url` only, `externalUrl` completely omitted.
-
-2. **R2: Fail-Safe Stream Aggregator & Metadata Resolution** (`src/handlers.js`, `src/lib/cinemeta.js`):
-   - Canonical IMDb metadata resolution via Cinemeta API (`https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`) with 24h LRU caching and in-flight request deduplication.
-   - Concurrent provider execution via `Promise.allSettled()` with a strict 4000ms timeout per provider.
-   - Guaranteed HTTP 200 `{ streams: [...] }` across all failure/timeout/edge-case scenarios.
-
-3. **R3: 404 Routing Elimination & 22 K20 Standard Catalogs** (`src/index.js`, `src/manifest.js`, `src/config.js`):
-   - Full routing symmetry mounted for both root and `/:config`-prefixed paths (`/manifest.json`, `/catalog/...`, `/stream/...`, `/meta/...`).
-   - Safe parsing of multi-layer URL-encoded extra parameters and search fanout across providers.
-   - All 22 K20 standard catalogs declared and operational.
-
-4. **R4: Mandatory Real Video Segment Playback Test** (`tests/verify_playback.js`, `src/routes/hls.js`):
-   - Ephemeral port server lifecycle.
-   - Verified streams returned for movies and series across VSMOV 4K, KKPhim, and NguonC.
-   - HLS Proxy Anti-403 header injection (`Referer`, `Origin`, Chrome 126 UA), M3U8 multi-tag rewriter (`#EXT-X-STREAM-INF`, `#EXT-X-MEDIA`, `#EXT-X-KEY`, `#EXT-X-MAP`, `#EXT-X-PRELOAD-HINT`).
-   - Real binary TS chunk download from live CDN: **3,426,676 bytes (~3.35 MB > 50KB)** with standard MPEG-TS sync byte `0x47` on 188-byte boundaries and HTTP Range 206 partial content support.
-
-5. **R5: UI Preservation, Versioning & Deployment**:
-   - Cyber-Glassmorphism UI preserved with glowing brand signature: `VIP Movies Addon v1.5.0 • Powered by <span class="brand-highlight">Q121101</span>`.
-   - Version `1.5.0` synchronized across `package.json`, `src/manifest.js`, `src/index.js`, and `src/handlers.js`.
-   - Git commit `27fcb9e` created on branch `main`.
+3. **Milestone 3 (Version Bump v1.6.0, Full Verification, & GitHub Deployment)**:
+   - Version `1.6.0` consistently bumped across `package.json`, `src/manifest.js`, `src/handlers.js` (status pill & footer signature), `src/index.js` (startup banner), `src/config.js`, `src/routes/hls.js`, and all 7 provider files.
+   - UI Footer Signature strictly verified: `VIP Movies Addon v1.6.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`.
+   - All 5 test suites executed and verified:
+     - `node --check src/index.js` (exit code 0)
+     - `node tests/verify_new_providers.js` (26/26 PASS, exit code 0)
+     - `node tests/verify_playback.js` (7/7 PASS, exit code 0)
+     - `node tests/verify_hotfix_vsmov_kkphim.js` (27/27 PASS, exit code 0)
+     - `node src/test.js` (50/50 PASS, exit code 0)
+   - Git Deployment: Commit `ee95e5e` pushed to `origin main` on GitHub repository (`https://github.com/q121101-cloud/stremio-vip-addon.git`), working tree clean, remote origin sanitized with zero leaked tokens.
+   - Gate status: **PASS** (Unanimous `APPROVE` from 2 Reviewers and 2 Challengers, and `CLEAN` from Forensic Auditor).
 
 ---
 
-## 2. Gate Status Summary
+## 2. Logic Chain & Milestone State
+- Milestone 1: **DONE**
+- Milestone 2: **DONE**
+- Milestone 3: **DONE**
 
-| Role | Subagent Name | Verdict | Scope |
-|---|---|---|---|
-| Reviewer 1 | `reviewer_1` | **APPROVE** | Architecture, Utilities, Catalogs, UI Signature |
-| Reviewer 2 | `reviewer_2` | **APPROVE** | HLS Proxy, Anti-403 Headers, Range 206, 121 Adversarial Checks |
-| Challenger 1 | `challenger_1` | **APPROVE** | Playback E2E, 3.42MB TS Chunk, 0x47 Sync Byte, Ephemeral Port |
-| Challenger 2 | `challenger_2` | **APPROVE** | 22 Catalogs (64/64), Adversarial Routing (178/178), Aggregator (15/15) |
-| Forensic Auditor | `auditor_1` | **CLEAN** | Zero hardcoded mocks, genuine CDN streaming, protocol clean |
-| Deployment Worker | `worker_deploy` | **DONE** | Full syntax check passed, Git commit created |
-
-**Overall Gate Verdict**: **PASS**
+All requirements from `ORIGINAL_REQUEST.md` (R1 - R4) and acceptance criteria are 100% satisfied.
 
 ---
 
-## 3. Verification Commands & Outputs
+## 3. Caveats
+- No caveats. All provider live scraping, fallback paths, and stream proxy rewriters were tested against live endpoints with active streaming responses and validated with real MPEG-TS binary chunk downloads.
 
+---
+
+## 4. Conclusion
+The entire Stremio VIP Movies Addon Engine v1.6.0 upgrade is 100% complete, fully verified, free of regressions, and successfully deployed to GitHub `main`.
+
+---
+
+## 5. Verification Method
+To independently verify the entire solution:
 ```bash
-# 1. Syntax Check across all 13 JavaScript files
+cd /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+
+# 1. Syntax check
 node --check src/index.js
 
-# 2. Mandatory R4 Playback Verification Test (Real >50KB TS segment & Range 206)
+# 2. Provider & E2E verification
+node tests/verify_new_providers.js
+
+# 3. Regression test suites
 node tests/verify_playback.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node src/test.js
 
-# 3. 22 Catalogs & Routing Test
-node tests/test_routing_and_22_catalogs.js
-
-# 4. Multi-Tier End-to-End Suite
-node tests/e2e.test.js
+# 4. Git status & clean remote verification
+git status
+git log -n 1
+git remote -v
 ```
+All commands exit with code 0.

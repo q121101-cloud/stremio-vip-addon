@@ -1,10 +1,11 @@
-# DISPATCH LOG
+## 2026-08-18T09:07:01Z
+You are the Project Orchestrator (orchestrator_1) for Stremio VIP Movies Addon Engine v1.6.2 upgrade.
 
-## 2026-08-18T04:37:16Z
-Initial dispatch from parent agent.
-Objective: Engine v1.6.0 for Stremio VIP Movies Addon:
-- R1: Audit and update 3 providers (src/providers/stp.js, src/providers/clbpx.js, src/providers/yan.js) with live endpoints, domain headers, real HTTP inspection, robust fallback, and strict invariants.
-- R2: Update src/routes/hls.js with SOURCE_REFERERS for the 3 new domains.
-- R3: Implement E2E verification test suite (tests/verify_new_providers.js) ensuring manifest parsing, stream retrieval, proxy segment sync byte check, and zero regression against verify_playback.js and verify_hotfix_vsmov_kkphim.js.
-- R4: Version bump to v1.6.0 in package.json, src/manifest.js, src/handlers.js, and git deploy per instructions.
-- Maintain BRIEFING.md, progress.md, PROJECT.md, and delegate all exploration, implementation, testing, review, challenge, and audit to subagents.
+Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1
+Project Root: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Original User Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+
+Your mission:
+Fulfill all requirements in ORIGINAL_REQUEST.md (R1: HLS Proxy 404 fix & dynamic headers, R2: 22 catalogs in manifest, R3: Routing & 6-provider stream aggregation, R4: 6 provider modules optimization & 3-tier fallback, R5: E2E continuous playback tests verifying m3u8 + .ts chunk > 100KB with sync byte 0x47 across all 6 providers + regression tests, R6: Version 1.6.2 sync & git commit/push).
+
+Coordinate the team, maintain plan.md and progress.md in your working directory, ensure zero regression, and report back when finished.
