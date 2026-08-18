@@ -37,11 +37,11 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | HLS Proxy Overhaul & Header Simulation | Refine `src/routes/hls.js` with Windows Chrome 124 UA, complete browser headers, binary arraybuffer segment proxy & Range support | none | PLANNED |
-| M2 | Real Cheerio Scrapers & Provider Hardening | Refine `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js` (dead link filtering, multi-candidate search fallback, strict Donghua Guard) | M1 | PLANNED |
-| M3 | Multi-Keyword & Episode Matching Integrity | Verify `src/lib/utils.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js` search fallback & episode matching | M1 | PLANNED |
-| M4 | E2E Playback Verification & Zero Regression | Execute and achieve 100% PASS on `tests/verify_v170_playback.js`, `tests/verify_all_providers_playback.js`, `npm test` | M2, M3 | PLANNED |
-| M5 | Versioning v1.7.0, Forensic Audit & Git Deployment | Sync version 1.7.0 in `src/index.js`, run independent Forensic Audit (`teamwork_preview_auditor`), git commit & push to `main` | M4 | PLANNED |
+| M1 | HLS Proxy Overhaul & Header Simulation | Refine `src/routes/hls.js` with Windows Chrome 124 UA, complete browser headers, binary arraybuffer segment proxy & Range support | none | DONE |
+| M2 | Real Cheerio Scrapers & Provider Hardening | Refine `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js` (dead link filtering, multi-candidate search fallback, strict Donghua Guard) | M1 | DONE |
+| M3 | Multi-Keyword & Episode Matching Integrity | Verify `src/lib/utils.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js` search fallback & episode matching | M1 | DONE |
+| M4 | E2E Playback Verification & Zero Regression | Execute and achieve 100% PASS on `tests/verify_v170_playback.js`, `tests/verify_all_providers_playback.js`, `npm test` | M2, M3 | DONE |
+| M5 | Versioning v1.7.0, Forensic Audit & Git Deployment | Sync version 1.7.0 in `src/index.js`, run independent Forensic Audit (`teamwork_preview_auditor`), git commit & push to `main` | M4 | DONE |
 
 ## Interface Contracts
 ### Client ↔ Server Config Token

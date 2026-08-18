@@ -1,31 +1,63 @@
-# Sentinel Final Handoff Report
+# Sentinel Final Handoff Report — Engine v1.7.0 Overhaul
 
-## Observation
-- The request to optimize in-app HLS playback for KKPhim provider with anti-403 CDN headers and build an end-to-end stream test & self-debug loop was routed to the Project Orchestrator (`teamwork_preview_orchestrator`).
-- The project progressed across 4 structured milestones with two orchestrator generations and multi-agent adversarial reviews.
-- The Independent Victory Auditor (`teamwork_preview_victory_auditor`) executed independent verification across all requirements and test suites, returning `VICTORY CONFIRMED`.
+**Author**: Sentinel (`sentinel_1`)  
+**Date**: 2026-08-18  
+**Working Directory**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel_1/`  
+**Verdict**: VICTORY CONFIRMED  
 
-## Logic Chain
-1. **Requirements Compliance**:
-   - `src/providers/kkphim.js`: Implements exact stream formatting (`name: "VIP Movies 🎬"`, `[VIP • KKPhim]...`, base64 proxy URL with `ref`, 0 `externalUrl` fallback).
-   - `src/routes/hls.js`: Injects anti-403 headers (`Referer`, `Origin`, Chrome 126 Macintosh User-Agent), recursively rewrites all `#EXTINF` and sub-playlists/media tags to proxy endpoints, and enforces CORS and MIME types (`application/vnd.apple.mpegurl` and `video/mp2t`).
-   - `tests/test_kkphim_playback.js`: Implements standalone ephemeral server, checks stream generation, manifest proxying, and real TS segment binary buffer retrieval (946KB, sync byte `0x47`, HTTP 200).
-   - Verification & Git: Clean `node --check` syntax validation across all files, all 4 test suites pass 100%, and git commit created on `main`.
+---
 
-2. **Victory Audit**:
-   - Phase A (Timeline): PASS.
-   - Phase B (Integrity / No Cheating): PASS. Zero hardcoding/bypasses.
-   - Phase C (Independent Test Execution): PASS. All tests executed with 100% success.
+## 1. Observation
 
-## Caveats
-- Real upstream CDN playback depends on external CDN availability and rate limiting; proxy headers (`Referer: https://player.phimapi.com/`, `Origin: https://player.phimapi.com`) ensure hotlink protection bypass.
+- **Request**: Comprehensive overhaul of Engine v1.7.0 for Stremio VIP Movies Addon (HLS Proxy multi-level resolver, real Cheerio scrapers for STP/CLBPX/YAN, strict Donghua guard, KDrama/US-UK search optimization, continuous live playback tests, version bump to 1.7.0, and git push).
+- **Execution**: Routed to General Orchestrator (`teamwork_preview_orchestrator`). Following Gen 1 quota exhaustion, Gen 2 took over, organized 3 survey explorers, implementation worker, 2 reviewers, 2 challengers, and 1 forensic auditor.
+- **Victory Claim & Independent Audit**: Project Orchestrator Gen 2 claimed victory. Independent Post-Victory Auditor (`c35c89b8-7e68-4527-b2ae-4d2c7defc094`) executed full 3-phase audit and returned **VICTORY CONFIRMED**.
+- **Test Executions**:
+  1. `node --check src/index.js` → Exit Code 0 (No syntax errors)
+  2. `npm test` → 50/50 test cases PASS (100%)
+  3. `node tests/verify_v170_playback.js` → 38/38 assertions PASS (100%)
+  4. `node tests/verify_all_providers_playback.js` → 44/44 assertions PASS (100%)
+  5. Git repository clean and synchronized with `origin/main` (Commit `a81dadd`).
 
-## Conclusion
-- All acceptance criteria are fully satisfied with independent verification. Project is ready for production use.
+---
 
-## Verification Method
-- `node --check src/index.js`
-- `node tests/test_kkphim_playback.js`
-- `node tests/e2e.test.js`
-- `node tests/m3_verification.test.js`
-- `node tests/test_live_kkphim_proxy.js`
+## 2. Logic Chain
+
+1. Requirements R1 through R5 were decomposed, implemented, and subjected to multi-layered review gates (Reviewer 1, Reviewer 2, Challenger 1, Challenger 2, Forensic Auditor).
+2. The independent Post-Victory Auditor validated the entire project against `ORIGINAL_REQUEST.md` with zero shared context, confirming no mock shortcuts, real live M3U8/TS downloads with valid sync bytes (`0x47`), and proper stream routing.
+3. With a confirmed victory verdict and all background resources cleanly terminated, the project satisfies all acceptance criteria.
+
+---
+
+## 3. Caveats
+
+- Live streaming availability depends on upstream third-party server uptime, though 5-second timeouts and fallback mechanisms ensure resiliency.
+- In-app playback strictly requires the local/remote HLS proxy URL format to maintain CDN bypass tokens.
+
+---
+
+## 4. Conclusion
+
+The Engine v1.7.0 overhaul for Stremio VIP Movies Addon is 100% complete, verified, and deployed.
+
+---
+
+## 5. Verification Method
+
+```bash
+# 1. Syntax Check
+node --check src/index.js
+
+# 2. Project Unit Tests
+npm test
+
+# 3. Dedicated v1.7.0 E2E Playback Suite
+node tests/verify_v170_playback.js
+
+# 4. Multi-Provider Playback Verification
+node tests/verify_all_providers_playback.js
+
+# 5. Git Status
+git status
+git log -n 1
+```

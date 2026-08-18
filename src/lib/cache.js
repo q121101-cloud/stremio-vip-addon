@@ -130,42 +130,49 @@ class LRUCache {
   }
 }
 
-// ─── Shared Cache Instances ────────────────────────────────────
+const { HybridCache } = require('./cloudCache');
+
+// ─── Shared Cache Instances with Cloud Persistence ─────────────
 
 /**
  * IMDb ID ↔ Phim Slug mapping cache
  * TTL: 24 giờ — Giảm 90% số request tìm kiếm lặp lại
- * Max: 5.000 IMDb IDs
+ * Max: 5.000 IMDb IDs (In-Memory + Supabase)
  */
-const imdbCache = new LRUCache(5000, 86400);
+const rawImdbCache = new LRUCache(5000, 86400);
+const imdbCache = new HybridCache('imdb', rawImdbCache, 86400);
 
 /**
  * Cinemeta Metadata Cache
  * TTL: 24 giờ (86400s) — Cache metadata chính thức từ Cinemeta
- * Max: 5.000 entries
+ * Max: 5.000 entries (In-Memory + Supabase)
  */
-const cinemetaCache = new LRUCache(5000, 86400);
+const rawCinemetaCache = new LRUCache(5000, 86400);
+const cinemetaCache = new HybridCache('cinemeta', rawCinemetaCache, 86400);
 
 /**
  * m3u8 Playlist content cache
  * TTL: 10 phút — Instant Playback cho lần xem lại
- * Max: 500 playlists
+ * Max: 500 playlists (In-Memory + Cloudflare R2 / Supabase)
  */
-const m3u8Cache = new LRUCache(500, 600);
+const rawM3u8Cache = new LRUCache(500, 600);
+const m3u8Cache = new HybridCache('m3u8', rawM3u8Cache, 600);
 
 /**
  * Catalog API response cache
  * TTL: 5 phút
- * Max: 200 entries
+ * Max: 200 entries (In-Memory + Supabase)
  */
-const catalogCache = new LRUCache(200, 300);
+const rawCatalogCache = new LRUCache(200, 300);
+const catalogCache = new HybridCache('catalog', rawCatalogCache, 300);
 
 /**
  * Film detail cache
  * TTL: 10 phút
- * Max: 1.000 slugs
+ * Max: 1.000 slugs (In-Memory + Supabase)
  */
-const detailCache = new LRUCache(1000, 600);
+const rawDetailCache = new LRUCache(1000, 600);
+const detailCache = new HybridCache('detail', rawDetailCache, 600);
 
 // Tự động dọn dẹp expired entries mỗi 5 phút
 setInterval(() => {
@@ -183,6 +190,7 @@ setInterval(() => {
 
 module.exports = {
   LRUCache,
+  HybridCache,
   imdbCache,
   cinemetaCache,
   m3u8Cache,

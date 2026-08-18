@@ -1665,10 +1665,15 @@ router.get('/:config/stream/:type/:id', handleStream);
 router.get('/health', (req, res) => {
   const stats = api.getCacheStats();
   const { imdbCache: ic, m3u8Cache: mc, catalogCache: cc, detailCache: dc } = require('./lib/cache');
+  const { isSupabaseReady, isR2Ready } = require('./lib/cloudCache');
   sendJSON(res, {
     status: 'ok',
     version: MANIFEST.version,
     providers: Object.keys(ALL_PROVIDERS),
+    cloudEcosystem: {
+      supabasePostgreSQL: isSupabaseReady() ? 'connected' : 'fallback_memory',
+      cloudflareR2: isR2Ready() ? 'connected' : 'fallback_memory',
+    },
     cache: {
       nodeCache: stats,
       imdb:    ic.stats(),

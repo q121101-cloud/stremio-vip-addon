@@ -478,7 +478,7 @@ async function getCatalog(type, page = 1, extra = {}) {
 
     const liveCatUrl = p > 1 ? `https://clbphimxua.info${catPath}page/${p}` : `https://clbphimxua.info${catPath}`;
     try {
-      const htmlRes = await http.get(liveCatUrl, { timeout: 4000 });
+      const htmlRes = await http.get(liveCatUrl, { timeout: 2000 });
       const scrapedCards = parseClbpxCardsFromHtml(htmlRes.data || '');
       if (scrapedCards.length > 0) {
         catalogCache.set(cacheKey, scrapedCards, 300);

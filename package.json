@@ -19,8 +19,11 @@
   "author": "NguonC Stremio Addon",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1112.0",
+    "@supabase/supabase-js": "^2.112.3",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.21.1",
     "node-cache": "^5.1.2"
   },

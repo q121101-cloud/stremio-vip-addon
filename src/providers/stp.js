@@ -502,7 +502,7 @@ async function getCatalog(type, page = 1, extra = {}) {
 
     const liveCatUrl = p > 1 ? `https://sieutamphim.pro${categoryPath}page/${p}/` : `https://sieutamphim.pro${categoryPath}`;
     try {
-      const htmlRes = await http.get(liveCatUrl, { timeout: 4000 });
+      const htmlRes = await http.get(liveCatUrl, { timeout: 2000 });
       const scrapedCards = parseStpCardsFromHtml(htmlRes.data || '');
       if (scrapedCards.length > 0) {
         catalogCache.set(cacheKey, scrapedCards, 300);
