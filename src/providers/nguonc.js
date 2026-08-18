@@ -23,18 +23,49 @@ const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, sco
 const PROVIDER_ID    = 'nguonc';
 const PROVIDER_LABEL = 'NguonC';
 const BASE_API       = 'https://phim.nguonc.com/api';
-const NGUONC_UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const NGUONC_UA      = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-// ─── Axios Client (5s Timeout) ───────────────────────────────────
+const NGUONC_HEADERS = {
+  'User-Agent': NGUONC_UA,
+  'Referer': 'https://phim.nguonc.com/',
+  'Origin': 'https://phim.nguonc.com',
+  'Accept': 'application/json, text/plain, */*',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
+};
+
+// ─── Axios Client (5s Timeout) with Stealth Engine ──────────────
 const http = axios.create({
   baseURL: BASE_API,
   timeout: 5000,
-  headers: {
-    'User-Agent': NGUONC_UA,
-    Accept: 'application/json',
-    'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
-  },
+  headers: NGUONC_HEADERS,
 });
+
+async function fetchNguonC(endpoint, options = {}) {
+  const config = {
+    timeout: options.timeout || 5000,
+    headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
+    params: options.params,
+  };
+  try {
+    return await http.get(endpoint, config);
+  } catch (err) {
+    const isForbiddenOrBlocked = err.response?.status === 403 || err.response?.status === 429 || (!err.response && err.code === 'ECONNABORTED');
+    const backendProxy = process.env.RENDER_BACKEND_URL;
+    if (backendProxy && isForbiddenOrBlocked) {
+      try {
+        const cleanProxy = backendProxy.replace(/\/+$/, '');
+        const target = `${cleanProxy}/api/nguonc-proxy?path=${encodeURIComponent(endpoint)}`;
+        return await axios.get(target, { timeout: 6000, headers: NGUONC_HEADERS, params: options.params });
+      } catch (proxyErr) {
+        // Fall back to throwing original error
+      }
+    }
+    throw err;
+  }
+}
 
 function encodeBase64(str) {
   if (!str) return '';
@@ -72,7 +103,7 @@ async function search(keyword, page = 1) {
   if (!cleanKeyword) return { items: [] };
 
   try {
-    const res = await http.get('/films/search', {
+    const res = await fetchNguonC('/films/search', {
       params: {
         keyword: cleanKeyword,
         page: p,
@@ -96,7 +127,7 @@ async function getDetail(slug) {
   if (cached) return cached;
 
   try {
-    const res = await http.get(`/film/${cleanSlug}`);
+    const res = await fetchNguonC(`/film/${cleanSlug}`);
     const movie = res.data?.movie;
     if (movie) {
       const result = { movie, episodes: movie.episodes || [] };
@@ -138,7 +169,7 @@ async function getCatalog(type, page = 1, extra = {}) {
     // Genre filter mode
     if (genreFilter) {
       const genreSlug = String(genreFilter).toLowerCase().trim();
-      const res = await http.get(`/films/the-loai/${genreSlug}`, { params: { page: p } });
+      const res = await fetchNguonC(`/films/the-loai/${genreSlug}`, { params: { page: p } });
       const raw = res.data?.items || [];
       items = raw.map((i) => mapCatalogMeta(i));
       catalogCache.set(cacheKey, items, 300);
@@ -148,7 +179,7 @@ async function getCatalog(type, page = 1, extra = {}) {
     // Country filter mode
     if (countryFilter) {
       const countrySlug = String(countryFilter).toLowerCase().trim();
-      const res = await http.get(`/films/quoc-gia/${countrySlug}`, { params: { page: p } });
+      const res = await fetchNguonC(`/films/quoc-gia/${countrySlug}`, { params: { page: p } });
       const raw = res.data?.items || [];
       items = raw.map((i) => mapCatalogMeta(i));
       catalogCache.set(cacheKey, items, 300);
@@ -157,7 +188,7 @@ async function getCatalog(type, page = 1, extra = {}) {
 
     // New/List endpoints
     if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest') {
-      const res = await http.get('/films/phim-moi-cap-nhat', { params: { page: p } });
+      const res = await fetchNguonC('/films/phim-moi-cap-nhat', { params: { page: p } });
       const raw = res.data?.items || [];
       items = raw.map((i) => mapCatalogMeta(i));
     } else {
@@ -172,16 +203,16 @@ async function getCatalog(type, page = 1, extra = {}) {
       const isCinema = cleanType === 'cinema' || listType === 'phim-chieu-rap';
 
       try {
-        const res = await http.get(`/films/danh-sach/${listType}`, { params: { page: p } });
+        const res = await fetchNguonC(`/films/danh-sach/${listType}`, { params: { page: p } });
         raw = res.data?.items || [];
       } catch (listErr) {
         if (isCinema) {
           // Graceful fallback for cinema catalog: try phim-le, then phim-moi-cap-nhat
           try {
-            const fallbackRes = await http.get('/films/danh-sach/phim-le', { params: { page: p } });
+            const fallbackRes = await fetchNguonC('/films/danh-sach/phim-le', { params: { page: p } });
             raw = fallbackRes.data?.items || [];
           } catch {
-            const fallbackRes2 = await http.get('/films/phim-moi-cap-nhat', { params: { page: p } });
+            const fallbackRes2 = await fetchNguonC('/films/phim-moi-cap-nhat', { params: { page: p } });
             raw = fallbackRes2.data?.items || [];
           }
         } else {
@@ -191,10 +222,10 @@ async function getCatalog(type, page = 1, extra = {}) {
 
       if (isCinema && raw.length === 0) {
         try {
-          const fallbackRes = await http.get('/films/danh-sach/phim-le', { params: { page: p } });
+          const fallbackRes = await fetchNguonC('/films/danh-sach/phim-le', { params: { page: p } });
           raw = fallbackRes.data?.items || [];
         } catch {
-          const fallbackRes2 = await http.get('/films/phim-moi-cap-nhat', { params: { page: p } });
+          const fallbackRes2 = await fetchNguonC('/films/phim-moi-cap-nhat', { params: { page: p } });
           raw = fallbackRes2.data?.items || [];
         }
       }

@@ -9,14 +9,14 @@
  */
 
 /** Danh sách provider hợp lệ */
-const VALID_PROVIDERS = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+const VALID_PROVIDERS = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
 
 /** Danh sách category hợp lệ */
 const VALID_CATEGORIES = ['movie', 'series', 'anime', 'cinema'];
 
 /** Cấu hình mặc định */
 const DEFAULT_CONFIG = {
-  providers: ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'],
+  providers: ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'],
   categories: ['movie', 'series', 'anime', 'cinema'],
   apiKey: '',
 };

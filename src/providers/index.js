@@ -7,6 +7,7 @@
  * ============================================================
  */
 
+const film4k = require('./film4k');
 const vsmov  = require('./vsmov');
 const kkphim = require('./kkphim');
 const nguonc = require('./nguonc');
@@ -17,6 +18,7 @@ const clbpx  = require('./clbpx');
 const { generateSearchKeywords, matchEpisodeItem } = require('../lib/utils');
 
 const ALL_PROVIDERS = {
+  film4k,
   vsmov,
   kkphim,
   nguonc,

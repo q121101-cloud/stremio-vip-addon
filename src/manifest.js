@@ -58,9 +58,50 @@ const COUNTRIES = [
 
 const GENRE_NAMES = GENRES.map((g) => g.name);
 
-// ─── Catalog Definitions Per Provider (22 K20 Standard Catalogs) ────────────────────────
+// ─── Catalog Definitions Per Provider (VIP Standard Catalogs) ────────────────────────
 
 const ALL_CATALOGS = [
+  // ── 0. FILM4K (VIP 4K Ultra HD) ───────────────────────────
+  {
+    provider: 'film4k',
+    category: 'movie',
+    type: 'movie',
+    id: 'film4k-4k-movies',
+    name: '💎 FILM4K • Phim Lẻ 4K Ultra HD',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'film4k',
+    category: 'series',
+    type: 'series',
+    id: 'film4k-4k-series',
+    name: '💎 FILM4K • Phim Bộ 4K Ultra HD',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+  {
+    provider: 'film4k',
+    category: 'cinema',
+    type: 'movie',
+    id: 'film4k-chieu-rap',
+    name: '💎 FILM4K • Phim Chiếu Rạp 4K',
+    extra: [
+      { name: 'search', isRequired: false },
+      { name: 'genre', isRequired: false, options: GENRE_NAMES },
+      { name: 'skip', isRequired: false },
+    ],
+    extraSupported: ['search', 'genre', 'skip'],
+  },
+
   // ── 1. VSMOV 4K (2 catalogs) ───────────────────────────
   {
     provider: 'vsmov',
@@ -365,6 +406,8 @@ const ALL_CATALOGS = [
 // ─── Base Manifest Object ─────────────────────────────────────
 
 const ALL_ID_PREFIXES = [
+  'film4k:',
+  'film4k_',
   'vsmov:',
   'vsmov_',
   'kkphim:',
@@ -384,10 +427,10 @@ const ALL_ID_PREFIXES = [
 
 const BASE_MANIFEST = {
   id: 'org.vipmovies.stremio.addon',
-  version: '1.7.0',
+  version: '1.7.1',
   name: 'VIP Movies 🎬',
   description:
-    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ VSMOV 4K, KKPhim, NguonC, STP, HH3D, YAN, CLBPX & IMDb. Cấu hình 22 Catalog K20 chuẩn quốc tế.',
+    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ FILM4K 4K, VSMOV 4K, KKPhim, NguonC, STP, HH3D, YAN, CLBPX & IMDb. Cấu hình 25 Catalog VIP chuẩn quốc tế.',
   logo: 'https://i.imgur.com/3C9XQFP.png',
   resources: [
     'catalog',

@@ -21,6 +21,7 @@ const { imdbCache, catalogCache, detailCache }  = require('./lib/cache');
 const { resolveCinemeta } = require('./lib/cinemeta');
 
 // ─── Providers ────────────────────────────────────────────────
+const providerFilm4K = require('./providers/film4k');
 const providerVsMov  = require('./providers/vsmov');
 const providerKKPhim = require('./providers/kkphim');
 const providerNguonC = require('./providers/nguonc');
@@ -30,6 +31,7 @@ const providerYAN    = require('./providers/yan');
 const providerCLBPX  = require('./providers/clbpx');
 
 const ALL_PROVIDERS = {
+  film4k: providerFilm4K,
   vsmov:  providerVsMov,
   kkphim: providerKKPhim,
   nguonc: providerNguonC,
@@ -116,6 +118,11 @@ function getProviderFromCatalogId(catalogId) {
 function getCatTypeFromCatalogId(catalogId) {
   if (!catalogId) return 'movie';
   const id = String(catalogId).toLowerCase().trim();
+
+  // 0. FILM4K
+  if (id === 'film4k-4k-movies' || id === 'film4k-movie' || id === 'film4k-phim-le') return '4k-movies';
+  if (id === 'film4k-4k-series' || id === 'film4k-series' || id === 'film4k-phim-bo') return '4k-series';
+  if (id === 'film4k-chieu-rap' || id === 'film4k-cinema') return 'cinema';
 
   // 1. VSMOV
   if (id === 'vsmov-4k' || id === 'vsmov-4k-sieu-net') return '4k';
@@ -918,12 +925,30 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
       </div>
     </section>
 
-    <!-- 7 Provider Bento Grid (1 + 6 Layout) -->
+    <!-- 8 Provider Bento Grid (VIP 4K Flagship Layout) -->
     <section class="taste-card">
-      <div class="card-header-label">🌐 7 Cụm Nguồn Phim VIP (Chuẩn 4K &amp; Audio Độc Lập)</div>
+      <div class="card-header-label">🌐 8 Cụm Nguồn Phim VIP (Chuẩn 4K Ultra HD &amp; Audio Độc Lập)</div>
       <div class="provider-grid">
+        <!-- FILM4K Flagship Hero Tile -->
+        <div class="provider-card film4k vsmov-hero ${isProvActive('film4k') ? 'active' : ''}" id="card-film4k" onclick="toggleProvider('film4k')" role="checkbox" aria-checked="${isProvActive('film4k') ? 'true' : 'false'}" tabindex="0">
+          <div class="provider-top">
+            <div class="provider-icon-badge">💎</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
+          </div>
+          <div>
+            <div class="provider-name">FILM4K (VIP Ultra HD Engine)</div>
+            <div class="provider-desc">film4k.net — 4K Ultra HD (3840x2160), Vietsub, Thuyết Minh &amp; Audio Đa Kênh 6CH</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-cyan">4K Ultra HD</span>
+            <span class="tag-badge tag-green">Vietsub &amp; TM</span>
+            <span class="tag-badge tag-amber">HLS Proxy Direct</span>
+            <span class="tag-badge tag-indigo">Original 6CH Audio</span>
+          </div>
+        </div>
+
         <!-- VSMOV 4K Flagship Hero Tile -->
-        <div class="provider-card vsmov vsmov-hero ${isProvActive('vsmov') ? 'active' : ''}" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="${isProvActive('vsmov') ? 'true' : 'false'}" tabindex="0">
+        <div class="provider-card vsmov ${isProvActive('vsmov') ? 'active' : ''}" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="${isProvActive('vsmov') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🌟</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -1097,7 +1122,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
   <script>
     var _baseUrl = window.location.origin;
-    var _allProvidersList = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+    var _allProvidersList = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
     var _providers = new Set(${JSON.stringify(resolvedConfig.providers)});
     var _categories = new Set(${JSON.stringify(resolvedConfig.categories)});
     var _apiKey = ${JSON.stringify(resolvedConfig.apiKey)};
@@ -1460,7 +1485,7 @@ router.get('/meta/:type/:id', handleMeta);
 router.get('/:config/meta/:type/:id.json', handleMeta);
 router.get('/:config/meta/:type/:id', handleMeta);
 
-const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+const PROVIDER_ORDER = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
 
 function getStreamPriority(stream) {
   if (!stream) return 999;
@@ -1468,9 +1493,10 @@ function getStreamPriority(stream) {
   const name = (stream.name || '').toLowerCase();
   const text = `${name} ${title}`;
 
-  // Provider rank (VIP 1 VSMOV -> VIP 2 KKPhim -> VIP 3 NguonC -> VIP 4 STP -> VIP 5 CLBPX -> VIP 6 YAN)
-  let providerRank = 7;
-  if (text.includes('vsmov') || text.includes('vip 1')) providerRank = 1;
+  // Provider rank (VIP 0 FILM4K -> VIP 1 VSMOV -> VIP 2 KKPhim -> VIP 3 NguonC -> VIP 4 STP -> VIP 5 CLBPX -> VIP 6 YAN)
+  let providerRank = 8;
+  if (text.includes('film4k') || text.includes('vip 0')) providerRank = 0;
+  else if (text.includes('vsmov') || text.includes('vip 1')) providerRank = 1;
   else if (text.includes('kkphim') || text.includes('vip 2')) providerRank = 2;
   else if (text.includes('nguonc') || text.includes('vip 3')) providerRank = 3;
   else if (text.includes('stp') || text.includes('vip 4') || text.includes('sieutamphim') || text.includes('suutamphim')) providerRank = 4;
@@ -1562,12 +1588,14 @@ async function handleStream(req, res) {
         console.warn(`[Stream Aggregator] Cinemeta resolve warning for ${imdbId}:`, e.message);
       }
     } else {
-      // General non-IMDb ID parsing (e.g., kkphim:slug:1:1, koreandrama:teach-you-a-lesson:1:1, etc.)
+      // General non-IMDb ID parsing (e.g., film4k:slug:1:1, kkphim:slug:1:1, etc.)
       const colonParts = id.split(':');
       if (colonParts.length >= 3 && !isNaN(parseInt(colonParts[colonParts.length - 1], 10)) && !isNaN(parseInt(colonParts[colonParts.length - 2], 10))) {
         episode = parseInt(colonParts[colonParts.length - 1], 10);
         season = parseInt(colonParts[colonParts.length - 2], 10);
-        slug = colonParts.slice(0, colonParts.length - 2).join(':').replace(/^(?:kkphim|nguonc|vsmov|stp|hh3d|yan|clbpx|koreandrama|series|movie|custom|phim)[_:]/i, '');
+        slug = colonParts.slice(0, colonParts.length - 2).join(':').replace(/^(?:film4k|kkphim|nguonc|vsmov|stp|hh3d|yan|clbpx|koreandrama|series|movie|custom|phim)[_:]/i, '');
+      } else if (id.startsWith('film4k:') || id.startsWith('film4k_')) {
+        slug = id.replace(/^film4k[_:]/, '');
       } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
         slug = id.replace(/^kkphim[_:]/, '');
       } else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {

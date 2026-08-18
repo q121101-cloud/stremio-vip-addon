@@ -29,6 +29,7 @@ const SOURCE_REFERERS = [
   { pattern: /vsmov|streamvsmov|p25\.streamvsmov/i,        referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
   { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
   { pattern: /streamc\.|amass2\.top/i,                     referer: 'https://embed15.streamc.xyz/', origin: 'https://embed15.streamc.xyz' },
+  { pattern: /film4k\.net|film4k/i,                          referer: 'https://film4k.net/',          origin: 'https://film4k.net' },
   { pattern: /sieutamphim|suutamphim|tvhay/i,              referer: 'https://sieutamphim.pro/',     origin: 'https://sieutamphim.pro' },
   { pattern: /yanhh3d|yan|fbcdn\.cloud|defifa\.com/i,      referer: 'https://yanhh3d.pw/',          origin: 'https://yanhh3d.pw' },
   { pattern: /hh3d|hoathinh3d/i,                           referer: 'https://hh3d.tv/',             origin: 'https://hh3d.tv' },
@@ -367,7 +368,18 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
     res.send(rewritten);
   } catch (err) {
     console.error('[HLS/manifest]', err.message, targetUrl.slice(0, 80));
-    if (!res.headersSent) res.status(502).send('HLS Proxy Error: ' + err.message);
+    // Purge dead/broken cache entries
+    m3u8Cache.del(cacheKey);
+
+    if (!res.headersSent) {
+      // Self-healing fallback: allow external players to resolve directly if targetUrl is valid
+      if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+        try {
+          return res.redirect(302, targetUrl);
+        } catch {}
+      }
+      res.status(502).send('HLS Proxy Error: ' + err.message);
+    }
   }
 });
 
