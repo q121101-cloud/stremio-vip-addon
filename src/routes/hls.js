@@ -177,15 +177,46 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       maxRedirects: 5,
     });
 
+    let rawManifestData = String(r.data);
+    let effectiveTargetUrl = targetUrl;
+
+    // If upstream returned HTML webpage instead of M3U8 playlist, auto-extract M3U8 from embed/HTML
+    if (!rawManifestData.includes('#EXTM3U')) {
+      try {
+        const extracted = await extractM3u8FromEmbed(targetUrl, refererUrl);
+        if (extracted && extracted.m3u8Url) {
+          const r2 = await axios({
+            url: extracted.m3u8Url,
+            method: 'GET',
+            responseType: 'text',
+            headers: {
+              'User-Agent': HLS_UA,
+              Referer: extracted.embedHost || refererUrl,
+              Origin: origin,
+              Accept: '*/*',
+            },
+            timeout: 15000,
+            maxRedirects: 5,
+          });
+          if (String(r2.data).includes('#EXTM3U')) {
+            rawManifestData = String(r2.data);
+            effectiveTargetUrl = extracted.m3u8Url;
+          }
+        }
+      } catch (extractErr) {
+        console.warn('[HLS/manifest] De-embed fallback warning:', extractErr.message);
+      }
+    }
+
     let baseUrl;
-    try { baseUrl = new URL(targetUrl); } catch { return res.send(r.data); }
+    try { baseUrl = new URL(effectiveTargetUrl); } catch { return res.send(rawManifestData); }
 
     const encodedRef = Buffer.from(refererUrl).toString('base64url');
     let isNextSubPlaylist = false;
     let isNextSegment     = false;
     let isMasterPlaylist  = false;
 
-    const rawLines = String(r.data).split(/\r?\n/);
+    const rawLines = rawManifestData.split(/\r?\n/);
     const rewrittenLines = [];
 
     for (let i = 0; i < rawLines.length; i++) {

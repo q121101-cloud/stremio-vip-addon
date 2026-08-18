@@ -1,54 +1,67 @@
-# BRIEFING — 2026-08-17T08:54:00Z
+# BRIEFING — 2026-08-18T09:58:00Z
 
 ## Mission
-Implement and verify `tests/test_kkphim_playback.js` for Milestone 3 (E2E Stream Playback Test & Self-Debug Loop) and ensure robust proxy and stream generation.
+Implement Multi-Keyword Search Fallback and Universal Episode Matching across KKPhim and NguonC for Stremio VIP Movies Addon Engine v1.7.0, ensuring genuine implementations and zero regressions.
 
 ## 🔒 My Identity
-- Archetype: worker
+- Archetype: Implementer / QA / Specialist
 - Roles: implementer, qa, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3
-- Original parent: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Milestone: Milestone 3: E2E Stream Playback Test & Self-Debug Loop
+- Original parent: df6b69f2-b4cb-483e-b97e-e806a40c0155
+- Milestone: M3 (Multi-Keyword Search Fallback & Universal Episode Matching)
 
 ## 🔒 Key Constraints
-- Genuine implementation, no hardcoded or facade tests.
-- Ephemeral server cleanup in finally block.
-- Follow R3 requirements and PROJECT.md specifications.
-- Self-debug and fix any issues in hls.js or kkphim.js until tests pass 100%.
+- File ownership: `src/lib/utils.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/index.js`
+- Integrity mandate: DO NOT hardcode test results, do not create dummy/facade implementations, genuine logic only.
+- In-App protocol compliance: url only, strictly NO externalUrl.
+- Multi-keyword fallback: Original title, Vietnamese name/aliases, normalized title (season/part stripped, special characters cleaned).
+- Universal episode matching: match 1, 01, 001, Tập 01, tap-1, episode-1, Full without false positives (e.g. 1 matching 10/11/12).
 
 ## Current Parent
-- Conversation ID: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Updated: 2026-08-17T08:54:00Z
+- Conversation ID: df6b69f2-b4cb-483e-b97e-e806a40c0155
+- Updated: 2026-08-18T09:58:00Z
 
 ## Task Summary
-- **What to build**: tests/test_kkphim_playback.js covering 3 test cases: stream generation, manifest proxy verification, segment playback verification. Fix any bugs encountered in proxy/provider.
-- **Success criteria**: All 3 test cases pass with genuine network fetches, valid m3u8 and ts sync bytes (0x47), proper headers, clean teardown.
-- **Interface contracts**: PROJECT.md & ORIGINAL_REQUEST.md §R3
-- **Code layout**: tests/test_kkphim_playback.js, src/routes/hls.js, src/providers/kkphim.js
-
-## Key Decisions Made
-- Built comprehensive `tests/test_kkphim_playback.js` using ephemeral port binding (`127.0.0.1:0`), executing Test Cases 1, 2, 3 with real live fetches, parsing Master & Media playlists, validating binary buffer > 50KB and MPEG-TS sync bytes (`0x47`).
-- Updated legacy assertion in `tests/m3_verification.test.js` from 4 streams to 3 streams to match R1/M1 single in-app stream specification for KKPhim.
-- Updated `PROJECT.md` to reflect Milestone 3 completion.
-
-## Artifact Index
-- DISPATCH.md — Assignment instructions
-- BRIEFING.md — Situational awareness
-- progress.md — Liveness & heartbeat
-- handoff.md — Final handoff report
+- **What was built**:
+  1. `src/lib/utils.js`: Implemented and exported `generateSearchKeywords`, `matchEpisodeItem`, and `isDonghuaQuery`.
+  2. `src/providers/nguonc.js`: Integrated `generateSearchKeywords` and `matchEpisodeItem`.
+  3. `src/providers/kkphim.js`: Integrated `generateSearchKeywords` and centralized `matchEpisodeItem`.
+  4. `src/providers/index.js`: Created central provider index.
+  5. Tested KDrama & US-UK titles (*Teach You A Lesson*, *A Shop for Killers*, *Lanterns*, *9-1-1*, *Avengers 3*).
+- **Success criteria**:
+  - `generateSearchKeywords` produces clean, deduplicated, ordered keyword candidates.
+  - `matchEpisodeItem` accurately matches episodes and eliminates false positives.
+  - All test suites pass (npm test: 50/50, m3 test: 21/21, challenger: 342/342).
+- **Interface contracts**: PROJECT.md § Interface Contracts
+- **Code layout**: PROJECT.md § Code Layout
 
 ## Change Tracker
 - **Files modified**:
-  - `tests/test_kkphim_playback.js`: Created full E2E playback test & self-debug verification suite.
-  - `tests/m3_verification.test.js`: Updated expected stream count to match R1/M1 in-app protocol exclusivity.
-  - `PROJECT.md`: Updated Milestone 3 status to COMPLETE / DONE.
-- **Build status**: PASS (all tests pass 100%)
+  - `src/lib/utils.js` — Added `generateSearchKeywords`, `matchEpisodeItem`, `isDonghuaQuery`.
+  - `src/providers/kkphim.js` — Used `generateSearchKeywords` and `matchEpisodeItem`.
+  - `src/providers/nguonc.js` — Used `generateSearchKeywords` and `matchEpisodeItem`.
+  - `src/providers/index.js` — Created provider aggregator index.
+  - `tests/m3_multikeyword_episode_matching.test.js` — Created unit & adversarial test suite.
+  - `tests/verify_m3_live_queries.js` — Created live query verification suite.
+- **Build status**: PASS (node --check passed, npm test passed 50/50, m3 unit tests 21/21 passed)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: All test suites (`test_kkphim_playback.js`, `e2e.test.js`, `m3_verification.test.js`, `test_live_kkphim_proxy.js`) passing 100%.
-- **Lint status**: 0 syntax errors across codebase (`node --check`).
-- **Tests added/modified**: `tests/test_kkphim_playback.js` (created), `tests/m3_verification.test.js` (updated).
+- **Build/test result**: All passing (npm test 50/50, challenger suite 342/342)
+- **Lint status**: Clean
+- **Tests added/modified**: `tests/m3_multikeyword_episode_matching.test.js`, `tests/verify_m3_live_queries.js`
 
 ## Loaded Skills
-- None
+- None required
+
+## Key Decisions Made
+- Centralized `generateSearchKeywords` and `matchEpisodeItem` in `src/lib/utils.js`.
+- Retained `matchEpisodeItem` exports in provider modules for backwards compatibility.
+- Implemented regex lookarounds `(?<!\d)${str}(?!\d)` to eliminate episode false matching (e.g. 1 matching 10/11/12).
+
+## Artifact Index
+- `.agents/worker_m3/DISPATCH.md` — Assignment instructions
+- `.agents/worker_m3/BRIEFING.md` — Agent state and memory
+- `.agents/worker_m3/progress.md` — Heartbeat and progress log
+- `.agents/worker_m3/changes.md` — Detailed changes log
+- `.agents/worker_m3/handoff.md` — Final handoff report

@@ -1,82 +1,78 @@
-# BRIEFING — 2026-08-18T09:28:45Z
+# BRIEFING — 2026-08-18T09:46:15Z
 
 ## Mission
-Orchestrate Stremio VIP Movies Addon Engine v1.6.2 upgrade across R1-R6 requirements, ensuring full E2E playback verification and zero regressions.
+Orchestrate the Stremio VIP Movies Addon Engine v1.7.0 Overhaul across HLS multi-level resolution, Cheerio HTML scrapers, multi-keyword matching, E2E playback verification, and version deployment.
 
 ## 🔒 My Identity
 - Archetype: orchestrator
 - Roles: orchestrator, user_liaison, human_reporter, successor
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1
-- Original parent: parent
-- Original parent conversation ID: bf16d1fa-700d-40fc-b73d-ec9956718a82
+- Original parent: top-level
+- Original parent conversation ID: 169ee9a8-559a-4b32-a53c-650932eaff6f
 
 ## 🔒 My Workflow
-- **Pattern**: Project Pattern (Dual Track: Implementation Track + E2E Testing Track)
+- **Pattern**: Project Pattern (Implementation Track + E2E Testing Track)
 - **Scope document**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-1. **Decompose**: Survey (3 Explorers) -> Architecture & Feature Inventory in PROJECT.md -> Milestones (M1-M6) + E2E Testing Track.
+1. **Decompose**:
+   - Survey codebase via 3 parallel explorers/spec miners.
+   - Decompose into Milestones:
+     * M1: HLS Proxy multi-level M3U8 resolver & binary segment proxy (`src/routes/hls.js`)
+     * M2: HTML Cheerio scrapers for STP, CLBPX, and YAN with Donghua-only guard (`src/providers/stp.js`, `clbpx.js`, `yan.js`)
+     * M3: Multi-keyword fallback & flexible episode matching for KDrama & US-UK (`src/providers/kkphim.js`, `nguonc.js`, etc.)
+     * M4: E2E Playback verification test suite (`tests/verify_v170_playback.js`) & full regression pass
+     * M5: Versioning v1.7.0, brand signature, git commit & push
 2. **Dispatch & Execute**:
-   - Implementation & Test Writer completed
-   - Verification Gate: 2 Reviewers, 2 Challengers, 1 Auditor evaluated and ALL PASSED
-   - Deployment & Git Release dispatched to worker_deploy_1
-3. **On failure**: Retry -> Replace -> Skip -> Redistribute -> Redesign
-4. **Succession**: Spawn successor at spawn count >= 16 when active subagents are complete.
+   - Project Orchestrator delegates tasks to Explorer, Worker, Reviewer, Challenger, Auditor cycles.
+3. **On failure**:
+   - Retry -> Replace -> Skip -> Redistribute -> Redesign
+4. **Succession**:
+   - Threshold: 16 spawns. On reaching threshold, write handoff.md, spawn successor.
 - **Work items**:
-  1. Survey & Project Initialization [done]
-  2. Implementation Track (M1-M4) [done]
-  3. E2E Testing Track (M5) [done]
-  4. Verification Gate (Reviewers, Challengers, Auditor) [done - PASS]
-  5. Version Sync & Git Release (M6) [in-progress]
-- **Current phase**: 3 (Deployment)
-- **Current focus**: Git commit and push to remote repository
+  1. Survey Codebase & Requirements [in-progress]
+  2. M1: HLS Proxy Overhaul [pending]
+  3. M2: Real Cheerio HTML Scrapers [pending]
+  4. M3: Multi-keyword & Episode Matching [pending]
+  5. M4: E2E Playback Verification [pending]
+  6. M5: Versioning & Deployment [pending]
+- **Current phase**: 0 (Survey)
+- **Current focus**: Codebase survey via parallel explorers
 
 ## 🔒 Key Constraints
-- Dispatch-only: NEVER write, modify, or create source code files directly.
-- NEVER run build/test commands directly.
-- Only edit state/metadata files (.md) under .agents/.
-- Never reuse subagents after handoff.
-- Pass ORIGINAL_REQUEST.md to all subagents.
-- Zero tolerance for audit integrity violations.
+- Never write source code directly (dispatch-only orchestrator).
+- Never run build/test commands directly — workers and reviewers run them.
+- All implementations must be genuine — no hardcoding, no dummy facades.
+- All test suites must pass 100% before completion.
+- Binary veto by Forensic Auditor if integrity violations occur.
 
 ## Current Parent
-- Conversation ID: bf16d1fa-700d-40fc-b73d-ec9956718a82
-- Updated: 2026-08-18T09:07:01Z
+- Conversation ID: 169ee9a8-559a-4b32-a53c-650932eaff6f
+- Updated: not yet
 
 ## Key Decisions Made
-- All milestones M1-M5 passed 100% with full empirical verification.
-- Gate evaluation completed: Reviewer 1 (APPROVE), Reviewer 2 (APPROVE), Challenger 1 (APPROVE), Challenger 2 (APPROVE), Auditor 1 (CLEAN).
-- Dispatched worker_deploy_1 for Milestone M6 git release.
+- Dispatched 3 parallel survey explorers (HLS, Scrapers, Search/Tests).
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
-| survey_explorer_1 | teamwork_preview_explorer | Survey HLS Proxy (R1) | completed | 051fc44e-cb02-456d-bfd0-4339971a2ebf |
-| survey_explorer_2 | teamwork_preview_explorer | Survey Manifest & Routing (R2, R3) | completed | a7805536-295d-4137-9b43-20990e81767b |
-| survey_explorer_3 | teamwork_preview_explorer | Survey Providers & Tests (R4, R5, R6) | completed | 612b5358-4405-4fc5-8d54-3dc5f771e58c |
-| worker_impl_1 | teamwork_preview_worker | Core Engine Implementation (M1-M4, M6) | completed | 31240ee0-5029-4d25-84c4-e5776e1a0130 |
-| test_writer_1 | teamwork_preview_test_writer | E2E Playback Test Suite (M5) | completed | 3137f7be-dd70-40ca-b687-e60fbbd55689 |
-| worker_opt_1 | teamwork_preview_worker | NguonC Cinema Fallback & Provider Optimization | completed | 230fe445-7e5c-4fa8-8b6d-c97ac1e17b19 |
-| reviewer_1 | teamwork_preview_reviewer | Code Quality & Requirement Review | completed | f455dfb9-7af4-4e08-9eec-f885ec3fbb0d |
-| reviewer_2 | teamwork_preview_reviewer | Architecture & Routing Review | completed | 03781e27-cac0-467f-a77a-2e0ce20cdd3a |
-| challenger_1 | teamwork_preview_challenger | Adversarial Catalog & Proxy Testing | completed | 2c6d9d18-7c79-48d1-913d-9045fd0c4084 |
-| challenger_2 | teamwork_preview_challenger | Stream Sorting & Aggregation Stress Testing | completed | 3acde26f-be9c-458f-a2fb-0f441263b946 |
-| auditor_1 | teamwork_preview_auditor | Forensic Integrity Audit | completed | 3a90052a-bc11-4364-a3f8-716f85cdf30c |
-| worker_deploy_1 | teamwork_preview_worker | Milestone M6 Git Release & Deployment | in-progress | 891ae2ee-19f7-483d-b57f-c2f063f66372 |
+| explorer_survey_hls | teamwork_preview_explorer | Survey HLS Architecture & Proxy Router | completed | 56bfe9f5-f4d9-4192-88a5-0174c33c7e90 |
+| explorer_survey_providers | teamwork_preview_explorer | Survey HTML Cheerio Scrapers & Guards | completed | 388d8718-2dbd-441a-8b9e-8dde2d060ece |
+| explorer_survey_matching_tests | teamwork_preview_explorer | Survey Search/Episode Matching & Test Suites | completed | 59bf3c64-8c98-4982-8a3c-2b43c42ee08a |
+| worker_m2 | teamwork_preview_worker | M2: Real Cheerio HTML Scrapers (STP, CLBPX, YAN) | completed | 587a88bf-0333-4e25-af17-d8a155b9797b |
+| worker_m3 | teamwork_preview_worker | M3: Multi-Keyword Fallback & Episode Matching | completed | fffd7845-5346-48e5-af8e-0b7aa0d10f1c |
+| worker_m4 | teamwork_preview_worker | M4: E2E Playback Verification Test Suite | in-progress | f39ba5b7-2048-41b9-8276-dbd9eb8049dd |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 12 / 16
-- Pending subagents: 891ae2ee-19f7-483d-b57f-c2f063f66372
+- Spawn count: 6 / 16
+- Pending subagents: f39ba5b7-2048-41b9-8276-dbd9eb8049dd
 - Predecessor: none
 - Successor: not yet spawned
 
 ## Active Timers
-- Heartbeat cron: task-8
+- Heartbeat cron: task-13
 - Safety timer: none
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Original User Request
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md — Global project architecture & milestones
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_INFRA.md — E2E Test infrastructure specification
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_READY.md — E2E Test Readiness & Verification Report
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/GATE_STATUS.md — Iteration gate verdict tracker
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/progress.md — Progress log
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md` — Original User Request
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/plan.md` — Orchestrator Plan
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/progress.md` — Orchestrator Progress & Liveness

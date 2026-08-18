@@ -1,38 +1,34 @@
-# BRIEFING — 2026-08-18T04:42:00Z
+# BRIEFING — 2026-08-18T10:09:12Z
 
 ## Mission
-Survey and investigate STP provider (`src/providers/stp.js`, `src/lib/utils.js`) and live site `https://sieutamphim.pro/` for Stremio VIP Movies Addon Engine v1.6.0.
+Investigate R1 (HLS Proxy multi-level parent resolution & browser simulation in src/routes/hls.js) and R4 (E2E Playback verification test suite in tests/verify_v170_playback.js and tests/verify_all_providers_playback.js) for Engine v1.7.0 Overhaul.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: survey, investigation, synthesis
+- Archetype: Explorer
+- Roles: Read-only investigation, code & test analysis, synthesis
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1
-- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Milestone: Engine v1.6.0 Survey Phase
+- Original parent: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Milestone: Engine v1.7.0 Overhaul Investigation Phase
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in codebase (write only report/artifacts in working dir).
-- Investigate STP provider, live endpoint behavior, headers, slug search/matching, stream extraction, multi-tier fallback, and `utils.js` export/usage.
+- Read-only investigation — do NOT implement production changes
+- Write reports and analysis only to my own folder: .agents/teamwork_preview_explorer_survey_1/
+- Produce a rigorous 5-component handoff report with exact code references, test execution results, gap analysis, and worker recommendations
 
 ## Current Parent
-- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Updated: 2026-08-18T04:42:00Z
+- Conversation ID: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Updated: 2026-08-18T10:09:12Z
 
 ## Investigation State
-- **Explored paths**:
-  - `src/providers/stp.js`, `src/lib/utils.js`, `src/routes/hls.js`, `src/handlers.js`, `src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/providers/hh3d.js`
-  - Live site `https://sieutamphim.pro/` endpoints: root, `/wp-json/wp/v2/posts`, `/wp-json/wp/v2/categories`, `/wp-json/wp/v2/tags`, `embed.html`, post HTML SSR.
-- **Key findings**:
-  - `sieutamphim.pro` is a WordPress 6.x site with REST API (`/wp-json/wp/v2/posts?search=...` and `?slug=...`).
-  - Episode data stored in `<div class="episodeGroup" data-server="hx" data-episodes='[ {"<enc_url>","<ep_name>"}, ... ]'>`.
-  - Obfuscation key is XOR `0x2a` (42). Embed player uses `https://www.sieutamphim.pro/embed.html?url=...`.
-  - `scoreMatch` in `src/lib/utils.js` is exported cleanly and imported by all providers without re-declaration.
-  - Zero-regression test suites pass 100% (7/7 and 27/27).
-- **Unexplored areas**: None within Explorer 1 scope.
+- **Explored paths**: [TBD]
+- **Key findings**: [TBD]
+- **Unexplored areas**: src/routes/hls.js, tests/verify_v170_playback.js, tests/verify_all_providers_playback.js, ORIGINAL_REQUEST.md
 
 ## Key Decisions Made
-- Fully documented the WP-JSON REST endpoints, XOR 42 deobfuscation mechanism, HTML SSR fallback, label format specification, and HLS proxy routing for `sieutamphim.pro`.
+- Initiated exploration on R1 (HLS Proxy) and R4 (E2E verification suites)
 
 ## Artifact Index
-- `.agents/teamwork_preview_explorer_survey_1/handoff.md` — Final 5-component handoff report
-- `.agents/teamwork_preview_explorer_survey_1/progress.md` — Progress tracker and heartbeat
+- .agents/teamwork_preview_explorer_survey_1/DISPATCH.md
+- .agents/teamwork_preview_explorer_survey_1/BRIEFING.md
+- .agents/teamwork_preview_explorer_survey_1/progress.md
+- .agents/teamwork_preview_explorer_survey_1/handoff.md

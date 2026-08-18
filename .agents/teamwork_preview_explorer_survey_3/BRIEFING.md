@@ -1,42 +1,33 @@
-# BRIEFING — 2026-08-18T11:40:00+07:00
+# BRIEFING — 2026-08-18T10:09:25Z
 
 ## Mission
-Survey codebase for v1.6.0 release: HLS routing/referer handling, existing & new test suites, and version bump locations.
+Investigate R3 (Multi-keyword fallback & flexible episode matching in KKPhim & NguonC) and R5 (Versioning v1.7.0, Brand Signature, and Git Deployment) for Engine v1.7.0 Overhaul.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Survey & Investigation
+- Archetype: explorer
+- Roles: investigation, synthesis
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3
-- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Milestone: v1.6.0 Survey
+- Original parent: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Milestone: Engine v1.7.0 Overhaul Exploration
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Survey `src/routes/hls.js`, test suites, version bump locations
-- Follow Handoff Protocol (5 components)
+- Read-only investigation — do NOT implement changes in codebase
+- Scope: R3 (KKPhim/NguonC multi-keyword fallback & episode matching) & R5 (Versioning 1.7.0, signature, git readiness) + existing test suite sanity.
 
 ## Current Parent
-- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Updated: not yet
+- Conversation ID: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Updated: 2026-08-18T10:09:25Z
 
 ## Investigation State
-- **Explored paths**:
-  - `src/routes/hls.js`: analyzed `SOURCE_REFERERS`, `getRefererHeaders`, manifest & segment proxy header forwarding.
-  - `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`: reviewed referer constants and stream generation logic.
-  - `tests/verify_playback.js`: validated 7/7 passing assertions.
-  - `tests/verify_hotfix_vsmov_kkphim.js`: validated 27/27 passing assertions.
-  - `tests/helpers.js`, `tests/m2_providers.test.js`, `src/test.js`: evaluated test runner patterns and E2E requirements.
-  - `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js`, `src/config.js`: located all version bump spots.
-- **Key findings**:
-  - `SOURCE_REFERERS` in `src/routes/hls.js` requires mapping updates for `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw`.
-  - Referer header injection operates via `getRefererHeaders` in both manifest and segment proxies with fallback to `SOURCE_REFERERS` matching against `targetUrl`.
-  - Existing test suites `verify_playback.js` (7/7) and `verify_hotfix_vsmov_kkphim.js` (27/27) currently pass 100% and will serve as zero-regression gates.
-  - `tests/verify_new_providers.js` requirements clearly defined: server lifecycle, provider catalogs/streams, manifest rewriting, aggregator route safety, binary TS chunk download (>10KB, sync byte 0x47), and HTTP range 206 checks.
-  - Version bump locations precisely identified across `package.json`, `src/manifest.js`, `src/handlers.js` (live status pill + brand footer), and helper file headers.
-- **Unexplored areas**: None within Explorer 3 scope.
+- **Explored paths**: None yet
+- **Key findings**: None yet
+- **Unexplored areas**: `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/lib/utils.js`, `package.json`, `src/manifest.js`, `src/handlers.js`, git status/remotes, `npm test`, `node --check src/index.js`
 
 ## Key Decisions Made
-- Fully cataloged all file paths, exact line numbers, and code structures needed for implementation and test construction.
+- Initialized investigation protocol and plan.
 
 ## Artifact Index
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/handoff.md` — 5-component survey handoff report.
+- DISPATCH.md — Dispatch log
+- BRIEFING.md — Persistent context and state
+- progress.md — Liveness & heartbeat
+- handoff.md — Final 5-component report

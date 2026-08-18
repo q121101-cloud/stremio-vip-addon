@@ -1,34 +1,32 @@
-## 2026-08-17T08:52:02Z
+## 2026-08-18T09:52:50Z
 
-You are Worker for Milestone 3: E2E Stream Playback Test & Self-Debug Loop.
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3
+<USER_REQUEST>
+You are Worker M3 (Multi-Keyword Search Fallback & Universal Episode Matching).
+Your working directory is `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3/`.
+Read `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md` and `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`.
+Read Explorer 3 analysis at `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_matching_tests/analysis.md`.
 
-Read:
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_1/handoff.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_2/handoff.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/handoff.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/routes/hls.js
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/providers/kkphim.js
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/handlers.js
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. An auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Your Task:
-1. Implement `tests/test_kkphim_playback.js` to fulfill all requirements in ORIGINAL_REQUEST.md §R3 and PROJECT.md Milestone 3:
-   - Start local addon server on an ephemeral port (`app.listen(0, '127.0.0.1')`).
-   - Test Case 1 (Stream Generation): Fetch streams for test slug `cuu-mon` (or fallback active slug if needed), verify `[VIP • KKPhim]` stream with `name === 'VIP Movies 🎬'`, in-app title branding `[VIP • KKPhim] ... Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`, `url` pointing to local proxy `${proxyBase}/hls/manifest.m3u8...`, and strictly NO `externalUrl`.
-   - Test Case 2 (Manifest Proxy Verification): GET the proxy manifest URL, verify HTTP 200, Content-Type `application/vnd.apple.mpegurl`, CORS `Access-Control-Allow-Origin: *`, `#EXTM3U` tag, and recursively resolve Master/Media playlists to find rewritten `.ts` segment link (`${proxyBase}/hls/ts?...`).
-   - Test Case 3 (Segment Playback Verification): GET rewritten `.ts` video segment through proxy, verify HTTP 200 (no 403 Forbidden / 500), CORS `Access-Control-Allow-Origin: *`, Content-Type `video/mp2t`, valid binary video buffer (> 100KB / > 50KB), and MPEG-TS sync byte `0x47` at offset 0.
-   - Self-Debug Mandate: If any test case fails, analyze error logs, fix `src/routes/hls.js` or `src/providers/kkphim.js` if necessary, and re-run until all 3 pass 100%.
-   - Ephemeral server cleanup in `finally` block, exiting with code 0 on success, 1 on failure.
+File ownership:
+You exclusively own and modify:
+- `src/lib/utils.js` (or create if needed, or update existing utility files)
+- `src/providers/kkphim.js`
+- `src/providers/nguonc.js`
+- `src/providers/index.js` (if coordinating multi-keyword search across providers)
 
-2. Run and verify the implementation:
-   - `node --check tests/test_kkphim_playback.js`
-   - `node tests/test_kkphim_playback.js`
-   - Run any other test files if appropriate (`node tests/e2e.test.js`, etc.)
-
-3. MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
-
-4. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m3/handoff.md`
-Send a message to parent when done.
+Requirements to implement:
+1. Multi-Keyword Fallback in `generateSearchKeywords(title, originalName, aliases)`:
+   - Try 1: Original English name (`meta.name` / `title`)
+   - Try 2: Vietnamese name (if present in title, aliases, or alternative titles)
+   - Try 3: Normalized title with all season indicators (`Season 1`, `Phần 9`, `P1`, `S01`, etc.) and special characters stripped.
+   - For example: *Teach You A Lesson*, *A Shop for Killers*, *Lanterns*, *9-1-1*, *Avengers 3*.
+2. Universal Episode Matching in `matchEpisodeItem(serverItem, targetEpNumber)`:
+   - Match numbers accurately across `1`, `01`, `001`, `Tập 01`, `tap-1`, `episode-1`, and `Full`.
+   - Prevent false matches (e.g. Episode 1 matching Episode 10/11/12).
+3. Apply these multi-keyword search routines in `src/providers/kkphim.js` and `src/providers/nguonc.js` so that Korean & Western dramas find matching streams reliably.
+4. Run syntax check (`node --check src/index.js`) and tests (`npm test`).
+5. Write your implementation report to `.agents/worker_m3/changes.md` and handoff report to `.agents/worker_m3/handoff.md`.
+6. Send a message to orchestrator when complete.
+</USER_REQUEST>

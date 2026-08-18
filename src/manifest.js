@@ -384,7 +384,7 @@ const ALL_ID_PREFIXES = [
 
 const BASE_MANIFEST = {
   id: 'org.vipmovies.stremio.addon',
-  version: '1.6.2',
+  version: '1.7.0',
   name: 'VIP Movies 🎬',
   description:
     'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ VSMOV 4K, KKPhim, NguonC, STP, HH3D, YAN, CLBPX & IMDb. Cấu hình 22 Catalog K20 chuẩn quốc tế.',

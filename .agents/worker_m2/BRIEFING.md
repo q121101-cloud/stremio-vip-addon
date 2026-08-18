@@ -1,52 +1,57 @@
-# BRIEFING — 2026-08-17T15:44:00+07:00
+# BRIEFING — 2026-08-18T09:53:00Z
 
 ## Mission
-Implement Milestone 2: HLS Proxy Anti-403 Optimization in `src/routes/hls.js`.
+Overhaul HTML Scrapers for STP (sieutamphim.pro), CLBPX (clbphimxua.info), and YAN (yanhh3d.pw) with Cheerio/DOM parsing, direct stream extraction, and strict Donghua guarding for Engine v1.7.0.
 
 ## 🔒 My Identity
-- Archetype: worker
+- Archetype: implementer, qa, specialist
 - Roles: implementer, qa, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m2
-- Original parent: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Milestone: Milestone 2 (HLS Proxy Anti-403 Optimization)
+- Original parent: df6b69f2-b4cb-483e-b97e-e806a40c0155
+- Milestone: M2 (Real Cheerio HTML Scrapers)
 
 ## 🔒 Key Constraints
-- File Ownership: Exclusively own `src/routes/hls.js`. Do not modify other files in this milestone.
-- DO NOT CHEAT. Genuine implementations only. Real state and behavior.
-- Set HLS_UA to Chrome 126 Mac OS X (`Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36`).
-- Update SOURCE_REFERERS to include anti-403 rules for KKPhim and upstream CDNs (`*.kkphimplayer*.com`, `*.phim1280.tv`, `*.phimapi.com`, `phimapi.com`, `kkphim`).
-- Ensure dynamic `ref` param passed from provider is prioritized and respected.
-- Ensure all sub-playlists and `.ts` / media segments under `#EXTINF`, `#EXT-X-STREAM-INF`, `#EXT-X-MEDIA`, `#EXT-X-KEY`, `#EXT-X-MAP` are correctly rewritten to route through `/hls/manifest.m3u8` and `/hls/ts`.
-- Enforce CORS headers and MIME types (`application/vnd.apple.mpegurl`, `video/mp2t`, `application/octet-stream`).
+- File ownership: Exclusively own and modify `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`.
+- No dummy/facade implementations or hardcoded results.
+- Implement genuine HTML parsing (with cheerio / robust DOM extraction) for catalogs, search, and episode streams.
+- Strict Invariants: url only (pointing to HLS Proxy), STRICTLY NO `externalUrl`.
+- Strict Donghua Guard in `yan.js`: Immediately return `[]` if query is Live-Action / KDrama / US-UK; only process Donghua / Anime / 3D Hoạt Hình.
+- Syntax check `node --check src/index.js` and all test suites must pass.
 
 ## Current Parent
-- Conversation ID: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Updated: 2026-08-17T15:44:00+07:00
+- Conversation ID: df6b69f2-b4cb-483e-b97e-e806a40c0155
+- Updated: 2026-08-18T09:53:00Z
 
 ## Task Summary
-- **What to build**: Anti-403 HLS proxy routing and manifest rewriting in `src/routes/hls.js`
-- **Success criteria**: Syntax check passes, unit tests pass, full m3u8 tag rewriting and proper headers
-- **Interface contracts**: PROJECT.md § Interface Contracts
-- **Code layout**: `src/routes/hls.js`
+- **What to build**: Real Cheerio/HTML scrapers for STP, CLBPX, and YAN with XOR 0x2a decode, StreamC `data-obf` resolution, YAN fbcdn resolution, and strict Donghua guard.
+- **Success criteria**: 
+  1. STP scrapes sieutamphim.pro catalog & search, resolves XOR 0x2a streams.
+  2. CLBPX scrapes clbphimxua.info catalog & search, resolves StreamC data-obf M3U8.
+  3. YAN scrapes yanhh3d.pw Donghua catalog & search, resolves fbcdn embeds, strictly rejects live-action / KDrama / US-UK queries.
+  4. All tests pass with zero regression.
+- **Interface contracts**: PROJECT.md Provider Contract.
+- **Code layout**: PROJECT.md Code Layout.
 
 ## Change Tracker
-- **Files modified**: `src/routes/hls.js` (Updated HLS_UA, SOURCE_REFERERS, dynamic ref priority, CORS headers, m3u8 tag rewriting for EXT-X-MEDIA / KEY / MAP / PRELOAD-HINT / PART / EXTINF / EXT-X-STREAM-INF)
-- **Build status**: `node --check src/routes/hls.js` passed with 0 errors
-- **Pending issues**: none
+- **Files modified**: None yet
+- **Build status**: Initial tests passing (50/50)
+- **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (syntax validation & E2E/unit verification passed)
-- **Lint status**: clean
-- **Tests added/modified**: Verified with in-memory HTTP/axios integration tests for manifest rewriting, upstream headers, segment piping, and MIME/CORS enforcement.
+- **Build/test result**: Initial test passing
+- **Lint status**: Clean
+- **Tests added/modified**: TBD
+
+## Loaded Skills
+- None
 
 ## Key Decisions Made
-- Prioritized dynamic `ref` query param in `getRefererHeaders` and safely parse origin.
-- Supported regex pattern `/kkphimplayer|phim1280|phimapi\.com|kkphim/i` routing to `referer: 'https://player.phimapi.com/'` and `origin: 'https://player.phimapi.com'`.
-- Fully mapped `#EXT-X-MEDIA`, `#EXT-X-KEY`, `#EXT-X-SESSION-KEY`, `#EXT-X-MAP`, `#EXT-X-PRELOAD-HINT`, `#EXT-X-PART`, `#EXTINF`, `#EXT-X-STREAM-INF`, and `#EXT-X-I-FRAME-STREAM-INF` to respective `/hls/manifest.m3u8` and `/hls/ts` proxy endpoints with Base64URL encoding.
-- Enforced CORS headers and MIME overrides (`application/vnd.apple.mpegurl; charset=utf-8`, `video/mp2t`, `application/octet-stream`).
+- Use cheerio (if installed) or clean cheerio-compatible DOM parsing / cheerio library to scrape real HTML.
+- Provide multi-tier fallbacks so if third-party live servers are down or slow, Ophim/PhimAPI mirror handles requests gracefully without erroring.
+- Implement comprehensive unit tests for scrapers and guards.
 
 ## Artifact Index
-- `.agents/worker_m2/DISPATCH.md` — Dispatch requirements
-- `.agents/worker_m2/BRIEFING.md` — Agent state and briefing
-- `.agents/worker_m2/progress.md` — Execution progress
-- `.agents/worker_m2/handoff.md` — Final handoff report
+- `.agents/worker_m2/DISPATCH.md` — Assignment instructions
+- `.agents/worker_m2/progress.md` — Progress tracker
+- `.agents/worker_m2/changes.md` — Changes report (to be written)
+- `.agents/worker_m2/handoff.md` — Handoff report (to be written)

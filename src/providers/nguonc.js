@@ -17,8 +17,8 @@
 const axios = require('axios');
 const mapper = require('../mapper');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
-const { getCachedCinemeta } = require('../lib/cinemeta');
-const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
+const { resolveCinemeta, getCachedCinemeta } = require('../lib/cinemeta');
+const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp, generateSearchKeywords, matchEpisodeItem } = require('../lib/utils');
 
 const PROVIDER_ID    = 'nguonc';
 const PROVIDER_LABEL = 'NguonC';
@@ -213,11 +213,14 @@ async function getCatalog(type, page = 1, extra = {}) {
 // ─────────────────────────────────────────────────────────────
 //  4. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
+//  4. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
+// ─────────────────────────────────────────────────────────────
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
-  let imdbId = null;
-  let slug = null;
-  let year = null;
-  let genres = null;
+  let imdbId  = null;
+  let slug    = null;
+  let year    = null;
+  let genres  = null;
+  let aliases = [];
 
   if (typeof arg1 === 'object' && arg1 !== null) {
     imdbId    = arg1.imdbId || null;
@@ -225,6 +228,7 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     type      = arg1.type || 'movie';
     year      = arg1.year || null;
     genres    = arg1.genres || null;
+    aliases   = Array.isArray(arg1.aliases) ? arg1.aliases : [];
     season    = arg1.season != null ? arg1.season : null;
     episode   = arg1.episode != null ? arg1.episode : null;
     slug      = arg1.slug || null;
@@ -248,14 +252,24 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     if (String(episode).trim().startsWith('-') || (!isNaN(epNum) && epNum <= 0)) return [];
   }
 
-  // Check cached Cinemeta for year if missing
-  if (!year && imdbId) {
+  // Resolve Cinemeta metadata (name, year, aliases) if missing
+  if (imdbId && (!title || !year || aliases.length === 0)) {
     const cachedCine = getCachedCinemeta(type, imdbId);
-    if (cachedCine?.year) {
-      year = cachedCine.year;
-    }
-    if (!title && cachedCine?.name) {
-      title = cachedCine.name;
+    if (cachedCine) {
+      if (!year && cachedCine.year) year = cachedCine.year;
+      if (!title && cachedCine.name) title = cachedCine.name;
+      if (Array.isArray(cachedCine.aliases) && cachedCine.aliases.length > 0) {
+        aliases = Array.from(new Set([...aliases, ...cachedCine.aliases]));
+      }
+    } else {
+      const meta = await resolveCinemeta(type, imdbId);
+      if (meta) {
+        if (!year && meta.year) year = meta.year;
+        if (!title && meta.name) title = meta.name;
+        if (Array.isArray(meta.aliases) && meta.aliases.length > 0) {
+          aliases = Array.from(new Set([...aliases, ...meta.aliases]));
+        }
+      }
     }
   }
 
@@ -277,25 +291,37 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       }
     }
 
-    // Bước 3: Tìm kiếm theo canonical title & match year / season
-    if (!movieData && title) {
-      const searchRes = await search(title, 1);
-      const items = searchRes.items || [];
-      if (items.length > 0) {
-        let bestItem = null;
-        let bestScore = -1;
+    // Bước 3: Multi-Keyword Search Fallback (Cinemeta title, aliases, normalized keywords)
+    if (!movieData && (title || aliases.length > 0)) {
+      const cleanTitle = title ? String(title).trim() : '';
+      const searchQueries = generateSearchKeywords({
+        title: cleanTitle,
+        originalName: null,
+        aliases,
+        season,
+      });
+
+      let bestItem = null;
+      let bestScore = -1;
+
+      for (const q of searchQueries) {
+        if (!q) continue;
+        const searchRes = await search(q, 1);
+        const items = searchRes.items || [];
         for (const item of items) {
-          const score = scoreMatch(item, title, year, season);
+          const score = scoreMatch(item, cleanTitle || q, year, season);
           if (score > bestScore) {
             bestScore = score;
             bestItem = item;
           }
         }
-        if (bestItem && bestItem.slug && bestScore >= 0.45) {
-          movieData = await getDetail(bestItem.slug);
-          if (movieData && imdbId) {
-            imdbCache.set(`nguonc:imdb:${String(imdbId).toLowerCase().trim()}`, bestItem.slug, 86400);
-          }
+        if (bestScore >= 0.70) break; // High confidence match early exit
+      }
+
+      if (bestItem && bestItem.slug && bestScore >= 0.45) {
+        movieData = await getDetail(bestItem.slug);
+        if (movieData && imdbId) {
+          imdbCache.set(`nguonc:imdb:${String(imdbId).toLowerCase().trim()}`, bestItem.slug, 86400);
         }
       }
     }
@@ -337,27 +363,10 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
         if (!isNaN(epNum) && epNum <= 0) {
           targetEp = null;
         } else {
-          targetEp = items.find((ep) => {
-            if (!ep) return false;
-            const nameStr = String(ep.name || '').trim();
-            const slugStr = String(ep.slug || '').trim();
-            if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
-            if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
-            if (!isNaN(epNum) && epNum > 0) {
-              const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
-              if (numFromName === epNum) return true;
-              const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
-              if (numFromSlug === epNum) return true;
-            }
-            if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
-              try {
-                const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
-                if (re.test(nameStr) || re.test(slugStr)) return true;
-              } catch {}
-            }
-            return false;
-          });
+          // Universal Episode Matcher
+          targetEp = items.find((ep) => matchEpisodeItem(ep, targetEpStr, epNum));
 
+          // Index fallback (1-based)
           if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= items.length) {
             targetEp = items[epNum - 1];
           }
@@ -413,4 +422,5 @@ module.exports = {
   getCatalog,
   getStreams,
   mapCatalogMeta,
+  matchEpisodeItem,
 };

@@ -1,60 +1,79 @@
-# Soft Handoff — Orchestrator 1 (Gen 1) -> Successor (Gen 2)
+# Final Handoff Report — Stremio VIP Movies Addon Engine v1.6.2 Upgrade
 
-## 1. Observation
-### Completed Work
-- **Survey Phase**: 3 parallel Explorers probed codebase and live endpoints for `sieutamphim.pro` (WordPress REST API + XOR 0x2a decode), `clbphimxua.info` (Ophim + HTML search), `yanhh3d.pw` (direct live scraping with `data-obf.pU` and `master.m3u8` from `fbcdn.cloud`), HLS Proxy routing in `src/routes/hls.js`, and existing test suites.
-- **Milestone 1 (DONE & GATE PASSED)**:
-  - `src/providers/stp.js`: Updated to `https://sieutamphim.pro`, referer headers, label `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`, XOR 0x2a decoding, multi-tier fallback, zero `externalUrl`, `scoreMatch` import.
-  - `src/providers/clbpx.js`: Updated to `https://clbphimxua.info`, referer headers, label `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`, multi-tier fallback, zero `externalUrl`, `scoreMatch` import.
-  - `src/providers/yan.js`: Updated to `https://yanhh3d.pw`, referer headers, label `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`, live stream scraping + Ophim fallback, zero `externalUrl`, `scoreMatch` import.
-  - `src/routes/hls.js`: `SOURCE_REFERERS` updated with `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw` (with priority order before `hh3d`).
-  - Passed all Reviews (2/2 APPROVE), Challenges (2/2 APPROVE), and Forensic Audit (CLEAN).
-- **Milestone 2 (DONE & GATE PASSED)**:
-  - Created `tests/verify_new_providers.js` covering all 6 phases: Server lifecycle (port 0), Provider checks (STP, CLBPX, YAN), Manifest proxy route rewriting, Stream aggregator safety, TS segment binary inspection (size > 10KB, sync byte 0x47), Range 206 seeking.
-  - Passed 26/26 assertions. Zero regressions: `tests/verify_playback.js` (7/7 PASS), `tests/verify_hotfix_vsmov_kkphim.js` (27/27 PASS), `src/test.js` (50/50 PASS).
-  - Passed all Reviews (2/2 APPROVE), Challenges (2/2 APPROVE), and Forensic Audit (CLEAN).
+**Orchestrator**: `orchestrator_1`  
+**Parent Agent**: `parent` (`bf16d1fa-700d-40fc-b73d-ec9956718a82`)  
+**Timestamp**: 2026-08-18T09:32:00Z  
+**Status**: 100% Complete (Hard Handoff)  
+**Project Root**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`  
 
 ---
 
-## 2. Logic Chain & Milestone State
-- Milestone 1: **DONE** (Gate PASS)
-- Milestone 2: **DONE** (Gate PASS)
-- Milestone 3: **IN_PROGRESS / PLANNED** (Version Bump & Git Deploy)
+## 1. Observation & State Summary
 
-### Remaining Work for Milestone 3
-1. **Version Bump to `1.6.0`**:
-   - `package.json`: `"version": "1.6.0"`
-   - `src/manifest.js`: `version: '1.6.0'` and docstring comment
-   - `src/handlers.js`: footer string `VIP Movies Addon v1.6.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>` and header badge `v1.6.0`
-   - `src/index.js`, `src/config.js`, `src/routes/hls.js`: version comments if applicable
-2. **Execute Full Verification**:
-   - `node --check src/index.js`
-   - `node tests/verify_new_providers.js` (must PASS 100%)
-   - `node tests/verify_playback.js` (must PASS 7/7)
-   - `node tests/verify_hotfix_vsmov_kkphim.js` (must PASS 27/27)
-   - `node src/test.js` (must PASS 50/50)
-3. **GitHub Deployment**:
-   ```bash
-   git remote set-url origin https://<GITHUB_TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
-   git add . && git commit -m "Engine v1.6.0: Updated STP/CLBPX/YAN domains + HLS Proxy routing + E2E tests + Zero-Regression Guard"
-   git push origin main
-   git remote set-url origin https://github.com/q121101-cloud/stremio-vip-addon.git
-   ```
-4. **Final Verification & Parent Notification**:
-   - Verify push success and report completion to parent (`d620d435-7bc5-411f-9cdf-e91d2c308e36`).
+All requirements (R1 through R6) from `ORIGINAL_REQUEST.md` have been fully implemented, empirically verified, audited, and deployed:
+
+1. **R1: HLS Proxy Router (`src/routes/hls.js`)**:
+   - RFC 3986 relative path resolution (`new URL(targetUrl, parentUrl).href`) across all M3U8 tags (master variant, media segments, keys, fMP4 maps, preload hints).
+   - Safe base64url encoding/decoding preserving security tokens and query parameters (`?token=...&sign=...`).
+   - Dynamic Referer & Origin headers configured per CDN (KKPhim/Opstream `player.phimapi.com`, NguonC `phim.nguonc.com`, VSMOV `vsmov.com`, STP `sieutamphim.pro`, CLBPX `clbphimxua.info`, YAN `yanhh3d.pw`).
+   - `responseType: 'stream'`, `maxRedirects: 5`, and HTTP Range 206 partial content seek support.
+   - WebVTT subtitle converter and proxy (`/hls/sub.vtt`).
+
+2. **R2: 22 Catalogs in Manifest (`src/manifest.js`)**:
+   - All 22 catalogs declared across the 6 provider clusters (VSMOV, KKPhim, NguonC, STP, CLBPX, YAN / HH3D) in `ALL_CATALOGS` and `MANIFEST.catalogs`.
+   - Full `extra: [{ name: 'skip' }, { name: 'genre' }, { name: 'search' }]` configured for every catalog.
+
+3. **R3: Catalog Routing & 6-Provider Stream Aggregator (`src/handlers.js`)**:
+   - `getCatTypeFromCatalogId` with complete alias mapping for all 22 catalog IDs.
+   - Parallel 6-provider stream aggregation via `Promise.allSettled()` with 4500ms timeout per provider.
+   - Standardized stream titles: `[VIP 1 • VSMOV]`, `[VIP 2 • KKPhim]`, `[VIP 3 • NguonC]`, `[VIP 4 • STP]`, `[VIP 5 • CLBPX]`, `[VIP 6 • YAN]`.
+   - Global stream priority sorting: `4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng -> Provider Rank`.
+   - Strict In-App Protocol invariant (`url` proxied through `/hls`, zero `externalUrl`).
+
+4. **R4: Provider Modules Optimization & 3-Tier Fallback (`src/providers/`)**:
+   - All providers export standard interface: `{ id, label, getCatalog, getStreams, search, getDetail }`.
+   - 100% utility reuse from `src/lib/utils.js` (zero duplicate helper functions).
+   - 3-tier fallback with resilient error handling and graceful `[]` return on missing sources.
+   - NguonC cinema catalog fallback to ensure populated movie metas.
+
+5. **R5: E2E Playback & Regression Verification (`tests/`)**:
+   - `tests/verify_all_providers_playback.js`: **44/44 assertions PASS (100%)** — verified 22 catalogs HTTP 200, all 6 providers resolving streams, real video TS chunks downloaded (>100KB, MPEG-TS sync byte `0x47`), WebVTT subtitle proxy, Range 206 seeking.
+   - `tests/verify_playback.js`: **7/7 phases PASS (100%)**.
+   - `tests/verify_hotfix_vsmov_kkphim.js`: **24/24 assertions PASS (100%)**.
+   - `tests/verify_new_providers.js`: **26/26 checks PASS (100%)**.
+   - `tests/challenger1_v162_adversarial_empirical.test.js`: **127/127 PASS (100%)**.
+   - `tests/challenger2_v162_aggregator_stress.test.js`: **186/186 PASS (100%)**.
+   - `node --check`: 100% clean JavaScript syntax across all files.
+
+6. **R6: Versioning & Deployment**:
+   - Synchronized version `1.6.2` across `package.json`, `src/manifest.js`, and `src/handlers.js`.
+   - Brand signature in footer: `VIP Movies Addon v1.6.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>`.
+   - Git commit `9b58035` pushed to `origin/main` (`https://github.com/q121101-cloud/stremio-vip-addon.git`). Clean working tree.
 
 ---
 
-## 3. Caveats & Invariants
-- Do not write source code or run commands directly — delegate M3 implementation/git operations to a Worker, followed by Reviewer / Auditor verification.
-- Parent Conversation ID for reporting: `d620d435-7bc5-411f-9cdf-e91d2c308e36`.
-- Keep BRIEFING.md and progress.md up to date.
+## 2. Gate Status
+- `reviewer_1` (Senior Code Reviewer): **`APPROVE`**
+- `reviewer_2` (Architecture Reviewer): **`APPROVE`**
+- `challenger_1` (Adversarial Challenger): **`APPROVE`**
+- `challenger_2` (Stream & Aggregation Challenger): **`APPROVE`**
+- `auditor_1` (Forensic Integrity Auditor): **`CLEAN`**
+
+**Final Gate Result**: **`PASS`**
 
 ---
 
-## 4. Key Artifacts
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/GATE_STATUS.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/progress.md`
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/BRIEFING.md`
+## 3. Verification Method
+```bash
+# 1. Run Comprehensive E2E 6-Provider Playback & 22-Catalog Suite
+node tests/verify_all_providers_playback.js
+
+# 2. Run All Regression Suites
+node tests/verify_playback.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node tests/verify_new_providers.js
+
+# 3. Check Git Status
+git status
+git log -n 1
+```

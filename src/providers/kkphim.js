@@ -17,7 +17,7 @@
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
 const { resolveCinemeta, getCachedCinemeta } = require('../lib/cinemeta');
-const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
+const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp, generateSearchKeywords, matchEpisodeItem } = require('../lib/utils');
 
 const PROVIDER_ID    = 'kkphim';
 const PROVIDER_LABEL = 'KKPhim';
@@ -59,47 +59,7 @@ function formatEpisodeLabel(epName) {
   return ` [Tập ${trimmed}]`;
 }
 
-/**
- * Flexible episode matching helper supporting exact name, zero-padded 01/001,
- * "Tập 1", "Tập 01", "tap-1", "episode-1", slug suffix "-1", regex number extraction, and fallback.
- */
-function matchEpisodeItem(ep, targetEpStr, targetEpNum) {
-  if (!ep) return false;
-  const nameStr = String(ep.name || '').trim();
-  const slugStr = String(ep.slug || '').trim();
-  const pad2 = !isNaN(targetEpNum) && targetEpNum > 0 ? String(targetEpNum).padStart(2, '0') : targetEpStr;
-  const pad3 = !isNaN(targetEpNum) && targetEpNum > 0 ? String(targetEpNum).padStart(3, '0') : targetEpStr;
 
-  // Direct name equality
-  if (nameStr === targetEpStr || nameStr === pad2 || nameStr === pad3) return true;
-  if (nameStr === `Tập ${targetEpStr}` || nameStr === `Tập ${pad2}` || nameStr === `Tập ${pad3}`) return true;
-  if (nameStr === `Tập${targetEpStr}` || nameStr === `Tập${pad2}` || nameStr === `Tập${pad3}`) return true;
-  if (nameStr.toLowerCase() === `episode ${targetEpStr}` || nameStr.toLowerCase() === `ep ${pad2}`) return true;
-
-  // Slug equality & slug patterns
-  if (slugStr === targetEpStr || slugStr === pad2 || slugStr === pad3) return true;
-  if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-${pad2}` || slugStr === `tap-${pad3}`) return true;
-  if (slugStr === `episode-${targetEpStr}` || slugStr === `ep-${targetEpStr}` || slugStr === `ep-${pad2}`) return true;
-  if (slugStr.endsWith(`-${targetEpStr}`) || slugStr.endsWith(`-${pad2}`) || slugStr.endsWith(`-${pad3}`)) return true;
-  if (slugStr.endsWith(`-tap-${targetEpStr}`) || slugStr.endsWith(`-tap-${pad2}`)) return true;
-
-  // Regex extraction from name / slug
-  if (!isNaN(targetEpNum) && targetEpNum > 0) {
-    const nameMatch = nameStr.match(/(?:tập|tap|ep|episode)\s*(\d+)/i) || nameStr.match(/\b(\d+)\b/);
-    if (nameMatch && parseInt(nameMatch[1], 10) === targetEpNum) return true;
-
-    const slugMatch = slugStr.match(/(?:tap|ep|episode)[-_](\d+)/i) || slugStr.match(/[-_](\d+)$/);
-    if (slugMatch && parseInt(slugMatch[1], 10) === targetEpNum) return true;
-  }
-
-  if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
-    try {
-      const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
-      if (re.test(nameStr) || re.test(slugStr)) return true;
-    } catch {}
-  }
-  return false;
-}
 
 function mapCatalogMeta(item, forceType = null) {
   const isSeries = item.type === 'series' || item.type === 'hoathinh' || item.type === 'tvshows';
@@ -355,8 +315,12 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     // ─── Tier 2: Smart Search Fallback (Cinemeta title & aliases + scoreMatch) ──
     if (!movieData && (title || aliases.length > 0)) {
       const cleanTitle = title ? String(title).trim() : '';
-      const titleWithoutYear = cleanTitle.replace(/\s*\(?\d{4}\)?\s*$/, '').trim();
-      const searchQueries = Array.from(new Set([cleanTitle, titleWithoutYear, ...aliases])).filter(Boolean);
+      const searchQueries = generateSearchKeywords({
+        title: cleanTitle,
+        originalName: null,
+        aliases,
+        season,
+      });
 
       let bestItem = null;
       let bestScore = -1;

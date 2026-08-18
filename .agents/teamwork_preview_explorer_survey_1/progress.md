@@ -1,10 +1,5 @@
-# Progress — Explorer 1 (STP Provider Investigation)
+# Progress Log — Explorer 1
 
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Examine `src/providers/stp.js`, `src/lib/utils.js`, `src/routes/hls.js`
-- [x] Probe live site `https://sieutamphim.pro/` (endpoints, search, html/json structure, streams, headers)
-- [x] Check `scoreMatch` and utility integration
-- [x] Synthesize findings and write `handoff.md`
-- [x] Send completion message to parent
-
-Last visited: 2026-08-18T04:42:00Z
+- Status: Started
+- Last visited: 2026-08-18T10:09:35Z
+- Current step: Reading ORIGINAL_REQUEST.md and inspecting codebase

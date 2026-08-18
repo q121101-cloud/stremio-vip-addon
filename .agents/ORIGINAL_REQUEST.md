@@ -1,8 +1,8 @@
 # Original User Request
 
-## Initial Request — 2026-08-18T09:06:28Z
+## 2026-08-18T09:45:07Z
 
-Gói nâng cấp Engine v1.6.2 cho Stremio VIP Movies Addon: Sửa triệt để lỗi 404 HLS Proxy, kích hoạt hoàn toàn 22 danh mục catalog và luồng stream cho toàn bộ 6 nguồn (VSMOV 4K, KKPhim, NguonC, STP, CLBPX, YanHH3D), thiết lập vòng lặp kiểm thử phát video thực tế liên tục (Debug -> Fix -> Test) cho đến khi 100% các nguồn tải thành công m3u8 và video chunk .ts > 100KB.
+Đại tu toàn diện Engine v1.7.0 cho Stremio VIP Movies Addon: Sửa triệt để lỗi 404 HLS Proxy cho phim Hàn/Âu Mỹ bằng cơ chế phân giải URL cha đa tầng, viết lại HTML Cheerio Scraper thực tế cho STP/CLBPX/YAN, siết chặt thuật toán so khớp (Strict Matching Guard - chống gán nhầm Donghua vào KDrama/US-UK), và kiểm thử phát video thực tế liên tục (E2E Playback Verification).
 
 Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 Integrity mode: development
@@ -11,71 +11,66 @@ Integrity mode: development
 
 ## Requirements
 
-### R1. Sửa triệt để lỗi 404 HLS Proxy (`src/routes/hls.js`)
-- **Phân giải đường dẫn tương đối (Relative Path Resolver)**:
-  - Sử dụng `new URL(targetUrl, parentUrl).href` để chuyển đổi toàn bộ URL tương đối của phân đoạn `.ts`, playlist con và key từ upstream thành URL tuyệt đối trước khi bọc proxy.
-- **Bảo toàn query params & token**:
-  - Dùng chuẩn `Buffer.from(str, 'base64url')` cho cả encode và decode để tuyệt đối không làm mất các tham số bảo mật (`?token=...&sign=...`).
-- **Cấu hình Header Referer/Origin động chuẩn xác cho từng CDN**:
-  - KKPhim / Opstream / Vlcdn / Phim1280: `Referer: https://player.phimapi.com/` (hoặc origin của chính URL video).
-  - NguonC: `Referer: https://phim.nguonc.com/`.
-  - VSMOV: `Referer: https://vsmov.com/`.
-  - STP: `Referer: https://sieutamphim.pro/`.
-  - CLBPX: `Referer: https://clbphimxua.info/`.
-  - YAN: `Referer: https://yanhh3d.pw/`.
-- **Hỗ trợ tải phân đoạn `.ts` mượt mà**:
-  - Thiết lập `responseType: 'stream'` / `'arraybuffer'`, `maxRedirects: 5`, hỗ trợ HTTP Range 206 cho playback seek.
+### R1. Đại tu toàn bộ Bộ định tuyến HLS Proxy (`src/routes/hls.js`)
+- **Phân giải Đường dẫn 2 Tầng (Multi-Level M3U8 Parent Resolver)**:
+  - Khi Master Playlist trả về Sub-variant Playlist: Bọc link Sub-variant vào `/hls/manifest.m3u8?url=${encodeBase64Url(subVariantAbsoluteUrl)}&ref=${refParam}`.
+  - Khi Sub-variant Playlist trả về phân đoạn `.ts`: Dùng chính URL của Sub-variant đó làm gốc (`baseUrl`) để `new URL(segmentLine, subVariantUrl).href`.
+- **Header Giả lập Trình duyệt Đầy đủ (Bypass CDN 403/404)**:
+  - Cung cấp Header mặc định cho mọi request axios tải M3U8 và Segment:
+    * `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36`
+    * `Accept: */*`
+    * `Accept-Language: vi,en-US;q=0.9,en;q=0.8`
+    * `Connection: keep-alive`
+  - Header Referer & Origin động:
+    * KKPhim / Opstream / Vlcdn / Phim1280: `Referer: https://player.phimapi.com/` (hoặc origin của URL video)
+    * NguonC: `Referer: https://phim.nguonc.com/`
+    * VSMOV: `Referer: https://vsmov.com/`
+    * STP: `Referer: https://sieutamphim.pro/`
+    * CLBPX: `Referer: https://clbphimxua.info/`
+    * YAN: `Referer: https://yanhh3d.pw/`
+- **Tải Nhị phân An toàn (`/hls/segment.ts`)**:
+  - Cấu hình `responseType: 'arraybuffer'`, `maxRedirects: 5`, `timeout: 15000`.
+  - Gửi Header phản hồi: `Content-Type: video/MP2T`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=3600`.
 
-### R2. Khai báo 22 danh mục Catalog vào Manifest (`src/manifest.js`)
-- Đảm bảo đầy đủ 22 danh mục catalog của 6 cụm nguồn trong `ALL_CATALOGS` và `MANIFEST.catalogs`:
-  - **VSMOV**: `vsmov-4k-sieu-net`, `vsmov-thuyet-minh`
-  - **KKPhim**: `kkphim-phim-le`, `kkphim-phim-bo`, `kkphim-chieu-rap`, `kkphim-hoat-hinh`
-  - **NguonC**: `nguonc-phim-le`, `nguonc-phim-bo`, `nguonc-chieu-rap`, `nguonc-moi-cap-nhat`
-  - **STP**: `stp-dien-anh-au-my`, `stp-phim-le`, `stp-phim-bo`, `stp-phim-han-quoc` (hoặc `stp_movies_phimle`, `stp_series_phimbo`, `stp_movies_dacsac`)
-  - **CLBPX**: `clbpx-kiem-hiep-xua`, `clbpx-phim-hong-kong`, `clbpx_series_tvb`, `clbpx_series_kiemhiep`, `clbpx_movies_xua`
-  - **YANHH3D**: `yan-phim-le`, `yan-phim-bo`, `yan-dang-chieu`, `yan_series_3d`, `yan_series_donghua`
-- Cấu hình đầy đủ `extra: [{ name: 'skip' }, { name: 'genre' }, { name: 'search' }]` cho từng catalog.
+### R2. Viết lại HTML Cheerio Scraper thực tế cho STP, CLBPX, YAN (`src/providers/`)
+- **[A] `src/providers/stp.js` (sieutamphim.pro)**:
+  - `getCatalog`: Dùng axios + cheerio tải HTML trang chủ/danh mục của `https://sieutamphim.pro/` -> parse thẻ card phim (poster, title, slug/url) -> trả về mảng `metas` chuẩn Stremio.
+  - `getStreams`: Tìm kiếm tại `https://sieutamphim.pro/?s=${encodeURIComponent(cleanTitle)}` -> cào trang tập phim -> trích xuất link `.m3u8` từ thẻ player/iframe hoặc script.
+- **[B] `src/providers/clbpx.js` (clbphimxua.info)**:
+  - `getCatalog`: Cào trực tiếp HTML danh mục phim TVB/Cổ trang từ `https://clbphimxua.info/`.
+  - `getStreams`: Tìm kiếm phim -> cào link tập -> trích xuất direct `.m3u8` lồng tiếng.
+- **[C] `src/providers/yan.js` (yanhh3d.pw)**:
+  - `getCatalog`: Cào HTML trang chủ Donghua từ `https://yanhh3d.pw/`.
+  - `getStreams`: **BẮT BUỘC kiểm tra thể loại/tiêu đề**: Nếu là phim người đóng (Live-Action), KDrama, US-UK thì bỏ qua ngay (`return []`). Chỉ xử lý phim có từ khóa hoạt hình / 3D / Donghua.
 
-### R3. Điều hướng Catalog và Gom luồng Stream 6 Nguồn (`src/handlers.js`)
-- **Điều hướng Catalog (`handleCatalog`)**:
-  - Khớp chuẩn xác catalog ID tới đúng provider tương ứng (`vsmov`, `kkphim`, `nguonc`, `stp`, `clbpx`, `yan`).
-- **Gom luồng Stream (`handleStream`)**:
-  - Gọi song song cả 6 nguồn qua `Promise.allSettled()` với timeout độc lập 4500ms mỗi nguồn.
-  - Chuẩn hóa định dạng hiển thị tên luồng Stremio/Nuvio:
-    * `[VIP 1 • VSMOV] Vietsub / Lồng Tiếng / Thuyết Minh 4K (HLS Proxy)`
-    * `[VIP 2 • KKPhim] Vietsub / Thuyết Minh Full HD (HLS Proxy)`
-    * `[VIP 3 • NguonC] Vietsub / Thuyết Minh Full HD (HLS Proxy)`
-    * `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`
-    * `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`
-    * `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`
-  - Sắp xếp thứ tự ưu tiên hiển thị: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng.
-  - Tuyệt đối tuân thủ In-App Protocol (`url` HLS Proxy, nghiêm cấm `externalUrl`).
+### R3. Tối ưu hóa tìm kiếm cho Phim Hàn & Âu Mỹ (KKPhim & NguonC)
+- **Đa dạng hóa từ khóa tìm kiếm (Multi-Keyword Fallback)**:
+  - Khi nhận request phim (ví dụ: `Lanterns`, `9-1-1`, `Teach You a Lesson`, `A Shop for Killers`):
+    * Thử 1: Tìm theo tên tiếng Anh gốc (`meta.name` / `title`).
+    * Thử 2: Tìm theo tên tiếng Việt (nếu có trong tiêu đề hoặc aliases).
+    * Thử 3: Bỏ tất cả số mùa `Season 1`, `Phần 9`, `P1` và ký tự đặc biệt để tìm từ khóa chính.
+- **Khớp số tập linh hoạt**: Khớp đúng mọi định dạng tập (`1`, `01`, `Tập 01`, `tap-1`, `Full`).
 
-### R4. Hoàn thiện và Tối ưu 6 Provider Modules (`src/providers/`)
-- Đảm bảo 6 provider (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `clbpx.js`, `yan.js`) xuất chuẩn interface: `{ id, label, getCatalog, getStreams, search, getDetail }`.
-- Tái sử dụng 100% utility từ `src/lib/utils.js` (`scoreMatch`, `safeSlug`, `safeKeyword`, `isSeasonMatch`, v.v.). Không tái định nghĩa duplicate functions.
-- Cơ chế Fallback 3 tầng chống 404 cho phim lẻ & phim bộ (khớp tập linh hoạt `"1"`, `"01"`, `"Tập 1"`, `tap-1`). Trả về `[]` an toàn khi không tìm thấy nguồn.
+### R4. Bộ kiểm thử E2E thực tế trên Link Thật (`tests/verify_v170_playback.js`)
+- Khởi động server test nội bộ và kiểm tra:
+  1. **Test Catalog**: Gọi `GET /catalog/movie/stp_movies_phimle.json` và `GET /catalog/series/clbpx_series_tvb.json` -> Trả về HTTP 200 kèm danh sách `metas.length > 0`.
+  2. **Test Phim Hàn / Âu Mỹ**:
+     - *Teach You A Lesson* Tập 1 (KKPhim & NguonC).
+     - *A Shop for Killers* Tập 1 (KKPhim & NguonC).
+     - *Lanterns* hoặc *Avengers 3*.
+  3. **Xác thực Playback**:
+     - Fetch `/hls/manifest.m3u8` trả về HTTP 200.
+     - Fetch trực tiếp 2 phân đoạn `/hls/segment.ts` đầu tiên, đạt HTTP 200 và dung lượng buffer > 100KB.
+  4. **Xác thực YAN Guard**: Đảm bảo khi fetch stream cho phim Hàn *Teach You A Lesson*, YAN không trả về bất kỳ stream Donghua rác nào (`streams.length === 0` từ YAN).
+- Tự động lặp lại chu trình sửa mã nguồn cho đến khi 100% bài test PASS.
 
-### R5. Chu trình Tự Động Kiểm Thử & Tự Sửa Lỗi E2E (`tests/verify_all_providers_playback.js`)
-- Xây dựng bài kiểm thử E2E liên tục kiểm tra thực tế:
-  1. **Catalog Check**: Fetch các catalog của 6 nguồn -> HTTP 200 kèm danh sách `metas`.
-  2. **Stream & TS Video Download Check** cho cả 6 nguồn:
-     - VSMOV: Master M3U8 HTTP 200 + WebVTT subtitles proxy.
-     - KKPhim: M3U8 HTTP 200 + tải phân đoạn `.ts` thật > 100KB với sync byte `0x47`.
-     - NguonC: M3U8 HTTP 200 + tải phân đoạn `.ts` thật > 100KB với sync byte `0x47`.
-     - STP: M3U8 HTTP 200 + tải phân đoạn `.ts` thật > 100KB với sync byte `0x47`.
-     - CLBPX: M3U8 HTTP 200 + tải phân đoạn `.ts` thật > 100KB với sync byte `0x47`.
-     - YAN: M3U8 HTTP 200 + tải phân đoạn `.ts` thật > 100KB với sync byte `0x47`.
-- **Vòng lặp tự sửa lỗi (Self-Debug Loop)**: Nếu bất kỳ nguồn nào lỗi 404, phân tích phản hồi, tự động vá mã nguồn và chạy lại test cho đến khi 100% test cases ĐẠT.
-- Chạy lại các bộ test hồi quy (`verify_playback.js`, `verify_hotfix_vsmov_kkphim.js`) đạt 100% PASS.
-
-### R6. Versioning, Brand Signature & Deploy
-- Đồng bộ version `1.6.2` trong `package.json`, `src/manifest.js`, và footer `src/handlers.js`:
-  `VIP Movies Addon v1.6.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>`
+### R5. Versioning, Brand Signature & Deploy
+- Cập nhật version lên `1.7.0` trong `package.json`, `src/manifest.js`, và footer `src/handlers.js`:
+  `VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`
 - Commit và push lên GitHub:
   ```bash
-  git remote set-url origin https://<GITHUB_TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
-  git add . && git commit -m "Engine v1.6.2: Fully Verified Playback for all 6 Providers (VSMOV, KKPhim, NguonC, STP, CLBPX, YAN) with 22 Active Catalogs"
+  git remote set-url origin https://<TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
+  git add . && git commit -m "Engine v1.7.0: Complete Playback Overhaul - Resolved HLS Sub-variant 404, Implemented True HTML Scrapers for STP/CLBPX/YAN & Fixed False Positive Matching"
   git push origin main
   git remote set-url origin https://github.com/q121101-cloud/stremio-vip-addon.git
   ```
@@ -84,18 +79,18 @@ Integrity mode: development
 
 ## Acceptance Criteria
 
-### Stream & Segment Playback (Mandatory)
-- [ ] Tất cả 6 nguồn (VSMOV, KKPhim, NguonC, STP, CLBPX, YAN) trả về stream object chứa `url` hợp lệ (HLS Proxy) và KHÔNG có `externalUrl`.
-- [ ] `GET /hls/manifest.m3u8` cho stream của các nguồn trả về HTTP 200 và bắt đầu bằng `#EXTM3U`.
-- [ ] Phân đoạn `.ts` tải qua `/hls/segment.ts` trả về HTTP 200/206 với dung lượng > 100KB và bắt đầu bằng MPEG-TS sync byte `0x47`.
-- [ ] Tất cả 22 catalog trả về HTTP 200 `{ metas: [...] }` không có mã lỗi 404.
+### Playback & Matching Integrity
+- [ ] Sub-variant playlists và các phân đoạn `.ts` của phim Hàn & Âu Mỹ phân giải đúng baseUrl, không bị lỗi 404.
+- [ ] Phân đoạn `.ts` tải qua `/hls/segment.ts` trả về HTTP 200/206 với dung lượng > 100KB và bắt đầu bằng sync byte `0x47`.
+- [ ] YAN provider không trả về stream cho phim người đóng (Live-Action / KDrama / Hollywood).
+- [ ] STP và CLBPX cào catalog và trích xuất link M3U8 từ HTML thật với cheerio.
 
 ### Test Suites & Zero Regression
-- [ ] `node tests/verify_all_providers_playback.js` hoàn thành với 100% assertions PASS.
-- [ ] `node tests/verify_playback.js` đạt 7/7 phases PASS.
-- [ ] `node tests/verify_hotfix_vsmov_kkphim.js` đạt 27/27 PASS.
-- [ ] `node --check src/index.js` đạt syntax sạch 100%.
+- [ ] `node tests/verify_v170_playback.js` hoàn thành với 100% assertions PASS.
+- [ ] `node tests/verify_all_providers_playback.js` đạt 100% PASS.
+- [ ] `npm test` đạt 50/50 PASS.
+- [ ] `node --check src/index.js` không có lỗi cú pháp.
 
 ### Deployment
-- [ ] Version `1.6.2` đồng bộ trong `package.json`, `src/manifest.js`, `src/handlers.js`.
+- [ ] Version `1.7.0` đồng bộ trong `package.json`, `src/manifest.js`, `src/handlers.js`.
 - [ ] `git push origin main` thành công lên repository.

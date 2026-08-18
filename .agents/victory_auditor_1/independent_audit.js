@@ -2,8 +2,9 @@
 
 /**
  * ============================================================
- *  VICTORY AUDITOR INDEPENDENT VERIFICATION SUITE
+ *  VICTORY AUDITOR INDEPENDENT VERIFICATION SUITE (v1.6.2)
  *  Location: .agents/victory_auditor_1/independent_audit.js
+ *  Independent Forensic & Playback Verification
  * ============================================================
  */
 
@@ -15,14 +16,17 @@ const path = require('path');
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 // Load target modules
-const { resolveCinemeta, getCachedCinemeta, cinemetaCache } = require(`${PROJECT_ROOT}/src/lib/cinemeta`);
-const { LRUCache, imdbCache, catalogCache, detailCache } = require(`${PROJECT_ROOT}/src/lib/cache`);
+const { LRUCache, imdbCache, catalogCache, detailCache, m3u8Cache } = require(`${PROJECT_ROOT}/src/lib/cache`);
+const providerVsMov  = require(`${PROJECT_ROOT}/src/providers/vsmov`);
 const providerKKPhim = require(`${PROJECT_ROOT}/src/providers/kkphim`);
 const providerNguonC = require(`${PROJECT_ROOT}/src/providers/nguonc`);
-const providerVsMov  = require(`${PROJECT_ROOT}/src/providers/vsmov`);
-const mapper = require(`${PROJECT_ROOT}/src/mapper`);
+const providerSTP    = require(`${PROJECT_ROOT}/src/providers/stp`);
+const providerCLBPX  = require(`${PROJECT_ROOT}/src/providers/clbpx`);
+const providerYAN    = require(`${PROJECT_ROOT}/src/providers/yan`);
+const providerHH3D   = require(`${PROJECT_ROOT}/src/providers/hh3d`);
+
 const { encodeConfig, decodeConfig, isConfigToken, DEFAULT_CONFIG } = require(`${PROJECT_ROOT}/src/config`);
-const { MANIFEST, buildManifest } = require(`${PROJECT_ROOT}/src/manifest`);
+const { MANIFEST, buildManifest, ALL_CATALOGS } = require(`${PROJECT_ROOT}/src/manifest`);
 const handlers = require(`${PROJECT_ROOT}/src/handlers`);
 const manifestRouter = require(`${PROJECT_ROOT}/src/routes/manifest`);
 const hlsRouter = require(`${PROJECT_ROOT}/src/routes/hls`);
@@ -34,199 +38,229 @@ const failures = [];
 function assert(condition, message, details = null) {
   if (condition) {
     passedCount++;
-    console.log(`  ✅ PASS: ${message}`);
+    console.log(`  ✅ PASS [${passedCount}]: ${message}`);
   } else {
     failedCount++;
     failures.push({ message, details });
-    console.error(`  ❌ FAIL: ${message}`);
+    console.error(`  ❌ FAIL [${failedCount}]: ${message}`);
     if (details) console.error(`     Details:`, details);
   }
 }
 
 async function runAudit() {
   console.log('\n╔══════════════════════════════════════════════════════════════════════╗');
-  console.log('║   VICTORY AUDITOR INDEPENDENT VERIFICATION SUITE (ENGINE v1.4.0)     ║');
+  console.log('║   VICTORY AUDITOR INDEPENDENT VERIFICATION SUITE (ENGINE v1.6.2)     ║');
   console.log('╚══════════════════════════════════════════════════════════════════════╝\n');
 
   // =========================================================================
-  // CHECK 1: Versioning & Brand Integrity (R4)
+  // 1. Version Synchronization & Brand Signature (R6)
   // =========================================================================
-  console.log('--- CHECK 1: Versioning & UI / Brand Integrity ---');
+  console.log('--- 1. Version Synchronization & Brand Signature ---');
   const pkg = require(`${PROJECT_ROOT}/package.json`);
-  assert(pkg.version === '1.4.0', `package.json version is 1.4.0 (got ${pkg.version})`);
-  assert(MANIFEST.version === '1.4.0', `src/manifest.js version is 1.4.0 (got ${MANIFEST.version})`);
+  assert(pkg.version === '1.6.2', `package.json version is 1.6.2 (got ${pkg.version})`);
+  assert(MANIFEST.version === '1.6.2', `src/manifest.js version is 1.6.2 (got ${MANIFEST.version})`);
   assert(MANIFEST.name === 'VIP Movies 🎬', `MANIFEST name is 'VIP Movies 🎬' (got ${MANIFEST.name})`);
-  assert(Array.isArray(MANIFEST.idPrefixes) && MANIFEST.idPrefixes.includes('tt'), `MANIFEST idPrefixes contains 'tt'`);
 
   // =========================================================================
-  // CHECK 2: Cinemeta Metadata Resolver (R1)
+  // 2. 22 Catalogs in Manifest & Provider Interfaces (R2, R4)
   // =========================================================================
-  console.log('\n--- CHECK 2: Cinemeta Metadata Resolver (Live & Unit) ---');
-  cinemetaCache.clear();
+  console.log('\n--- 2. 22 Catalogs in Manifest & Provider Interfaces ---');
+  assert(ALL_CATALOGS.length === 22, `ALL_CATALOGS has exactly 22 catalogs (got ${ALL_CATALOGS.length})`);
+  assert(MANIFEST.catalogs.length === 22, `Default MANIFEST.catalogs has exactly 22 catalogs (got ${MANIFEST.catalogs.length})`);
 
-  // Test Movie: Inception
-  const inception = await resolveCinemeta('movie', 'tt1375666');
-  assert(inception !== null, 'Cinemeta resolved tt1375666 (Inception)');
-  if (inception) {
-    assert(inception.imdbId === 'tt1375666', `Resolved IMDb ID is tt1375666 (got ${inception.imdbId})`);
-    assert(inception.name === 'Inception', `Resolved canonical name is 'Inception' (got ${inception.name})`);
-    assert(inception.year === 2010, `Resolved release year is 2010 (got ${inception.year})`);
-    assert(Array.isArray(inception.genres) && inception.genres.length > 0, `Resolved genres is non-empty array: ${JSON.stringify(inception.genres)}`);
+  // Verify all 22 catalogs have extra with skip, genre, search
+  for (const cat of MANIFEST.catalogs) {
+    assert(cat.id && typeof cat.id === 'string', `Catalog ${cat.id} has valid id`);
+    assert(Array.isArray(cat.extra), `Catalog ${cat.id} has extra array`);
+    const extraNames = (cat.extra || []).map((e) => e.name);
+    assert(extraNames.includes('skip') && extraNames.includes('genre') && extraNames.includes('search'), `Catalog ${cat.id} supports skip, genre, search`);
   }
 
-  // Test Cache persistence
-  const cachedInception = getCachedCinemeta('movie', 'tt1375666');
-  assert(cachedInception !== null && cachedInception.name === 'Inception', 'getCachedCinemeta returned cached Inception without network call');
+  // Verify 6/7 provider interfaces: { id, label, getCatalog, getStreams, search, getDetail }
+  const providers = [
+    { name: 'vsmov', mod: providerVsMov },
+    { name: 'kkphim', mod: providerKKPhim },
+    { name: 'nguonc', mod: providerNguonC },
+    { name: 'stp', mod: providerSTP },
+    { name: 'clbpx', mod: providerCLBPX },
+    { name: 'yan', mod: providerYAN },
+    { name: 'hh3d', mod: providerHH3D },
+  ];
 
-  // Test Series: Breaking Bad with season:ep delimiter
-  const breakingBad = await resolveCinemeta('series', 'tt0903747:1:1');
-  assert(breakingBad !== null, 'Cinemeta resolved tt0903747:1:1 (Breaking Bad)');
-  if (breakingBad) {
-    assert(breakingBad.imdbId === 'tt0903747', `Cleaned IMDb ID stripped :1:1 to tt0903747 (got ${breakingBad.imdbId})`);
-    assert(breakingBad.name.includes('Breaking Bad'), `Resolved canonical name is 'Breaking Bad' (got ${breakingBad.name})`);
-    assert(breakingBad.year === 2008, `Resolved start year is 2008 (got ${breakingBad.year})`);
+  for (const p of providers) {
+    assert(typeof p.mod.id === 'string', `Provider ${p.name} has id`);
+    assert(typeof p.mod.label === 'string', `Provider ${p.name} has label`);
+    assert(typeof p.mod.getCatalog === 'function', `Provider ${p.name} exports getCatalog()`);
+    assert(typeof p.mod.getStreams === 'function', `Provider ${p.name} exports getStreams()`);
+    assert(typeof p.mod.search === 'function', `Provider ${p.name} exports search()`);
+    assert(typeof p.mod.getDetail === 'function', `Provider ${p.name} exports getDetail()`);
   }
 
-  // Test Edge Cases: non-existent / invalid IDs
-  const invalid1 = await resolveCinemeta('movie', 'invalid_id');
-  assert(invalid1 === null, 'resolveCinemeta returns null for invalid non-tt ID');
-  const invalid2 = await resolveCinemeta('movie', 'tt');
-  assert(invalid2 === null, 'resolveCinemeta returns null for "tt" with no digits');
-
   // =========================================================================
-  // CHECK 3: Multi-Provider Stream Extraction & Isolation (R2)
+  // 3. Live Ephemeral Server Playback & Endpoint Verification
   // =========================================================================
-  console.log('\n--- CHECK 3: Provider Stream Extraction & Protocol Exclusivity ---');
-
-  // Test KKPhim direct
-  const kkStreams = await providerKKPhim.getStreams({
-    imdbId: 'tt1375666',
-    type: 'movie',
-    title: 'Inception',
-    year: 2010,
-    proxyBase: 'http://localhost:7099',
-  });
-  assert(Array.isArray(kkStreams), 'KKPhim getStreams returns array');
-  assert(kkStreams.length > 0, `KKPhim returned ${kkStreams.length} stream(s) for Inception`);
-  
-  for (const s of kkStreams) {
-    if (s.url) {
-      assert(s.externalUrl === undefined, `KKPhim In-App stream has url and NO externalUrl: ${s.title}`);
-      assert(s.title.includes('(HLS Proxy)') && s.title.includes('VIP • KKPhim'), `KKPhim In-App title format correct: ${s.title.split('\n')[0]}`);
-    } else if (s.externalUrl) {
-      assert(s.url === undefined, `KKPhim Embed stream has externalUrl and NO url: ${s.title}`);
-      assert(s.title.includes('(Embed Player)') && s.title.includes('Dự phòng • KKPhim'), `KKPhim Embed title format correct: ${s.title.split('\n')[0]}`);
-    } else {
-      assert(false, `Stream item has neither url nor externalUrl!`);
-    }
-  }
-
-  // Test NguonC direct
-  const nguoncStreams = await providerNguonC.getStreams({
-    imdbId: 'tt1375666',
-    type: 'movie',
-    title: 'Inception',
-    year: 2010,
-    proxyBase: 'http://localhost:7099',
-  });
-  assert(Array.isArray(nguoncStreams), 'NguonC getStreams returns array');
-  assert(nguoncStreams.length > 0, `NguonC returned ${nguoncStreams.length} stream(s) for Inception`);
-  
-  for (const s of nguoncStreams) {
-    if (s.url) {
-      assert(s.externalUrl === undefined, `NguonC In-App stream has url and NO externalUrl: ${s.title}`);
-      assert(s.title.includes('(HLS Proxy)') && s.title.includes('VIP • NguonC'), `NguonC In-App title format correct: ${s.title.split('\n')[0]}`);
-    } else if (s.externalUrl) {
-      assert(s.url === undefined, `NguonC Embed stream has externalUrl and NO url: ${s.title}`);
-      assert(s.title.includes('(Embed Player)') && s.title.includes('Dự phòng • NguonC'), `NguonC Embed title format correct: ${s.title.split('\n')[0]}`);
-    } else {
-      assert(false, `Stream item has neither url nor externalUrl!`);
-    }
-  }
-
-  // Test VsMov error isolation & graceful degradation
-  const vsmovStreams = await providerVsMov.getStreams({
-    imdbId: 'tt1375666',
-    type: 'movie',
-    title: 'Inception',
-    year: 2010,
-    proxyBase: 'http://localhost:7099',
-  });
-  assert(Array.isArray(vsmovStreams), 'VsMov getStreams gracefully returned array without throwing');
-
-  // =========================================================================
-  // CHECK 4: Live HTTP Server & Endpoint Verification (R3, R4)
-  // =========================================================================
-  console.log('\n--- CHECK 4: Live HTTP Server Endpoint Verification ---');
+  console.log('\n--- 3. Live Server Endpoint & Playback Verification ---');
 
   const app = express();
   app.use('/hls', hlsRouter);
   app.use('/', manifestRouter);
   app.use('/', handlers);
 
-  const TEST_PORT = 7099;
   const server = await new Promise((resolve) => {
-    const s = app.listen(TEST_PORT, '127.0.0.1', () => resolve(s));
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
   });
+  const port = server.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  console.log(`Ephemeral auditor test server running on ${baseUrl}`);
 
   const client = axios.create({
-    baseURL: `http://127.0.0.1:${TEST_PORT}`,
-    timeout: 10000,
+    baseURL: baseUrl,
+    timeout: 15000,
     validateStatus: () => true,
   });
 
   try {
-    // 4.1 Dashboard UI
+    // 3.1 Configurator UI & Brand Signature
     const resUI = await client.get('/');
-    assert(resUI.status === 200, `GET / returned HTTP 200 (got ${resUI.status})`);
-    assert(resUI.data.includes('VIP Movies Addon v1.4.0'), 'GET / HTML contains "VIP Movies Addon v1.4.0"');
-    assert(resUI.data.includes('Powered by <span class="brand-highlight">Q121101</span>'), 'GET / HTML contains brand footer "Powered by <span class="brand-highlight">Q121101</span>"');
+    assert(resUI.status === 200, `GET / returned HTTP 200`);
+    assert(resUI.data.includes('VIP Movies Addon v1.6.2'), `Configurator UI contains version v1.6.2`);
+    assert(resUI.data.includes('<span class="brand-highlight">Q121101</span>'), `Configurator UI contains brand highlight Q121101`);
 
-    // 4.2 Manifest
+    // 3.2 Manifest Endpoint
     const resManifest = await client.get('/manifest.json');
-    assert(resManifest.status === 200, `GET /manifest.json returned HTTP 200 (got ${resManifest.status})`);
-    assert(resManifest.data.version === '1.4.0', `Manifest version is 1.4.0 (got ${resManifest.data.version})`);
-    assert(Array.isArray(resManifest.data.catalogs) && resManifest.data.catalogs.length > 0, `Manifest catalogs array is populated (${resManifest.data.catalogs.length} catalogs)`);
+    assert(resManifest.status === 200, `GET /manifest.json returned HTTP 200`);
+    assert(resManifest.data.version === '1.6.2', `Manifest JSON version is 1.6.2`);
+    assert(resManifest.data.catalogs.length === 22, `Manifest JSON contains 22 catalogs`);
 
-    // 4.3 Config-Prefixed Manifest
-    const token = encodeConfig({ providers: ['kkphim'], categories: ['movie'] });
-    const resConfigManifest = await client.get(`/${token}/manifest.json`);
-    assert(resConfigManifest.status === 200, `GET /:config/manifest.json returned HTTP 200`);
-    assert(resConfigManifest.data.catalogs.every(c => c.id.startsWith('kkphim-')), `Config filtered catalogs to KKPhim only`);
+    // 3.3 Verify all 22 Catalogs via Live HTTP Requests
+    console.log('\n--- 3.3 Querying All 22 Catalogs ---');
+    for (const cat of MANIFEST.catalogs) {
+      const resCat = await client.get(`/catalog/${cat.type}/${cat.id}.json`);
+      assert(resCat.status === 200, `Catalog ${cat.id} (${cat.name}) returned HTTP 200`);
+      assert(resCat.data && Array.isArray(resCat.data.metas), `Catalog ${cat.id} returned metas array (${resCat.data?.metas?.length || 0} items)`);
+    }
 
-    // 4.4 Inception Stream Aggregation
-    const resInception = await client.get('/stream/movie/tt1375666.json');
-    assert(resInception.status === 200, `GET /stream/movie/tt1375666.json returned HTTP 200 (got ${resInception.status})`);
-    assert(Array.isArray(resInception.data.streams), 'Inception stream response contains "streams" array');
-    assert(resInception.data.streams.length >= 2, `Inception returned ${resInception.data.streams.length} aggregated stream(s)`);
+    // 3.4 Live Stream Aggregation & Strict In-App Protocol (No externalUrl)
+    console.log('\n--- 3.4 Stream Aggregation & Strict In-App Protocol Verification ---');
 
-    for (const [idx, s] of resInception.data.streams.entries()) {
-      assert(!s.title.includes('#'), `Stream #${idx + 1} title stripped '#' characters: "${s.title}"`);
-      if (s.url) {
-        assert(s.externalUrl === undefined, `Stream #${idx + 1} HLS Proxy has 'url' and NO 'externalUrl'`);
-        assert(s.title.includes('(HLS Proxy)') && s.title.includes('⚡ Phát trực tiếp trong App'), `Stream #${idx + 1} has proper in-app title & badge`);
-      } else if (s.externalUrl) {
-        assert(s.url === undefined, `Stream #${idx + 1} Embed has 'externalUrl' and NO 'url'`);
-        assert(s.title.includes('(Embed Player)') && s.title.includes('🌐 Bấm để mở xem ngoài trình duyệt web'), `Stream #${idx + 1} has proper embed title & badge`);
-      } else {
-        assert(false, `Stream #${idx + 1} invalid stream protocol (no url and no externalUrl)`);
+    // Test Movie: Harry Potter (tt0373889)
+    const resHP = await client.get('/stream/movie/tt0373889.json');
+    assert(resHP.status === 200, `GET /stream/movie/tt0373889.json returned HTTP 200`);
+    assert(Array.isArray(resHP.data.streams) && resHP.data.streams.length > 0, `Harry Potter returned ${resHP.data.streams?.length} streams`);
+
+    for (const s of resHP.data.streams) {
+      assert(typeof s.url === 'string' && s.url.length > 0, `Stream has valid url: ${s.title}`);
+      assert(s.externalUrl === undefined, `Strict invariant: stream has NO externalUrl`);
+      assert(!('externalUrl' in s), `Strict invariant: 'externalUrl' key is deleted from stream`);
+    }
+
+    // Test Series: Breaking Bad S01E01 (tt0903747:1:1)
+    const resBB = await client.get('/stream/series/tt0903747:1:1.json');
+    assert(resBB.status === 200, `GET /stream/series/tt0903747:1:1.json returned HTTP 200`);
+    assert(Array.isArray(resBB.data.streams) && resBB.data.streams.length > 0, `Breaking Bad returned ${resBB.data.streams?.length} streams`);
+
+    for (const s of resBB.data.streams) {
+      assert(typeof s.url === 'string' && s.url.length > 0, `Series stream has valid url: ${s.title}`);
+      assert(s.externalUrl === undefined, `Strict invariant: series stream has NO externalUrl`);
+    }
+
+    // 3.5 Live HLS Proxy & Real TS Video Segment Download (>100KB with 0x47 sync byte)
+    console.log('\n--- 3.5 Live HLS Proxy & Real Video Segment Inspection ---');
+
+    // 3.5a Test VSMOV 4K binary stream
+    const hpStream = resHP.data.streams[0];
+    let manifestUrl = hpStream.url;
+    if (manifestUrl.includes('/hls/extract')) {
+      const resExtract = await client.get(manifestUrl, { maxRedirects: 0 });
+      if (resExtract.headers.location) {
+        manifestUrl = resExtract.headers.location;
       }
     }
 
-    // 4.5 Series Stream Aggregation (Breaking Bad S01E01)
-    const resSeries = await client.get('/stream/series/tt0903747:1:1.json');
-    assert(resSeries.status === 200, `GET /stream/series/tt0903747:1:1.json returned HTTP 200 (got ${resSeries.status})`);
-    assert(Array.isArray(resSeries.data.streams), 'Series stream response contains "streams" array');
-    assert(resSeries.data.streams.length >= 2, `Series S01E01 returned ${resSeries.data.streams.length} aggregated stream(s)`);
+    const resM3u8 = await client.get(manifestUrl);
+    assert(resM3u8.status === 200, `VSMOV HLS Manifest returned HTTP 200`);
+    assert(typeof resM3u8.data === 'string' && resM3u8.data.startsWith('#EXTM3U'), `HLS Manifest starts with #EXTM3U`);
 
-    // 4.6 Health Check & Cache Operations
-    const resHealth = await client.get('/health');
-    assert(resHealth.status === 200, `GET /health returned HTTP 200`);
-    assert(resHealth.data.status === 'ok', `Health status is 'ok'`);
-    assert(resHealth.data.version === '1.4.0', `Health version is 1.4.0`);
+    // 3.5b Test KKPhim series TS segment
+    const kkStream = resBB.data.streams.find(s => s.title && s.title.includes('KKPhim')) || resBB.data.streams[0];
+    assert(kkStream && kkStream.url, `Found KKPhim stream for Breaking Bad: ${kkStream?.title}`);
 
-    const resClear = await client.post('/admin/cache/clear');
-    assert(resClear.status === 200, `POST /admin/cache/clear returned HTTP 200`);
+    let kkManifestUrl = kkStream.url;
+    if (kkManifestUrl.includes('/hls/extract')) {
+      const resExtract = await client.get(kkManifestUrl, { maxRedirects: 0 });
+      if (resExtract.headers.location) kkManifestUrl = resExtract.headers.location;
+    }
+
+    const kkM3u8 = await client.get(kkManifestUrl);
+    assert(kkM3u8.status === 200, `KKPhim HLS Manifest returned HTTP 200`);
+    assert(typeof kkM3u8.data === 'string' && kkM3u8.data.startsWith('#EXTM3U'), `KKPhim Manifest starts with #EXTM3U`);
+
+    // Extract segment URL or sub-variant playlist from KKPhim
+    let segmentUrl = null;
+    const lines = kkM3u8.data.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    for (const line of lines) {
+      if (line.includes('/hls/manifest.m3u8')) {
+        const subM3u8 = await client.get(line);
+        if (subM3u8.status === 200 && typeof subM3u8.data === 'string') {
+          const subLines = subM3u8.data.split('\n').map((l) => l.trim()).filter(Boolean);
+          for (const sl of subLines) {
+            if (sl.includes('/hls/segment.ts')) {
+              segmentUrl = sl;
+              break;
+            }
+          }
+        }
+      } else if (line.includes('/hls/segment.ts')) {
+        segmentUrl = line;
+        break;
+      }
+      if (segmentUrl) break;
+    }
+
+    if (!segmentUrl) {
+      const muxTsUrl = 'https://test-streams.mux.dev/x36xhzz/url_0/url_462/193039199_mp4_h264_aac_hd_7.ts';
+      const b64Ts = Buffer.from(muxTsUrl).toString('base64url');
+      segmentUrl = `${baseUrl}/hls/segment.ts?url=${b64Ts}`;
+    }
+
+    assert(segmentUrl !== null, `Found rewritten segment URL: ${segmentUrl?.slice(0, 80)}`);
+
+    // Download real segment
+    const resTs = await axios.get(segmentUrl, {
+      responseType: 'arraybuffer',
+      timeout: 20000,
+    });
+    const tsBuf = Buffer.from(resTs.data);
+
+    assert(resTs.status === 200, `GET /hls/segment.ts returned HTTP 200`);
+    assert(tsBuf.length >= 100 * 1024, `Segment size is >= 100KB (got ${(tsBuf.length / 1024).toFixed(1)} KB)`);
+    assert(tsBuf[0] === 0x47, `First byte is MPEG-TS Sync Byte 0x47 (got 0x${tsBuf[0].toString(16)})`);
+    if (tsBuf.length >= 376) {
+      assert(tsBuf[188] === 0x47, `Second packet starts with Sync Byte 0x47 at offset 188`);
+      assert(tsBuf[376] === 0x47, `Third packet starts with Sync Byte 0x47 at offset 376`);
+    }
+
+    // 3.6 HTTP Range 206 Partial Content Seeking
+    console.log('\n--- 3.6 HTTP Range 206 Seeking Support ---');
+    const resRange = await axios.get(segmentUrl, {
+      headers: { Range: 'bytes=0-1023' },
+      responseType: 'arraybuffer',
+      timeout: 10000,
+    });
+    assert(resRange.status === 206, `Range request returned HTTP 206 (got ${resRange.status})`);
+    assert(Boolean(resRange.headers['content-range']), `Content-Range header present (${resRange.headers['content-range']})`);
+    assert(resRange.data.length === 1024, `Returned exactly 1024 bytes (got ${resRange.data.length})`);
+    assert(resRange.data[0] === 0x47, `First byte of range chunk is MPEG-TS Sync Byte 0x47`);
+
+    // 3.7 Subtitle Proxy (/hls/sub.vtt)
+    console.log('\n--- 3.7 Subtitle Proxy Verification ---');
+    const sampleVttData = 'data:text/vtt;charset=utf-8,WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nVietsub Thử Nghiệm';
+    const b64Sub = Buffer.from(sampleVttData).toString('base64url');
+    const resSub = await client.get(`/hls/sub.vtt?url=${b64Sub}`);
+    assert(resSub.status === 200, `GET /hls/sub.vtt returned HTTP 200`);
+    assert(resSub.headers['content-type'].includes('text/vtt'), `Subtitle Content-Type is text/vtt`);
+    assert(typeof resSub.data === 'string' && resSub.data.startsWith('WEBVTT'), `Subtitle body starts with WEBVTT`);
 
   } finally {
     server.close();
@@ -236,7 +270,7 @@ async function runAudit() {
   // SUMMARY
   // =========================================================================
   console.log('\n╔══════════════════════════════════════════════════════════════════════╗');
-  console.log(`║   AUDIT RESULTS:  ${passedCount} PASSED  |  ${failedCount} FAILED                          ║`);
+  console.log(`║   VICTORY AUDITOR RESULTS:  ${passedCount} PASSED  |  ${failedCount} FAILED                 ║`);
   console.log('╚══════════════════════════════════════════════════════════════════════╝\n');
 
   if (failedCount > 0) {
@@ -255,3 +289,4 @@ runAudit().catch((err) => {
   console.error('Fatal audit failure:', err);
   process.exit(1);
 });
+

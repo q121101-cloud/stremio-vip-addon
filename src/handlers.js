@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/handlers.js  (Engine v1.6.2)
+ *  VIP Movies Addon — src/handlers.js  (Engine v1.7.0)
  *  Stremio Addon Express Route Handlers
  *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov + STP + CLBPX + YAN)
  *  - Dynamic Catalog & Meta Router
@@ -900,7 +900,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
           <span></span>
           <div class="pulse-ping-dot"></div>
         </span>
-        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.6.2
+        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.7.0
       </div>
     </header>
 
@@ -1054,7 +1054,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
     <!-- Brand Signature Footer -->
     <footer class="taste-footer">
-      VIP Movies Addon v1.6.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>
+      VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>
     </footer>
   </div>
 
@@ -1553,63 +1553,41 @@ async function handleStream(req, res) {
       } catch (e) {
         console.warn(`[Stream Aggregator] Cinemeta resolve warning for ${imdbId}:`, e.message);
       }
-    } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
-      const withoutPrefix = id.replace(/^kkphim[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
-      const withoutPrefix = id.replace(/^nguonc[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        episode = parts.slice(2).join(':');
-      }
-    } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
-      const withoutPrefix = id.replace(/^vsmov[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('stp:') || id.startsWith('stp_')) {
-      const withoutPrefix = id.replace(/^stp[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
-      const withoutPrefix = id.replace(/^hh3d[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('yan:') || id.startsWith('yan_')) {
-      const withoutPrefix = id.replace(/^yan[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
-      const withoutPrefix = id.replace(/^clbpx[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
     } else {
-      slug = id;
+      // General non-IMDb ID parsing (e.g., kkphim:slug:1:1, koreandrama:teach-you-a-lesson:1:1, etc.)
+      const colonParts = id.split(':');
+      if (colonParts.length >= 3 && !isNaN(parseInt(colonParts[colonParts.length - 1], 10)) && !isNaN(parseInt(colonParts[colonParts.length - 2], 10))) {
+        episode = parseInt(colonParts[colonParts.length - 1], 10);
+        season = parseInt(colonParts[colonParts.length - 2], 10);
+        slug = colonParts.slice(0, colonParts.length - 2).join(':').replace(/^(?:kkphim|nguonc|vsmov|stp|hh3d|yan|clbpx|koreandrama|series|movie|custom|phim)[_:]/i, '');
+      } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
+        slug = id.replace(/^kkphim[_:]/, '');
+      } else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
+        slug = id.replace(/^nguonc[_:]/, '');
+      } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
+        slug = id.replace(/^vsmov[_:]/, '');
+      } else if (id.startsWith('stp:') || id.startsWith('stp_')) {
+        slug = id.replace(/^stp[_:]/, '');
+      } else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
+        slug = id.replace(/^hh3d[_:]/, '');
+      } else if (id.startsWith('yan:') || id.startsWith('yan_')) {
+        slug = id.replace(/^yan[_:]/, '');
+      } else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
+        slug = id.replace(/^clbpx[_:]/, '');
+      } else {
+        slug = id;
+      }
+
+      if (!title && slug) {
+        const cleanSlugTitle = slug.replace(/^(?:kkphim|nguonc|vsmov|stp|hh3d|yan|clbpx|koreandrama|series|movie|custom|phim)[_:]/i, '')
+          .replace(/[-_]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (cleanSlugTitle) {
+          title = cleanSlugTitle;
+          aliases.push(cleanSlugTitle);
+        }
+      }
     }
 
     const payload = { imdbId, type, title, year, genres, aliases, season, episode, slug, proxyBase };

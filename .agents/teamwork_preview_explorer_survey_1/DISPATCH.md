@@ -1,16 +1,27 @@
-## 2026-08-18T04:37:59Z
-You are Explorer 1 for the survey phase of Stremio VIP Movies Addon Engine v1.6.0.
+## 2026-08-18T10:09:12Z
+
+You are Explorer 1 for the Engine v1.7.0 Overhaul.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1
-You MUST read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md before starting.
+Your original request file is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
 
-Scope & Task:
-1. Examine the current implementation of STP provider in `src/providers/stp.js` and `src/lib/utils.js`.
-2. Investigate the live site `https://sieutamphim.pro/`:
-   - Inspect search endpoints, API endpoints (JSON or HTML SSR), movie slug formats, stream extraction logic, m3u8 sources, player embed pages, and required headers (Referer, Origin, User-Agent).
-   - Check if search returns movies matching titles, how slug is constructed or queried, and how m3u8 URLs are extracted.
-   - Check fallback behavior if API fails -> HTML scraping regex / cheerio -> safe [] return.
-   - Verify label format: `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`.
-3. Check `src/lib/utils.js` to ensure `scoreMatch` is exported and used correctly without re-declaring it.
-4. Produce a detailed investigation report at `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/handoff.md`.
+Task:
+Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md carefully.
+Investigate R1 (HLS Proxy multi-level parent resolution & browser header simulation in `src/routes/hls.js`) and R4 (E2E Playback verification test suite in `tests/verify_v170_playback.js` and `tests/verify_all_providers_playback.js`).
 
-Send a completion message back to parent when done.
+Specific investigation items:
+1. Examine `src/routes/hls.js`:
+   - Check multi-level M3U8 parent resolution: when Master Playlist returns Sub-variant playlist, is it wrapped into `/hls/manifest.m3u8?url=${encodeBase64Url(subVariantAbsoluteUrl)}&ref=${refParam}`?
+   - When Sub-variant playlist returns `.ts` segment lines, is the sub-variant URL used as `baseUrl` (`new URL(segmentLine, subVariantUrl).href`)?
+   - Check default browser simulation headers (`User-Agent`, `Accept`, `Accept-Language`, `Connection: keep-alive`).
+   - Check dynamic Referer & Origin mapping for KKPhim, Opstream, Vlcdn, Phim1280, NguonC, VSMOV, STP (`sieutamphim.pro`), CLBPX (`clbphimxua.info`), YAN (`yanhh3d.pw`).
+   - Check binary safe loading (`/hls/segment.ts` with `responseType: 'arraybuffer'`, `maxRedirects: 5`, `timeout: 15000`, `Content-Type: video/MP2T`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=3600`).
+2. Examine `tests/verify_v170_playback.js` and `tests/verify_all_providers_playback.js`:
+   - Run or inspect tests: Catalog checks (`/catalog/movie/stp_movies_phimle.json`, `/catalog/series/clbpx_series_tvb.json`), KDrama/US-UK streams (*Teach You A Lesson*, *A Shop for Killers*, *Lanterns* / *Avengers 3*), manifest HTTP 200, first 2 segments >100KB with sync byte `0x47`, and YAN guard (0 streams for KDrama).
+   - Test execution status and any failing assertions.
+
+Produce a detailed handoff report in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/handoff.md` with:
+- Observation (verbatim code & test runs)
+- Logic Chain
+- Gap Analysis (what is missing/incomplete for R1 & R4)
+- Concrete Recommendations for Worker
+- Send a completion message to parent when done.

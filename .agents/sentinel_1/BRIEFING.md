@@ -1,32 +1,32 @@
-# BRIEFING — 2026-08-18T12:11:35+07:00
+# BRIEFING — 2026-08-18T10:08:25Z
 
 ## Mission
-Upgrade Engine to v1.6.0 for Stremio VIP Movies Addon: audit & fix STP, CLBPX, YAN providers, HLS Proxy routing, E2E tests, zero regression, and deploy.
+Coordinate and oversee the comprehensive Engine v1.7.0 overhaul for Stremio VIP Movies Addon (HLS Proxy multi-level resolver, HTML scrapers for STP/CLBPX/YAN, strict matching guard, E2E playback tests, version bump & deployment).
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel_1
-- Orchestrator: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
-- Victory Auditor: 5f9c3ed5-8815-47ec-963f-53d145e21cd7
+- Orchestrator: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4
+- Victory Auditor: to be spawned on victory claim
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Never write code directly
+- Must not write code or implement features directly
 
 ## User Context
-- **Last user request**: Upgrade Engine v1.6.0 (STP, CLBPX, YAN domains, HLS Proxy routing, E2E tests, zero-regression guard, and deploy)
+- **Last user request**: Engine v1.7.0 Overhaul (R1-R5: HLS proxy, scrapers, search matching, E2E tests, release 1.7.0 & deploy)
 - **Pending clarifications**: none
 - **Delivered results**: none
 
 ## Project Status
-- **Phase**: auditing
-- **Route**: General (teamwork_preview_orchestrator)
+- **Phase**: in progress (Gen 2 orchestrator: 7bb95c3e-55dc-40cb-90e7-52ca16df1cd4)
+- **Route**: General -> teamwork_preview_orchestrator
 
 ## Victory Audit Status
-- **Triggered**: yes
+- **Triggered**: no
 - **Verdict**: pending
 - **Retry count**: 0
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Original User Request
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Verbatim record of user request

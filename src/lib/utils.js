@@ -310,6 +310,263 @@ function scoreMatch(item, title, year = null, season = null) {
   return Math.max(0, totalScore);
 }
 
+/**
+ * Generate prioritized list of search keyword variations
+ * Supports positional args: (title, originalName, aliases, season)
+ * or object arg: ({ title, originalName, aliases, season })
+ * @param {string|Object} [arg1]
+ * @param {string} [arg2]
+ * @param {string[]} [arg3]
+ * @param {number|string|null} [arg4]
+ * @returns {string[]}
+ */
+function generateSearchKeywords(arg1, arg2, arg3, arg4) {
+  let title = '';
+  let originalName = '';
+  let aliases = [];
+  let season = null;
+
+  if (typeof arg1 === 'object' && arg1 !== null && !Array.isArray(arg1)) {
+    title = typeof arg1.title === 'string' ? arg1.title : (typeof arg1.name === 'string' ? arg1.name : '');
+    originalName = typeof arg1.originalName === 'string' ? arg1.originalName : (typeof arg1.origin_name === 'string' ? arg1.origin_name : (typeof arg1.original_name === 'string' ? arg1.original_name : ''));
+    aliases = Array.isArray(arg1.aliases) ? arg1.aliases : (typeof arg1.aliases === 'string' ? [arg1.aliases] : []);
+    season = arg1.season != null ? arg1.season : null;
+  } else if (typeof arg1 === 'string') {
+    title = arg1;
+    originalName = typeof arg2 === 'string' ? arg2 : '';
+    aliases = Array.isArray(arg3) ? arg3 : (typeof arg3 === 'string' ? [arg3] : []);
+    season = arg4 != null ? arg4 : null;
+  }
+
+  const rawCandidates = [];
+  if (title && typeof title === 'string') rawCandidates.push(title);
+  if (originalName && typeof originalName === 'string') rawCandidates.push(originalName);
+  if (Array.isArray(aliases)) {
+    for (const a of aliases) {
+      if (a && typeof a === 'string') rawCandidates.push(a);
+    }
+  }
+
+  const candidates = new Set();
+
+  for (const raw of rawCandidates) {
+    if (!raw || typeof raw !== 'string') continue;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.length < 2) continue;
+
+    // 1. Direct title / alias / original name
+    candidates.add(trimmed);
+
+    // 2. Title without trailing 4-digit year (e.g. "Inception (2010)" -> "Inception")
+    const withoutYear = trimmed
+      .replace(/\s*[\(\[]\s*(?:19\d\d|20\d\d)\s*[\)\]]\s*$/g, '')
+      .replace(/\s*[\(\[]\s*(?:19\d\d|20\d\d)\s*-\s*(?:19\d\d|20\d\d)?\s*[\)\]]\s*$/g, '')
+      .replace(/\s+\b(19\d\d|20\d\d)\b\s*$/g, '')
+      .trim();
+    if (withoutYear && withoutYear.length >= 2) {
+      candidates.add(withoutYear);
+    }
+
+    // 3. Strip Season / Part / Phần / Chapter / Episode indicators
+    // e.g. "Lanterns Season 1" -> "Lanterns", "A Shop for Killers (Phần 1)" -> "A Shop for Killers"
+    const baseForSeason = withoutYear || trimmed;
+    const withoutSeason = baseForSeason
+      .replace(/\s*[\(\[]\s*(?:season|phần|phan|part|ss|p|chương|chuong)\s*\d+\s*[\)\]]/gi, '')
+      .replace(/\s*[\(\[]\s*(?:season|phần|phan|part|ss|p|chương|chuong)\s*(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\s*[\)\]]/gi, '')
+      .replace(/\b(?:season|phần|phan|part|ss)\s*\d+\b/gi, '')
+      .replace(/\b(?:season|phần|phan|part|ss)\s*(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\b/gi, '')
+      .replace(/\bS\d{1,2}(?:E\d{1,2})?\b/gi, '')
+      .replace(/\bP\d{1,2}\b/gi, '')
+      .replace(/\b(?:season|phần|phan|part|ss)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (withoutSeason && withoutSeason.length >= 2) {
+      candidates.add(withoutSeason);
+    }
+
+    // 4. Clean special characters & punctuation (e.g. "9-1-1" -> "9 1 1", "Spider-Man: No Way Home" -> "Spider-Man No Way Home")
+    const cleanPunctuation = trimmed
+      .replace(/[:_–—/\\|.,]/g, ' ')
+      .replace(/[-]/g, ' ')
+      .replace(/[()[\]{}"'“”‘’`]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleanPunctuation && cleanPunctuation.length >= 2) {
+      candidates.add(cleanPunctuation);
+    }
+
+    // 5. Combination: withoutSeason + clean punctuation
+    if (withoutSeason && withoutSeason !== trimmed) {
+      const cleanSeasonPunct = withoutSeason
+        .replace(/[:_–—/\\|.,]/g, ' ')
+        .replace(/[-]/g, ' ')
+        .replace(/[()[\]{}"'“”‘’`]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleanSeasonPunct && cleanSeasonPunct.length >= 2) {
+        candidates.add(cleanSeasonPunct);
+      }
+    }
+  }
+
+  return Array.from(candidates).filter((s) => s && s.length >= 2);
+}
+
+/**
+ * Universal episode matcher across all providers
+ * Supports:
+ * - Direct numeric equality (1, 01, 001)
+ * - Vietnamese prefixes ("Tập 1", "Tập 01", "Tap 1", "Tap 01", "Tập01")
+ * - English prefixes ("Episode 1", "Episode 01", "Ep 1", "Ep. 1", "Ep.01", "E01")
+ * - Slug patterns ("tap-1", "tap-01", "episode-1", "ep-1", suffix "-1", "-01")
+ * - Full / Trọn bộ single movie representations
+ * - Regex whole-token extraction
+ * - Guards against false matches (e.g., Ep 1 matching Ep 10, 11, 12)
+ *
+ * @param {Object} ep - Server episode item object ({ name, slug, filename, ... })
+ * @param {string|number|null} targetEpStr - Target episode string or number (e.g. "1", 1)
+ * @param {number|string|null} [targetEpNum] - Target episode number (e.g. 1)
+ * @returns {boolean}
+ */
+function matchEpisodeItem(ep, targetEpStr, targetEpNum) {
+  if (!ep || typeof ep !== 'object') return false;
+
+  let targetStr = '';
+  let targetNum = null;
+
+  if (typeof targetEpStr === 'number') {
+    targetNum = targetEpStr;
+    targetStr = String(targetEpStr);
+  } else if (typeof targetEpStr === 'string') {
+    targetStr = targetEpStr.trim();
+    const parsed = parseInt(targetStr, 10);
+    if (!isNaN(parsed)) {
+      targetNum = parsed;
+    }
+  }
+
+  if (targetEpNum !== undefined && targetEpNum !== null) {
+    const p = typeof targetEpNum === 'number' ? targetEpNum : parseInt(String(targetEpNum), 10);
+    if (!isNaN(p)) {
+      targetNum = p;
+      if (!targetStr) targetStr = String(p);
+    }
+  }
+
+  // If negative or out of bounds (<= 0)
+  if (targetStr.startsWith('-') || (targetNum !== null && targetNum <= 0)) {
+    return false;
+  }
+
+  const nameStr = String(ep.name || '').trim();
+  const slugStr = String(ep.slug || '').trim();
+  const filenameStr = String(ep.filename || '').trim();
+
+  const nameUpper = nameStr.toUpperCase();
+  const slugLower = slugStr.toLowerCase();
+
+  // Full / Single movie check
+  if (nameUpper === 'FULL' || slugLower === 'full' || nameUpper === 'TRỌN BỘ' || slugLower === 'tron-bo') {
+    if (targetNum === 1 || targetStr === '1' || targetStr === '01' || targetStr === '001' || targetStr.toLowerCase() === 'full') {
+      return true;
+    }
+  }
+
+  if (!targetStr && targetNum === null) return false;
+
+  const str = targetStr;
+  const pad2 = targetNum !== null && targetNum > 0 ? String(targetNum).padStart(2, '0') : str;
+  const pad3 = targetNum !== null && targetNum > 0 ? String(targetNum).padStart(3, '0') : str;
+
+  // 1. Direct Equality Check on name or slug
+  if (nameStr === str || nameStr === pad2 || nameStr === pad3) return true;
+  if (slugStr === str || slugStr === pad2 || slugStr === pad3) return true;
+
+  // 2. Vietnamese Prefix "Tập X" / "Tap X"
+  if (nameStr === `Tập ${str}` || nameStr === `Tập ${pad2}` || nameStr === `Tập ${pad3}`) return true;
+  if (nameStr === `Tập${str}` || nameStr === `Tập${pad2}` || nameStr === `Tập${pad3}`) return true;
+  if (nameStr === `Tap ${str}` || nameStr === `Tap ${pad2}` || nameStr === `Tap ${pad3}`) return true;
+  if (nameStr === `Tap${str}` || nameStr === `Tap${pad2}` || nameStr === `Tap${pad3}`) return true;
+
+  // 3. English Prefix "Episode X" / "Ep X"
+  const nameLower = nameStr.toLowerCase();
+  if (nameLower === `episode ${str}` || nameLower === `episode ${pad2}` || nameLower === `episode ${pad3}`) return true;
+  if (nameLower === `episode${str}` || nameLower === `episode${pad2}` || nameLower === `episode${pad3}`) return true;
+  if (nameLower === `ep ${str}` || nameLower === `ep ${pad2}` || nameLower === `ep ${pad3}`) return true;
+  if (nameLower === `ep.${str}` || nameLower === `ep.${pad2}` || nameLower === `ep.${pad3}`) return true;
+  if (nameLower === `ep${str}` || nameLower === `ep${pad2}` || nameLower === `ep${pad3}`) return true;
+
+  // 4. Slug Patterns ("tap-1", "tap-01", "episode-1", "ep-1", suffix "-1", "-01", "-tap-1")
+  if (slugLower === `tap-${str}` || slugLower === `tap-${pad2}` || slugLower === `tap-${pad3}`) return true;
+  if (slugLower === `tap${str}` || slugLower === `tap${pad2}` || slugLower === `tap${pad3}`) return true;
+  if (slugLower === `episode-${str}` || slugLower === `episode-${pad2}` || slugLower === `episode-${pad3}`) return true;
+  if (slugLower === `ep-${str}` || slugLower === `ep-${pad2}` || slugLower === `ep-${pad3}`) return true;
+  if (slugLower === `ep${str}` || slugLower === `ep${pad2}` || slugLower === `ep${pad3}`) return true;
+
+  // Suffix with boundary
+  if (slugLower.endsWith(`-${str}`) || slugLower.endsWith(`-${pad2}`) || slugLower.endsWith(`-${pad3}`)) return true;
+  if (slugLower.endsWith(`_${str}`) || slugLower.endsWith(`_${pad2}`) || slugLower.endsWith(`_${pad3}`)) return true;
+  if (slugLower.endsWith(`-tap-${str}`) || slugLower.endsWith(`-tap-${pad2}`) || slugLower.endsWith(`-tap-${pad3}`)) return true;
+
+  // 5. Numeric Regex Extraction with strict token boundaries
+  if (targetNum !== null && targetNum > 0) {
+    const nameMatch = nameStr.match(/(?:tập|tap|episode|ep|e|t)\.?\s*(\d+)\b/i);
+    if (nameMatch && parseInt(nameMatch[1], 10) === targetNum) return true;
+
+    const standaloneMatch = nameStr.match(/^\s*(\d+)\s*$/);
+    if (standaloneMatch && parseInt(standaloneMatch[1], 10) === targetNum) return true;
+
+    const slugMatch = slugLower.match(/(?:tap|episode|ep|e)[-_]?(\d+)\b/i) || slugLower.match(/[-_](\d+)$/);
+    if (slugMatch && parseInt(slugMatch[1], 10) === targetNum) return true;
+
+    if (filenameStr) {
+      const fileMatch = filenameStr.match(/(?:tập|tap|episode|ep|e)\.?\s*(\d+)\b/i);
+      if (fileMatch && parseInt(fileMatch[1], 10) === targetNum) return true;
+    }
+  }
+
+  // 6. Word boundary fallback avoiding false positive on numbers like 10, 11, 12 matching 1
+  if (nameStr && str && !str.startsWith('-')) {
+    try {
+      const re = new RegExp(`(?<!\\d)${escapeRegExp(str)}(?!\\d)`, 'i');
+      const rePad2 = new RegExp(`(?<!\\d)${escapeRegExp(pad2)}(?!\\d)`, 'i');
+      if (re.test(nameStr) || rePad2.test(nameStr)) {
+        const m = nameStr.match(/(?:tập|tap|ep|episode)\s*(\d+)/i);
+        if (m) {
+          if (parseInt(m[1], 10) === targetNum) return true;
+          return false;
+        }
+        return true;
+      }
+    } catch {}
+  }
+
+  return false;
+}
+
+/**
+ * Check if query is Donghua / Anime related
+ * @param {string} title
+ * @param {string[]} [genres]
+ * @param {string} [type]
+ * @returns {boolean}
+ */
+function isDonghuaQuery(title, genres = [], type = 'series') {
+  const ANIMATION_GENRES = new Set([
+    'animation', 'hoạt hình', 'hoat-hinh', 'hoat hinh',
+    'anime', 'donghua', '3d', 'hoạt hình 3d', 'hoat hinh 3d'
+  ]);
+
+  const normGenres = (Array.isArray(genres) ? genres : []).map((g) => String(g).toLowerCase().trim());
+  const hasAnimation = normGenres.some((g) => ANIMATION_GENRES.has(g));
+  if (hasAnimation) return true;
+
+  const text = String(title || '').toLowerCase();
+  if (/donghua|hoạt hình|hoat hinh|anime|3d/i.test(text)) return true;
+
+  return false;
+}
+
 module.exports = {
   safeString,
   safeType,
@@ -322,4 +579,7 @@ module.exports = {
   extractSeasonNumber,
   isSeasonMatch,
   scoreMatch,
+  generateSearchKeywords,
+  matchEpisodeItem,
+  isDonghuaQuery,
 };
