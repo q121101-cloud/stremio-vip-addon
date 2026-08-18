@@ -39,19 +39,19 @@ const {
 
 const PROVIDER_ID    = 'stp';
 const PROVIDER_LABEL = 'STP • sieutamphim.pro';
-const BASE_URL       = 'https://sieutamphim.pro';
-const REFERER_HEADER = 'https://sieutamphim.pro/';
-const STP_UA         = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const BASE_URL       = 'https://www.sieutamphim.pro';
+const REFERER_HEADER = 'https://www.sieutamphim.pro/';
+const STP_UA         = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 const http = axios.create({
   baseURL: BASE_URL,
   timeout: 5000,
   headers: {
     'User-Agent': STP_UA,
-    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
     Referer: REFERER_HEADER,
-    Origin: 'https://sieutamphim.pro',
+    Origin: 'https://www.sieutamphim.pro',
   },
 });
 
@@ -115,11 +115,11 @@ function parseStpCardsFromHtml(html) {
 
   for (const block of cardMatches) {
     const linkMatch = block.match(/href=[\x22\x27](https?:\/\/(?:www\.)?sieutamphim\.pro\/[^"'\s]+)[\x22\x27]/i);
-    const postUrl = linkMatch ? linkMatch[1] : null;
+    const postUrl = linkMatch ? linkMatch[1].replace(/["']/g, '') : null;
     if (!postUrl || postUrl.includes('/the-loai/') || postUrl.includes('/category/') || postUrl.includes('/page/')) continue;
 
     const slugMatch = postUrl.match(/\/([^/]+?)(?:\.html)?\/?$/);
-    const slug = slugMatch ? slugMatch[1].replace(/\.html$/, '') : null;
+    const slug = slugMatch ? slugMatch[1].replace(/\.html$/, '').replace(/["']/g, '') : null;
     if (!slug || seenSlugs.has(slug)) continue;
     seenSlugs.add(slug);
 
@@ -129,7 +129,7 @@ function parseStpCardsFromHtml(html) {
     const rawTitle = titleMatch ? titleMatch[1].trim() : slug.replace(/-/g, ' ');
 
     const imgMatch = block.match(/<img[^>]+(?:data-src|src)=[\x22\x27](https?:\/\/[^"'\s]+)[\x22\x27]/i);
-    const poster = imgMatch ? imgMatch[1] : null;
+    const poster = imgMatch ? imgMatch[1].replace(/["']/g, '') : null;
 
     const yearMatch = block.match(/\b(19\d\d|20\d\d)\b/);
     const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
@@ -152,16 +152,16 @@ function parseStpCardsFromHtml(html) {
   }
 
   if (items.length < 2) {
-    const linkMatches = [...html.matchAll(/<a[^>]+href=[\x22\x27](https?:\/\/(?:www\.)?sieutamphim\.pro\/\d{4}\/\d{2}\/([^"'/]+?)(?:\.html)?[\x22\x27])[^>]*>([\s\S]*?)<\/a>/gi)];
+    const linkMatches = [...html.matchAll(/<a[^>]+href=[\x22\x27](https?:\/\/(?:www\.)?sieutamphim\.pro\/\d{4}\/\d{2}\/([^"'/]+?)(?:\.html)?)[\x22\x27][^>]*>([\s\S]*?)<\/a>/gi)];
     for (const lm of linkMatches) {
-      const postUrl = lm[1];
-      const slug = lm[2];
+      const postUrl = lm[1].replace(/["']/g, '');
+      const slug = lm[2].replace(/["']/g, '').replace(/\.html$/, '');
       if (!slug || seenSlugs.has(slug)) continue;
       seenSlugs.add(slug);
 
       const inner = lm[3];
       const imgMatch = inner.match(/<img[^>]+(?:src|data-src)=[\x22\x27]([^"']+)[\x22\x27]/i);
-      const poster = imgMatch ? imgMatch[1] : null;
+      const poster = imgMatch ? imgMatch[1].replace(/["']/g, '') : null;
       const titleMatch = inner.match(/<h\d[^>]*>([^<]+)<\/h\d>/i) || lm[0].match(/title=[\x22\x27]([^"']+)[\x22\x27]/i);
       const title = titleMatch ? titleMatch[1].trim() : slug.replace(/-/g, ' ');
 
