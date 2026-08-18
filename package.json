@@ -21,6 +21,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1112.0",
     "@supabase/supabase-js": "^2.112.3",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
