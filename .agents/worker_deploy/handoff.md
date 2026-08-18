@@ -1,64 +1,55 @@
-# Deployment Handoff Report — Milestone 5 (Production Release & GitHub Sync)
+# Deployment Handoff Report — Hotfix v1.5.1
 
 ## 1. Observation
+- Executed `git status` prior to commit:
+  - Branch: `main`
+  - Modified files: `src/handlers.js`, `src/manifest.js`, `src/providers/kkphim.js`, `src/providers/vsmov.js`, `src/routes/hls.js`, `package.json`, `tests/verify_playback.js`, along with test files and agent workspace metadata.
+- Executed `npm test` and `node tests/verify_playback.js`:
+  - `npm test`: 50 passed, 0 failed (exit code 0).
+  - `node tests/verify_playback.js`: 7/7 verification checks passed (exit code 0).
+- Executed git commit and push command:
+  ```bash
+  git add . && git commit -m "Hotfix v1.5.1: Swarm verified - Split VSMOV Vietsub/Audio tabs with Subtitle Proxy & Fixed KKPhim 404 episode matching" && git push origin main
+  ```
+- Command result output:
+  ```
+  [main 7339eb0] Hotfix v1.5.1: Swarm verified - Split VSMOV Vietsub/Audio tabs with Subtitle Proxy & Fixed KKPhim 404 episode matching
+   162 files changed, 12005 insertions(+), 5021 deletions(-)
+  fatal: could not read Username for 'https://github.com': Device not configured
+  ```
+- Git status post-commit:
+  ```
+  On branch main
+  Your branch is ahead of 'origin/main' by 1 commit.
+    (use "git push" to publish your local commits)
 
-1. **Syntax Integrity**:
-   - Command: `for f in $(find src -name "*.js"); do node --check "$f" || exit 1; done`
-   - Output: `ALL SRC FILES PASS SYNTAX CHECK` with zero syntax or parse errors across all 13 source files (`src/index.js`, `src/handlers.js`, `src/manifest.js`, `src/config.js`, `src/mapper.js`, `src/api.js`, `src/lib/cinemeta.js`, `src/lib/cache.js`, `src/lib/utils.js`, `src/routes/hls.js`, `src/routes/manifest.js`, and all 7 providers in `src/providers/*.js`).
-
-2. **Playback Verification Suite**:
-   - Command: `node tests/verify_playback.js`
-   - Output:
-     - Phase 1 (Manifest & Route Verification): PASS (v1.5.0, 22 catalogs).
-     - Phase 2 (Movie Stream Resolution): PASS (In-App Proxy URL, No `externalUrl`, `[VIP 1 • VSMOV] Master 4K Ultra HD (3840x2160)`).
-     - Phase 3 (Series Stream Resolution): PASS (In-App Proxy URL, No `externalUrl`, `[VIP 2 • KKPhim] Vietsub Full HD [Tập 1]`).
-     - Phase 4 (Manifest Proxy & Sub-Variant Playlist Rewriting): PASS (`#EXTM3U` verified, segments rewritten to `/hls/segment.ts`).
-     - Phase 5 (Real Video TS Segment Download): PASS (Downloaded 3,426,676 bytes / 3.35 MB buffer with valid MPEG-TS sync byte `0x47` at offset 0, 188, 376).
-     - Phase 6 (HTTP Range Request Verification): PASS (HTTP 206 Partial Content, Content-Range `bytes 0-1023/3426676`).
-     - Result: `ALL PLAYBACK VERIFICATION CHECKS PASSED (100% SUCCESS)`.
-
-3. **Comprehensive Multi-Suite Verification**:
-   - Command: `node tests/adversarial_reviewer2_comprehensive.js && node tests/empiric_playback_challenger_m1_m4.test.js`
-   - Result: `SUMMARY: 129/129 CHECKS PASSED (100% EMPIRICAL SUCCESS)`.
-
-4. **Git Repository Status & Commit**:
-   - Staging & Commit command: `git add . && git commit -m "Engine v1.5.0: Production-Ready 7-Source Swarm with 22 Catalogs & E2E Verified 4K Playback via Teamwork Preview"`
-   - Output: Commit `27fcb9e8d340bfc9f0f35227c5b3a2dc34633001` created on branch `main` (37 files changed, 2509 insertions, 156 deletions).
-   - Working tree: Clean (`nothing to commit, working tree clean`).
-   - Remote URL: `https://github.com/q121101-cloud/stremio-vip-addon.git`.
-   - Push command: `git push origin main` executed.
+  nothing to commit, working tree clean
+  ```
+- Commit details:
+  - Hash: `7339eb025eaf79d351150e43707e09a7c6320bda`
+  - Author: `NguonC Addon <addon@nguonc.local>`
+  - Date: `Tue Aug 18 09:37:01 2026 +0700`
 
 ## 2. Logic Chain
-
-1. Starting from Observation 1, all core engine modules and providers in `src/` are syntactically sound and valid for Node.js ES/CommonJS execution.
-2. From Observation 2, end-to-end playback verification rigorously proves that:
-   - Dynamic `/:config` routes and default endpoints function without 404 errors.
-   - Streams from all 7 VIP sources strictly return in-app proxy `url` without `externalUrl`.
-   - HLS Proxy intercepts upstream m3u8 playlists, dynamically rewrites sub-variants, and proxies real MPEG-TS chunks (>50KB threshold exceeded with 3.42MB actual data) with HTTP 200/206.
-3. From Observation 3, 129 adversarial edge-case checks passed with 0 failures, validating resilience against malformed routes, network timeouts, and concurrency spikes.
-4. From Observation 4, all artifacts, tests, and documentation are committed under Git commit `27fcb9e` with the standard v1.5.0 release message.
+1. All changes for Hotfix v1.5.1 (VSMOV Vietsub/Thuyết Minh audio separation, Subtitle Proxy `/hls/sub.vtt`, KKPhim 404 episode fallback resolution, manifest and test infrastructure updates) were verified and staged.
+2. The git commit was created locally with the specified commit message, resulting in commit hash `7339eb025eaf79d351150e43707e09a7c6320bda`.
+3. `git push origin main` attempted to push to `https://github.com/q121101-cloud/stremio-vip-addon.git`, but the non-interactive environment lacks stored GitHub authentication credentials (`Device not configured`).
+4. The local git repository is in a clean state and ahead of `origin/main` by 1 commit, ready to be pushed whenever GitHub credentials or SSH keys are available.
 
 ## 3. Caveats
-
-- Remote git push via HTTPS against `origin` (`https://github.com/q121101-cloud/stremio-vip-addon.git`) in this non-interactive environment requires host credentials / personal access token (`gh auth login` / PAT). The local repository on branch `main` is completely staged, committed, and ready for upstream sync as soon as interactive credentials or PAT are provided.
+- Remote git push requires GitHub authentication credentials (PAT, GitHub CLI login, or SSH deploy key) on the host system to transmit the commit to GitHub origin.
+- The local repository working tree is completely clean and all tests are passing.
 
 ## 4. Conclusion
-
-The Engine v1.5.0 release is fully verified, 100% test-passing, syntactically spotless, and committed locally to `main` at commit `27fcb9e`. The production build satisfies all requirements (R1–R5) of `ORIGINAL_REQUEST.md`.
+- Hotfix v1.5.1 code changes, tests, and documentation are committed locally as `7339eb0`.
+- Working directory is clean.
+- All integration and end-to-end playback tests pass (100% success).
 
 ## 5. Verification Method
-
-To independently re-verify the deployment readiness:
-1. Syntax check:
-   ```bash
-   node --check src/index.js
-   ```
-2. Real video playback test:
-   ```bash
-   node tests/verify_playback.js
-   ```
-3. Commit and branch status:
-   ```bash
-   git status
-   git log -n 1 --oneline
-   ```
+To verify the deployment state:
+```bash
+git status
+git log -n 1
+npm test
+node tests/verify_playback.js
+```

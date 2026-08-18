@@ -102,3 +102,56 @@ Integrity mode: development
 - [ ] `git push origin main` succeeds.
 
 </USER_REQUEST>
+
+## 2026-08-18T02:44:50Z
+
+<USER_REQUEST>
+Transform the VIP Movies Stremio Addon Configurator / Landing page into a world-class Cyber-Glassmorphism interface by integrating and strictly following Taste-Skill Anti-Slop Design Standards (OLED True Black `#0b0d13`, subtle 1px ambient glowing borders, fluid typography, interactive pill switchers, and floating shimmer action dock).
+
+Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
+Integrity mode: development
+
+## Requirements
+
+### R1. Integrate Taste-Skill & Anti-Slop UI Architecture (`.skills/taste-skill`, `src/handlers.js` / HTML templates)
+- Clone or incorporate Taste-Skill design guidelines (`https://github.com/Leonxlnx/taste-skill.git` -> `.skills/taste-skill`).
+- Implement strict Anti-Slop UI principles:
+  - Background: OLED True Black (`#0b0d13`) paired with deep slate and dynamic aurora ambient mesh glow (`#6366f1`, `#ec4899`, `#06b6d4`).
+  - Cards & Containers: Glassmorphism with subtle `1px` borders (`rgba(255, 255, 255, 0.08)`), multi-layered backdrop blur (`24px+`), inner lighting highlights.
+  - Typography: Modern typography scale using `Plus Jakarta Sans` / `Inter` / `SF Pro Display`, high readability, distinct hierarchy.
+  - Signature Footer: `VIP Movies Addon v1.5.1 • Designed with Taste by <span class="brand-highlight">Q121101</span>`.
+
+### R2. Interactive Multi-Provider & Category Configurator (7 Clusters & 22 Categories)
+- **Header & Live Status**:
+  - Glowing neon cinema badge with smooth pulsating animation.
+  - Real-time live status pill indicator (`🟢 Server VIP Core Online`).
+- **Quick Action Toolbar**:
+  - Smooth pill buttons: `[⚡ Bật tất cả]`, `[🚫 Tắt tất cả]`, `[🎬 Phim Lẻ]`, `[📺 Phim Bộ]`, `[🍿 Chiếu Rạp]`, `[🐉 Hoạt Hình 3D]`.
+- **7 Provider Interactive Cards**:
+  - Distinct branding for VSMOV 4K, KKPhim, NguonC, STP Âu Mỹ, Hoạt Hình 3D, YanHH3D, CLB Phim Xưa.
+  - Smooth interactive pill switches with micro-animations on toggle.
+- **Floating Action Dock**:
+  - Frosted glass floating dock with gradient shimmer effect on hover.
+  - Quick action buttons: "⚡ Cài đặt vào Stremio App", "🌐 Mở trên Stremio Web", and "📋 Sao chép link Manifest".
+  - Live configuration status bar: `Đang bật: X nguồn · Y danh mục`.
+
+### R3. Visual, Responsive & Functional Verification
+- Verify that `GET /` and `GET /:config` return HTTP 200 with valid HTML containing the new Taste-Skill design.
+- Verify 100% responsiveness across mobile (375px+), tablet, desktop, and widescreen/TV viewports.
+- Ensure all existing backend routes (`/manifest.json`, `/catalog/...`, `/stream/...`, `/hls/...`) remain 100% functional and pass `node tests/verify_playback.js`.
+
+### R4. Versioning & GitHub Deployment
+- Maintain version `1.5.1` across `package.json`, `src/manifest.js`, and `src/handlers.js`.
+- Execute git deployment:
+  `git add . && git commit -m "UI Overhaul: Transformed Configurator with Taste-Skill Anti-Slop Design Standards" && git push origin main`.
+
+## Acceptance Criteria
+
+### Verification Standards
+- [ ] Configurator HTML embeds Taste-Skill Anti-Slop design guidelines with OLED `#0b0d13` palette, micro-animations, and glowing signature `Designed with Taste by Q121101`.
+- [ ] Interactive toggle state correctly updates manifest URL and Stremio install deep-links in real-time.
+- [ ] `node tests/verify_playback.js` passes 100% with real `.ts` chunk download > 50KB.
+- [ ] `node --check src/index.js` passes with zero errors.
+- [ ] `git push origin main` completes successfully.
+
+</USER_REQUEST>

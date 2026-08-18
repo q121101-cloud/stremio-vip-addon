@@ -148,9 +148,9 @@ function withTimeout(promise, ms = 4000, label = 'Provider') {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  ROUTE: GET / → Interactive Configurator Dashboard
+//  ROUTE: GET / & GET /configure → Taste-Skill Configurator
 // ─────────────────────────────────────────────────────────────
-router.get('/', (req, res) => {
+router.get(['/', '/configure'], (req, res) => {
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
   const baseUrl  = `${protocol}://${host}`;
@@ -161,300 +161,844 @@ router.get('/', (req, res) => {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VIP Movies 🎬 — Cấu Hình Addon</title>
-  <meta name="description" content="Cấu hình VIP Movies Stremio Addon — chọn nguồn phim, danh mục, và tạo link cài đặt cá nhân hóa." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>VIP Movies 🎬 — Bảng Cấu Hình Addon</title>
+  <meta name="description" content="VIP Movies Stremio Addon — Bảng điều khiển cấu hình đa nguồn phim 4K, Vietsub, Thuyết minh chuẩn quốc tế." />
+  <meta name="theme-color" content="#0b0d13" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #07080d;
-      --card-bg: rgba(255, 255, 255, 0.028);
-      --card-bg-hover: rgba(255, 255, 255, 0.05);
-      --card-border: rgba(255, 255, 255, 0.07);
-      --card-border-hover: rgba(255, 255, 255, 0.16);
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
-      --text-dim: rgba(148, 163, 184, 0.55);
-      --primary: #6366f1;
-      --accent: #ec4899;
-      --secondary: #8b5cf6;
+      --bg-oled: #0b0d13;
+      --bg-surface: rgba(18, 22, 34, 0.65);
+      --bg-surface-hover: rgba(26, 32, 50, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.18);
+      --border-focus: rgba(99, 102, 241, 0.6);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --indigo: #6366f1;
+      --indigo-glow: rgba(99, 102, 241, 0.35);
+      --pink: #ec4899;
+      --pink-glow: rgba(236, 72, 153, 0.35);
       --cyan: #06b6d4;
-      --green: #22c55e;
-      --radius-card: 20px;
-      --radius-btn: 12px;
-      --radius-pill: 9999px;
-      --blur: blur(28px);
-      --shadow-card: 0 20px 50px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.07);
-      --transition: 0.22s cubic-bezier(0.4,0,0.2,1);
+      --cyan-glow: rgba(6, 182, 212, 0.35);
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-full: 9999px;
+      --glass-blur: blur(28px);
+      --transition-smooth: 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+      --spring-physics: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 32px 16px 160px;
-      position: relative;
-      overflow-x: hidden;
+    html, body {
+      background-color: var(--bg-oled);
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100dvh;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
-    .aurora { position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden; }
-    .orb { position:absolute;border-radius:50%;filter:blur(110px);animation:drift 22s ease-in-out infinite alternate; }
-    .orb-1 { width:520px;height:520px;top:-130px;left:-160px;background:radial-gradient(circle,#6366f1,#3b82f6 60%,transparent);opacity:0.32;animation-duration:20s; }
-    .orb-2 { width:600px;height:600px;bottom:-180px;right:-160px;background:radial-gradient(circle,#ec4899,#8b5cf6 55%,transparent);opacity:0.28;animation-delay:-8s;animation-duration:26s; }
-    .orb-3 { width:420px;height:420px;top:35%;left:55%;transform:translate(-50%,-50%);background:radial-gradient(circle,#06b6d4,#6366f1 60%,transparent);opacity:0.18;animation-delay:-14s;animation-duration:18s; }
-    @keyframes drift { 0%{transform:translate(0,0) scale(1)}40%{transform:translate(28px,45px) scale(1.07)}100%{transform:translate(-25px,-18px) scale(0.94)} }
-    .container { position:relative;z-index:1;max-width:700px;margin:0 auto; }
-    .header { text-align:center;margin-bottom:32px; }
-    .logo-wrap { display:inline-flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px; }
-    .logo-cinema { position:relative;width:56px;height:56px;background:linear-gradient(135deg,#6366f1,#ec4899);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;box-shadow:0 8px 24px rgba(99,102,241,0.5),0 0 0 1px rgba(255,255,255,0.1);flex-shrink:0; }
-    .logo-cinema::after { content:'';position:absolute;inset:-3px;border-radius:20px;border:1.5px solid rgba(99,102,241,0.4);animation:logoPulse 3s ease infinite; }
-    @keyframes logoPulse { 0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.04)} }
-    .logo-text { text-align:left; }
-    .logo-text h1 { font-size:1.7rem;font-weight:800;letter-spacing:-0.03em;background:linear-gradient(135deg,#ffffff 0%,#cbd5e1 40%,#c084fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1; }
-    .logo-text .tagline { font-size:0.8rem;color:var(--text-muted);font-weight:400;margin-top:2px; }
-    .live-badge { display:inline-flex;align-items:center;gap:7px;padding:5px 14px;border-radius:var(--radius-pill);font-size:0.78rem;font-weight:600;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.22);color:#4ade80; }
-    .pulse-dot { width:7px;height:7px;background:#22c55e;border-radius:50%;animation:blink 2s ease infinite;flex-shrink:0; }
-    @keyframes blink { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.6)}50%{box-shadow:0 0 0 6px rgba(34,197,94,0)} }
-    .glass-card { background:var(--card-bg);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--card-border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:24px;margin-bottom:16px;transition:border-color var(--transition); }
-    .glass-card:hover { border-color:var(--card-border-hover); }
-    .section-label { font-size:0.72rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px; }
-    .section-label::after { content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0.08),transparent); }
-    .pill-group { display:flex;flex-wrap:wrap;gap:8px; }
-    .pill { display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:var(--radius-pill);font-size:0.82rem;font-weight:600;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--text-muted);cursor:pointer;transition:all var(--transition);user-select:none;-webkit-user-select:none; }
-    .pill:hover { background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);color:var(--text);transform:translateY(-1px); }
-    .pill.active { background:rgba(99,102,241,0.18);border-color:rgba(99,102,241,0.5);color:#a5b4fc;box-shadow:0 0 12px rgba(99,102,241,0.25); }
-    .pill.action-pill { background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.12);color:var(--text-muted); }
-    .pill.action-pill:hover { background:rgba(255,255,255,0.1);color:var(--text); }
-    .pill.danger-pill:hover { background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.35);color:#f87171; }
-    .provider-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px; }
-    @media (max-width:480px) { .provider-grid { grid-template-columns:1fr; } }
-    .provider-card { background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:18px 16px;cursor:pointer;transition:all var(--transition);position:relative;overflow:hidden;user-select:none; }
-    .provider-card::before { content:'';position:absolute;inset:0;opacity:0;transition:opacity 0.3s; }
-    .provider-card.nguonc::before { background:radial-gradient(circle at 30% 30%,rgba(99,102,241,0.12),transparent 70%); }
-    .provider-card.kkphim::before { background:radial-gradient(circle at 30% 30%,rgba(236,72,153,0.1),transparent 70%); }
-    .provider-card.vsmov::before  { background:radial-gradient(circle at 30% 30%,rgba(6,182,212,0.1),transparent 70%); }
-    .provider-card:hover { border-color:rgba(255,255,255,0.18);transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,0.35); }
-    .provider-card:hover::before { opacity:1; }
-    .provider-card.active { border-color:rgba(99,102,241,0.45);box-shadow:0 0 0 1px rgba(99,102,241,0.2),0 12px 28px rgba(0,0,0,0.4); }
-    .provider-card.active.kkphim { border-color:rgba(236,72,153,0.45);box-shadow:0 0 0 1px rgba(236,72,153,0.2),0 12px 28px rgba(0,0,0,0.4); }
-    .provider-card.active.vsmov  { border-color:rgba(6,182,212,0.45);box-shadow:0 0 0 1px rgba(6,182,212,0.2),0 12px 28px rgba(0,0,0,0.4); }
-    .provider-card.active::before { opacity:1; }
-    .provider-top { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px; }
-    .provider-icon { font-size:1.5rem;line-height:1; }
-    .toggle-track { width:38px;height:20px;background:rgba(255,255,255,0.1);border-radius:var(--radius-pill);position:relative;transition:background 0.22s;flex-shrink:0;border:1px solid rgba(255,255,255,0.1); }
-    .toggle-track::after { content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;background:rgba(255,255,255,0.5);border-radius:50%;transition:transform 0.22s cubic-bezier(0.34,1.56,0.64,1),background 0.22s; }
-    .provider-card.active .toggle-track { background:var(--primary);border-color:transparent;box-shadow:0 0 10px rgba(99,102,241,0.5); }
-    .provider-card.active.kkphim .toggle-track { background:var(--accent);box-shadow:0 0 10px rgba(236,72,153,0.5); }
-    .provider-card.active.vsmov  .toggle-track { background:var(--cyan);box-shadow:0 0 10px rgba(6,182,212,0.5); }
-    .provider-card.active .toggle-track::after { transform:translateX(18px);background:#fff; }
-    .provider-name { font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:4px; }
-    .provider-desc { font-size:0.72rem;color:var(--text-muted);line-height:1.4; }
-    .badge-row { display:flex;flex-wrap:wrap;gap:5px;margin-top:10px; }
-    .badge { font-size:0.65rem;font-weight:600;padding:2px 7px;border-radius:5px;letter-spacing:0.02em; }
-    .badge-purple { background:rgba(139,92,246,0.2);color:#c4b5fd; }
-    .badge-pink   { background:rgba(236,72,153,0.2);color:#f9a8d4; }
-    .badge-cyan   { background:rgba(6,182,212,0.2);color:#67e8f9; }
-    .badge-green  { background:rgba(34,197,94,0.2);color:#86efac; }
-    .badge-amber  { background:rgba(245,158,11,0.2);color:#fcd34d; }
-    .url-box { background:rgba(0,0,0,0.45);border:1px dashed rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;cursor:pointer;transition:all var(--transition); }
-    .url-box:hover { border-color:rgba(167,139,250,0.55);background:rgba(0,0,0,0.6); }
-    .url-label { display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:7px; }
-    .url-copy-hint { font-size:0.68rem;padding:2px 8px;border-radius:5px;background:rgba(167,139,250,0.12);color:#c084fc;font-weight:500; }
-    .url-value { font-family:'JetBrains Mono','Fira Code',Consolas,monospace;font-size:0.78rem;color:#cbd5e1;word-break:break-all;line-height:1.5; }
-    .btn-group { display:flex;flex-direction:column;gap:10px; }
-    .btn { display:flex;align-items:center;justify-content:center;gap:9px;padding:14px 24px;border-radius:var(--radius-btn);font-weight:700;font-size:0.95rem;text-decoration:none;transition:all var(--transition);cursor:pointer;border:none;font-family:inherit;letter-spacing:-0.01em; }
-    .btn-primary { background:linear-gradient(135deg,#6366f1 0%,#a855f7 50%,#ec4899 100%);color:#fff;border:1px solid rgba(255,255,255,0.18);box-shadow:0 8px 24px rgba(99,102,241,0.4); }
-    .btn-primary:hover { transform:translateY(-2px) scale(1.008);box-shadow:0 14px 32px rgba(99,102,241,0.55);filter:brightness(1.06); }
-    .btn-secondary { background:rgba(255,255,255,0.04);color:#e2e8f0;border:1px solid rgba(255,255,255,0.12); }
-    .btn-secondary:hover { background:rgba(255,255,255,0.09);border-color:rgba(255,255,255,0.24);transform:translateY(-1px);color:#fff; }
-    .status-bar { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px; }
-    .status-text { font-size:0.8rem;color:var(--text-muted);font-weight:500; }
-    .status-text strong { color:var(--text); }
-    .status-indicator { display:flex;align-items:center;gap:6px;font-size:0.75rem;color:#4ade80;font-weight:600; }
-    .status-indicator .dot { width:6px;height:6px;background:#22c55e;border-radius:50%;animation:blink 2s ease infinite; }
-    .floating-dock { position:fixed;bottom:0;left:0;right:0;z-index:100;padding:0 16px 24px;background:linear-gradient(to top,rgba(7,8,13,0.98) 60%,transparent); }
-    .dock-inner { max-width:700px;margin:0 auto;background:rgba(15,17,25,0.82);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.09);border-radius:18px;padding:16px 20px;box-shadow:0 -8px 40px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04); }
-    .apikey-row { display:flex;align-items:center;gap:10px;margin-bottom:14px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:9px 14px;transition:border-color var(--transition); }
-    .apikey-row:focus-within { border-color:rgba(99,102,241,0.45);box-shadow:0 0 0 2px rgba(99,102,241,0.12); }
-    .apikey-icon { font-size:0.95rem;flex-shrink:0;color:var(--text-muted); }
-    .apikey-input { flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:0.85rem;font-family:'JetBrains Mono',Consolas,monospace;font-weight:500; }
-    .apikey-input::placeholder { color:rgba(148,163,184,0.45); }
-    .toast { position:fixed;bottom:130px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(15,23,42,0.96);border:1px solid rgba(34,197,94,0.35);color:#4ade80;backdrop-filter:blur(16px);padding:10px 22px;border-radius:var(--radius-pill);font-size:0.85rem;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,0.6);display:flex;align-items:center;gap:8px;opacity:0;pointer-events:none;transition:all 0.32s cubic-bezier(0.34,1.56,0.64,1);z-index:200;white-space:nowrap; }
-    .toast.show { transform:translateX(-50%) translateY(0);opacity:1; }
-    .divider { height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.07),transparent);margin:20px 0; }
-    .footer { text-align:center;font-size:0.74rem;color:var(--text-dim);padding:12px 0 4px; }
-    .brand-highlight { font-weight:800;background:linear-gradient(135deg,#a855f7 0%,#ec4899 50%,#38bdf8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 8px rgba(236,72,153,0.6));letter-spacing:0.5px;padding:0 2px;display:inline-block;transition:all 0.3s ease; }
-    .brand-highlight:hover { filter:drop-shadow(0 0 14px rgba(56,189,248,0.8));transform:scale(1.06); }
-    @media (max-width:520px) { body{padding:20px 12px 160px}.glass-card{padding:18px}.dock-inner{padding:14px 16px} }
+    body {
+      padding: 40px 16px 170px;
+      position: relative;
+    }
+    /* Taste-Skill Ambient Aurora Mesh */
+    .ambient-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .ambient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.28;
+      animation: ambientDrift 24s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+    .orb-indigo {
+      width: 560px; height: 560px;
+      top: -160px; left: -140px;
+      background: radial-gradient(circle, #6366f1 0%, #3b82f6 70%, transparent);
+      animation-duration: 22s;
+    }
+    .orb-pink {
+      width: 620px; height: 620px;
+      bottom: -180px; right: -160px;
+      background: radial-gradient(circle, #ec4899 0%, #8b5cf6 65%, transparent);
+      opacity: 0.22;
+      animation-delay: -7s;
+      animation-duration: 28s;
+    }
+    .orb-cyan {
+      width: 440px; height: 440px;
+      top: 38%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, #06b6d4 0%, #6366f1 65%, transparent);
+      opacity: 0.16;
+      animation-delay: -14s;
+      animation-duration: 20s;
+    }
+    @keyframes ambientDrift {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(32px, 48px) scale(1.08); }
+      100% { transform: translate(-28px, -24px) scale(0.92); }
+    }
+    /* Layout Container */
+    .layout-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 740px;
+      margin: 0 auto;
+    }
+    /* Header Section */
+    .hero-header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .cinema-emblem {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(236, 72, 153, 0.9));
+      border-radius: 20px;
+      font-size: 2rem;
+      margin-bottom: 16px;
+      box-shadow: 0 12px 32px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    .cinema-emblem::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 24px;
+      border: 1.5px solid rgba(99, 102, 241, 0.4);
+      animation: emblemPulse 3.5s ease-in-out infinite;
+    }
+    @keyframes emblemPulse {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.9; transform: scale(1.05); }
+    }
+    .hero-title {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 55%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+    .hero-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      margin-bottom: 16px;
+    }
+    .live-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34d399;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.12);
+    }
+    .pulse-ping {
+      position: relative;
+      display: flex;
+      width: 8px; height: 8px;
+    }
+    .pulse-ping span {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background-color: var(--emerald);
+      animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+      opacity: 0.75;
+    }
+    .pulse-ping-dot {
+      position: relative;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background-color: var(--emerald);
+    }
+    @keyframes ping {
+      75%, 100% { transform: scale(2.2); opacity: 0; }
+    }
+    /* Anti-Slop Glassmorphic Card */
+    .taste-card {
+      background: var(--bg-surface);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      padding: 24px 26px;
+      margin-bottom: 20px;
+      transition: border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+    }
+    .taste-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 24px 60px -10px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .card-header-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-header-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+    }
+    /* Quick Action Pill Bar */
+    .pill-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .action-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.84rem;
+      font-weight: 600;
+      font-family: inherit;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-smooth);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .action-pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+      transform: translateY(-1.5px);
+    }
+    .action-pill:active {
+      transform: scale(0.97);
+    }
+    .action-pill.active {
+      background: rgba(99, 102, 241, 0.18);
+      border-color: rgba(99, 102, 241, 0.55);
+      color: #c7d2fe;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+    }
+    .action-pill.pill-danger:hover {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+    .pill-divider {
+      width: 1px;
+      height: 22px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 0 2px;
+    }
+    /* 7 Provider Bento Cards */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 580px) {
+      .provider-grid { grid-template-columns: 1fr; }
+    }
+    .provider-card {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px 18px;
+      cursor: pointer;
+      transition: all var(--transition-smooth);
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .provider-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity var(--transition-smooth);
+      pointer-events: none;
+    }
+    .provider-card.vsmov::before  { background: radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.15), transparent 70%); }
+    .provider-card.kkphim::before { background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.15), transparent 70%); }
+    .provider-card.nguonc::before { background: radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.15), transparent 70%); }
+    .provider-card.stp::before    { background: radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.15), transparent 70%); }
+    .provider-card.hh3d::before   { background: radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.15), transparent 70%); }
+    .provider-card.yan::before    { background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.15), transparent 70%); }
+    .provider-card.clbpx::before  { background: radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.15), transparent 70%); }
+    .provider-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+    }
+    .provider-card:hover::before { opacity: 1; }
+    .provider-card.active {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: rgba(99, 102, 241, 0.04);
+      box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45);
+    }
+    .provider-card.active.vsmov  { border-color: rgba(6, 182, 212, 0.55); box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.kkphim { border-color: rgba(236, 72, 153, 0.55); box-shadow: 0 0 0 1px rgba(236, 72, 153, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active::before { opacity: 1; }
+    .provider-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .provider-icon-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 1.35rem;
+    }
+    /* Micro-Interactive Switch Track */
+    .switch-track {
+      width: 42px; height: 24px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-full);
+      position: relative;
+      transition: background var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      flex-shrink: 0;
+    }
+    .switch-thumb {
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 18px; height: 18px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      transition: transform var(--spring-physics), background var(--transition-smooth);
+    }
+    .provider-card.active .switch-track {
+      background: var(--indigo);
+      border-color: transparent;
+      box-shadow: 0 0 12px var(--indigo-glow);
+    }
+    .provider-card.active.vsmov  .switch-track { background: var(--cyan); box-shadow: 0 0 12px var(--cyan-glow); }
+    .provider-card.active.kkphim .switch-track { background: var(--pink); box-shadow: 0 0 12px var(--pink-glow); }
+    .provider-card.active .switch-thumb {
+      transform: translateX(18px);
+      background: #ffffff;
+    }
+    .provider-name {
+      font-size: 1.02rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .provider-desc {
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tag-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.01em;
+    }
+    .tag-cyan   { background: rgba(6, 182, 212, 0.15); color: #67e8f9; border: 1px solid rgba(6, 182, 212, 0.25); }
+    .tag-pink   { background: rgba(236, 72, 153, 0.15); color: #f9a8d4; border: 1px solid rgba(236, 72, 153, 0.25); }
+    .tag-indigo { background: rgba(99, 102, 241, 0.15); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.25); }
+    .tag-green  { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.25); }
+    .tag-amber  { background: rgba(245, 158, 11, 0.15); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.25); }
+    .tag-purple { background: rgba(139, 92, 246, 0.15); color: #ddd6fe; border: 1px solid rgba(139, 92, 246, 0.25); }
+    /* Manifest URL Card */
+    .manifest-box {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      cursor: pointer;
+      transition: all var(--transition-smooth);
+    }
+    .manifest-box:hover {
+      border-color: rgba(167, 139, 250, 0.6);
+      background: rgba(0, 0, 0, 0.7);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    .manifest-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #a78bfa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .copy-pill-hint {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(167, 139, 250, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(167, 139, 250, 0.3);
+    }
+    .manifest-url-string {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 0.8rem;
+      color: #e2e8f0;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+    /* Brand Signature Footer */
+    .taste-footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      padding: 24px 0 12px;
+      letter-spacing: -0.01em;
+    }
+    .brand-highlight {
+      font-weight: 800;
+      background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 10px rgba(236, 72, 153, 0.65));
+      padding: 0 4px;
+      display: inline-block;
+      transition: filter var(--transition-smooth), transform var(--transition-smooth);
+    }
+    .brand-highlight:hover {
+      filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.9));
+      transform: scale(1.05);
+    }
+    /* Floating Action Dock */
+    .floating-action-dock {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 0 16px 24px;
+      background: linear-gradient(to top, rgba(11, 13, 19, 0.98) 65%, transparent);
+      pointer-events: none;
+    }
+    .dock-container {
+      max-width: 740px;
+      margin: 0 auto;
+      background: rgba(18, 22, 34, 0.85);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px;
+      box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      pointer-events: auto;
+    }
+    .dock-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .dock-status-text {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .dock-status-text strong {
+      color: var(--text-primary);
+    }
+    .dock-live-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.76rem;
+      color: #34d399;
+      font-weight: 600;
+    }
+    .dock-live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+    }
+    .apikey-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      transition: border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+    }
+    .apikey-container:focus-within {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+    }
+    .apikey-key-icon {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .apikey-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-weight: 500;
+    }
+    .apikey-field::placeholder {
+      color: rgba(148, 163, 184, 0.45);
+    }
+    .cta-button-group {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 520px) {
+      .cta-button-group { grid-template-columns: 1fr; }
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.92rem;
+      text-decoration: none;
+      transition: all var(--transition-smooth);
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+    .cta-btn-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 28px rgba(99, 102, 241, 0.45);
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-btn-primary::after {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: linear-gradient(60deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+      transform: rotate(25deg);
+      transition: transform 0.65s ease;
+    }
+    .cta-btn-primary:hover::after {
+      transform: rotate(25deg) translate(30%, 30%);
+    }
+    .cta-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 36px rgba(99, 102, 241, 0.6);
+      filter: brightness(1.06);
+    }
+    .cta-btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+    .cta-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-hover);
+      transform: translateY(-1.5px);
+    }
+    /* Toast Notification */
+    .clipboard-toast {
+      position: fixed;
+      bottom: 140px;
+      left: 50%;
+      transform: translateX(-50%) translateY(24px);
+      background: rgba(18, 22, 34, 0.95);
+      border: 1px solid rgba(52, 211, 153, 0.4);
+      color: #34d399;
+      backdrop-filter: blur(20px);
+      padding: 11px 24px;
+      border-radius: var(--radius-full);
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.28s ease;
+      z-index: 200;
+      white-space: nowrap;
+    }
+    .clipboard-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
-  <div class="aurora" aria-hidden="true">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
+  <!-- Taste-Skill Ambient Mesh Layer -->
+  <div class="ambient-canvas" aria-hidden="true">
+    <div class="ambient-orb orb-indigo"></div>
+    <div class="ambient-orb orb-pink"></div>
+    <div class="ambient-orb orb-cyan"></div>
   </div>
-  <div class="container">
-    <header class="header">
-      <div class="logo-wrap">
-        <div class="logo-cinema" aria-hidden="true">🎬</div>
-        <div class="logo-text">
-          <h1>VIP Movies</h1>
-          <div class="tagline">Stremio &amp; Nuvio Addon</div>
-        </div>
-      </div>
-      <div class="live-badge">
-        <span class="pulse-dot" aria-hidden="true"></span>
+
+  <div class="layout-wrapper">
+    <!-- Hero Header -->
+    <header class="hero-header">
+      <div class="cinema-emblem" aria-hidden="true">🎬</div>
+      <h1 class="hero-title">VIP Movies</h1>
+      <p class="hero-subtitle">Stremio &amp; Nuvio Cyber-Addon • Multi-Source 4K Engine</p>
+      <div class="live-status-pill">
+        <span class="pulse-ping" aria-hidden="true">
+          <span></span>
+          <div class="pulse-ping-dot"></div>
+        </span>
         Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.1
       </div>
     </header>
 
-    <div class="glass-card">
-      <div class="section-label">⚡ Thao tác nhanh &amp; Danh mục</div>
-      <div class="pill-group" id="action-pills">
-        <button class="pill action-pill" onclick="selectAll()">⚡ Bật tất cả</button>
-        <button class="pill action-pill danger-pill" onclick="selectNone()">🚫 Tắt tất cả</button>
-        <div style="width:1px;background:rgba(255,255,255,0.08);margin:0 4px;height:auto;align-self:stretch;border-radius:1px;"></div>
-        <button class="pill" id="cat-movie"  onclick="toggleCat('movie')">🎬 Phim Lẻ</button>
-        <button class="pill" id="cat-series" onclick="toggleCat('series')">📺 Phim Bộ</button>
-        <button class="pill" id="cat-anime"  onclick="toggleCat('anime')">🐉 Hoạt Hình</button>
-        <button class="pill" id="cat-cinema" onclick="toggleCat('cinema')">🍿 Chiếu Rạp</button>
+    <!-- Quick Actions & Categories -->
+    <section class="taste-card">
+      <div class="card-header-label">⚡ Thao tác nhanh &amp; Danh mục</div>
+      <div class="pill-grid" id="action-pills">
+        <button class="action-pill" onclick="selectAll()">⚡ Bật tất cả</button>
+        <button class="action-pill pill-danger" onclick="selectNone()">🚫 Tắt tất cả</button>
+        <div class="pill-divider" aria-hidden="true"></div>
+        <button class="action-pill active" id="cat-movie"  onclick="toggleCat('movie')">🎬 Phim Lẻ</button>
+        <button class="action-pill active" id="cat-series" onclick="toggleCat('series')">📺 Phim Bộ</button>
+        <button class="action-pill active" id="cat-anime"  onclick="toggleCat('anime')">🐉 Hoạt Hình</button>
+        <button class="action-pill active" id="cat-cinema" onclick="toggleCat('cinema')">🍿 Chiếu Rạp</button>
       </div>
-    </div>
+    </section>
 
-    <div class="glass-card">
-      <div class="section-label">🌐 Chọn nguồn phim (7 Nguồn VIP)</div>
+    <!-- 7 Provider Bento Grid -->
+    <section class="taste-card">
+      <div class="card-header-label">🌐 7 Cụm Nguồn Phim VIP (Chuẩn 4K &amp; Audio Độc Lập)</div>
       <div class="provider-grid">
+        <!-- VSMOV 4K -->
         <div class="provider-card vsmov active" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🌟</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">🌟</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">VSMOV 4K</div>
-          <div class="provider-desc">vsmov.com — Master 4K Ultra HD &amp; Thuyết Minh</div>
-          <div class="badge-row">
-            <span class="badge badge-cyan">Master 4K</span>
-            <span class="badge badge-green">Thuyết Minh</span>
-            <span class="badge badge-cyan">CDN VIP</span>
+          <div>
+            <div class="provider-name">VSMOV 4K</div>
+            <div class="provider-desc">vsmov.com — Master 4K Ultra HD, Vietsub, Lồng Tiếng &amp; Thuyết Minh</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-cyan">Master 4K</span>
+            <span class="tag-badge tag-green">Đa Server Audio</span>
+            <span class="tag-badge tag-cyan">CDN VIP</span>
           </div>
         </div>
+
+        <!-- KKPhim -->
         <div class="provider-card kkphim active" id="card-kkphim" onclick="toggleProvider('kkphim')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🔮</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">🔮</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">KKPhim</div>
-          <div class="provider-desc">phimapi.com — Đa máy chủ &amp; Kho phim mở rộng</div>
-          <div class="badge-row">
-            <span class="badge badge-pink">Vietsub</span>
-            <span class="badge badge-amber">Full HD</span>
-            <span class="badge badge-pink">IMDb Direct</span>
+          <div>
+            <div class="provider-name">KKPhim</div>
+            <div class="provider-desc">phimapi.com — Cụm máy chủ ổn định &amp; Tra cứu IMDb Direct</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-pink">Vietsub</span>
+            <span class="tag-badge tag-amber">Full HD</span>
+            <span class="tag-badge tag-pink">IMDb Direct</span>
           </div>
         </div>
+
+        <!-- NguonC -->
         <div class="provider-card nguonc active" id="card-nguonc" onclick="toggleProvider('nguonc')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🎞️</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">🎞️</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">NguonC</div>
-          <div class="provider-desc">phim.nguonc.com — StreamC Vietsub &amp; Thuyết Minh</div>
-          <div class="badge-row">
-            <span class="badge badge-purple">StreamC</span>
-            <span class="badge badge-green">Thuyết Minh</span>
-            <span class="badge badge-purple">IMDb</span>
+          <div>
+            <div class="provider-name">NguonC</div>
+            <div class="provider-desc">phim.nguonc.com — Proxy StreamC vượt chặn ISP &amp; Thuyết Minh</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-indigo">StreamC</span>
+            <span class="tag-badge tag-green">Thuyết Minh</span>
+            <span class="tag-badge tag-indigo">IMDb</span>
           </div>
         </div>
+
+        <!-- STP -->
         <div class="provider-card stp active" id="card-stp" onclick="toggleProvider('stp')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🗽</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">🗽</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">STP</div>
-          <div class="provider-desc">suutamphim.org — Âu Mỹ Tuyển Chọn &amp; K-Drama</div>
-          <div class="badge-row">
-            <span class="badge badge-amber">Âu Mỹ Cinema</span>
-            <span class="badge badge-pink">K-Drama</span>
+          <div>
+            <div class="provider-name">STP (Sưu Tầm Phim)</div>
+            <div class="provider-desc">suutamphim.org — Kho Điện Ảnh Âu Mỹ &amp; Phim Bộ Hàn Quốc K-Drama</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-amber">Âu Mỹ Cinema</span>
+            <span class="tag-badge tag-pink">K-Drama</span>
           </div>
         </div>
+
+        <!-- HH3D -->
         <div class="provider-card hh3d active" id="card-hh3d" onclick="toggleProvider('hh3d')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">⚔️</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">⚔️</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">HH3D</div>
-          <div class="provider-desc">hoathinh3d — Hoạt Hình 3D Trung Quốc &amp; Tiên Hiệp</div>
-          <div class="badge-row">
-            <span class="badge badge-cyan">3D Donghua</span>
-            <span class="badge badge-purple">Tiên Hiệp</span>
+          <div>
+            <div class="provider-name">HH3D (Hoạt Hình 3D)</div>
+            <div class="provider-desc">hoathinh3d — Tiên Hiệp &amp; Huyền Huyễn (Đấu Phá, Thôn Phệ...)</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-green">3D Donghua</span>
+            <span class="tag-badge tag-purple">Tiên Hiệp</span>
           </div>
         </div>
+
+        <!-- YAN -->
         <div class="provider-card yan active" id="card-yan" onclick="toggleProvider('yan')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🔥</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">🔥</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">YAN</div>
-          <div class="provider-desc">yandonghua — Donghua &amp; Anime Đang Chiếu</div>
-          <div class="badge-row">
-            <span class="badge badge-pink">Donghua Mới</span>
-            <span class="badge badge-green">Tốc Độ Cao</span>
+          <div>
+            <div class="provider-name">YAN Donghua</div>
+            <div class="provider-desc">yandonghua — Donghua &amp; Anime 3D Cập Nhật Theo Ngày</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-pink">Donghua Mới</span>
+            <span class="tag-badge tag-green">Tốc Độ Cao</span>
           </div>
         </div>
+
+        <!-- CLBPX -->
         <div class="provider-card clbpx active" id="card-clbpx" onclick="toggleProvider('clbpx')" role="checkbox" aria-checked="true" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon">🗡️</div>
-            <div class="toggle-track" aria-hidden="true"></div>
+            <div class="provider-icon-badge">🗡️</div>
+            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
-          <div class="provider-name">CLBPX</div>
-          <div class="provider-desc">clbphimxua — Kiếm Hiệp Kim Dung &amp; TVB Kinh Điển</div>
-          <div class="badge-row">
-            <span class="badge badge-purple">Kim Dung</span>
-            <span class="badge badge-amber">TVB Hồng Kông</span>
+          <div>
+            <div class="provider-name">CLBPX (Phim Xưa)</div>
+            <div class="provider-desc">clbphimxua — Kiếm Hiệp Kim Dung &amp; TVB Hồng Kông Cổ Điển</div>
+          </div>
+          <div class="tag-row">
+            <span class="tag-badge tag-purple">Kim Dung</span>
+            <span class="tag-badge tag-amber">TVB Hồng Kông</span>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="glass-card">
-      <div class="section-label">🔗 Link Manifest cá nhân hóa</div>
-      <div class="url-box" id="url-box" onclick="copyManifest()" role="button" tabindex="0" title="Bấm để sao chép">
-        <div class="url-label">
+    <!-- Manifest URL Card -->
+    <section class="taste-card">
+      <div class="card-header-label">🔗 Liên Kết Cài Đặt Cá Nhân Hóa</div>
+      <div class="manifest-box" id="manifest-box" onclick="copyManifest()" role="button" tabindex="0" title="Bấm để sao chép link Manifest">
+        <div class="manifest-top">
           <span>Manifest URL</span>
-          <span class="url-copy-hint">📋 Bấm để Copy</span>
+          <span class="copy-pill-hint">📋 Bấm để Sao Chép</span>
         </div>
-        <div class="url-value" id="manifest-preview">${defaultManifestUrl}</div>
+        <div class="manifest-url-string" id="manifest-preview">${defaultManifestUrl}</div>
       </div>
-    </div>
+    </section>
 
-    <div class="footer">
-      VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>
+    <!-- Brand Signature Footer -->
+    <footer class="taste-footer">
+      VIP Movies Addon v1.5.1 • Designed with Taste by <span class="brand-highlight">Q121101</span>
+    </footer>
+  </div>
+
+  <!-- Floating Action Dock -->
+  <div class="floating-action-dock">
+    <div class="dock-container">
+      <div class="dock-status-bar">
+        <div class="dock-status-text">
+          Đang kích hoạt: <strong id="provider-count">7 nguồn VIP</strong> &nbsp;·&nbsp; <strong id="category-count">4 danh mục</strong>
+        </div>
+        <div class="dock-live-tag">
+          <span class="dock-live-dot"></span>
+          Cấu hình tự động đồng bộ
+        </div>
+      </div>
+
+      <div class="apikey-container">
+        <span class="apikey-key-icon">🔑</span>
+        <input class="apikey-field" id="apikey-input" type="password" placeholder="API Key riêng tư (tùy chọn)" autocomplete="off" spellcheck="false" oninput="updateState()" aria-label="API Key" />
+      </div>
+
+      <div class="cta-button-group">
+        <a class="cta-btn cta-btn-primary" id="stremio-install-btn" href="${stremioUrl}">
+          <span>⚡</span> Cài đặt vào Stremio App
+        </a>
+        <a class="cta-btn cta-btn-secondary" id="web-install-btn" href="${webInstallUrl}" target="_blank" rel="noopener noreferrer">
+          <span>🌐</span> Mở Stremio Web
+        </a>
+      </div>
     </div>
   </div>
 
-  <div class="floating-dock">
-    <div class="dock-inner">
-      <div class="status-bar">
-        <div class="status-text">Đang bật: <strong id="provider-count">7 nguồn</strong> &nbsp;·&nbsp; <strong id="category-count">4 danh mục</strong></div>
-        <div class="status-indicator"><span class="dot"></span>Config đã cập nhật</div>
-      </div>
-      <div class="apikey-row">
-        <span class="apikey-icon">🔑</span>
-        <input class="apikey-input" id="apikey-input" type="password" placeholder="API Key riêng (tùy chọn)" autocomplete="off" spellcheck="false" oninput="updateState()" aria-label="API Key riêng tư" />
-      </div>
-      <div class="btn-group">
-        <a class="btn btn-primary" id="stremio-install-btn" href="${stremioUrl}"><span aria-hidden="true">⚡</span> Cài đặt vào Stremio App</a>
-        <a class="btn btn-secondary" id="web-install-btn" href="${webInstallUrl}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🌐</span> Mở trên Stremio Web</a>
-      </div>
-    </div>
+  <!-- Toast Notification -->
+  <div class="clipboard-toast" id="toast" aria-live="polite">
+    <span>✅</span> Đã sao chép link Manifest vào Clipboard!
   </div>
-
-  <div class="toast" id="toast" aria-live="polite"><span aria-hidden="true">✅</span> Đã sao chép vào Clipboard!</div>
 
   <script>
     var _baseUrl = window.location.origin;
@@ -476,11 +1020,13 @@ router.get('/', (req, res) => {
       var manifestUrl = _baseUrl + '/' + token + '/manifest.json';
       var stremioDeep = _baseUrl.replace(/^https?:\\/\\//, 'stremio://') + '/' + token + '/manifest.json';
       var webUrl = 'https://web.stremio.com/#/addons?addon=' + encodeURIComponent(manifestUrl);
+
       document.getElementById('manifest-preview').textContent = manifestUrl;
       document.getElementById('stremio-install-btn').href = stremioDeep;
       document.getElementById('web-install-btn').href = webUrl;
-      document.getElementById('provider-count').textContent = _providers.size + ' nguồn';
+      document.getElementById('provider-count').textContent = _providers.size + ' nguồn VIP';
       document.getElementById('category-count').textContent = _categories.size + ' danh mục';
+
       ['movie','series','anime','cinema'].forEach(function(c) {
         var el = document.getElementById('cat-' + c);
         if (el) el.classList.toggle('active', _categories.has(c));
@@ -488,8 +1034,11 @@ router.get('/', (req, res) => {
     }
 
     function toggleCat(cat) {
-      if (_categories.has(cat)) { if (_categories.size > 1) _categories.delete(cat); }
-      else _categories.add(cat);
+      if (_categories.has(cat)) {
+        if (_categories.size > 1) _categories.delete(cat);
+      } else {
+        _categories.add(cat);
+      }
       updateState();
     }
 
@@ -497,9 +1046,15 @@ router.get('/', (req, res) => {
       var card = document.getElementById('card-' + id);
       if (!card) return;
       if (_providers.has(id)) {
-        if (_providers.size > 1) { _providers.delete(id); card.classList.remove('active'); card.setAttribute('aria-checked','false'); }
+        if (_providers.size > 1) {
+          _providers.delete(id);
+          card.classList.remove('active');
+          card.setAttribute('aria-checked','false');
+        }
       } else {
-        _providers.add(id); card.classList.add('active'); card.setAttribute('aria-checked','true');
+        _providers.add(id);
+        card.classList.add('active');
+        card.setAttribute('aria-checked','true');
       }
       updateState();
     }
@@ -515,11 +1070,15 @@ router.get('/', (req, res) => {
     }
 
     function selectNone() {
-      _categories = new Set(['movie']); _providers = new Set(['vsmov', 'kkphim']);
+      _categories = new Set(['movie']);
+      _providers = new Set(['vsmov', 'kkphim']);
       _allProvidersList.forEach(function(id) {
         var c = document.getElementById('card-'+id);
         var isActive = (id === 'vsmov' || id === 'kkphim');
-        if (c) { c.classList.toggle('active', isActive); c.setAttribute('aria-checked', isActive ? 'true' : 'false'); }
+        if (c) {
+          c.classList.toggle('active', isActive);
+          c.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        }
       });
       updateState();
     }
@@ -528,27 +1087,43 @@ router.get('/', (req, res) => {
       var url = document.getElementById('manifest-preview').textContent;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(showToast).catch(function() { fallbackCopy(url); });
-      } else { fallbackCopy(url); }
+      } else {
+        fallbackCopy(url);
+      }
     }
 
     function fallbackCopy(text) {
-      var ta = document.createElement('textarea'); ta.value = text;
+      var ta = document.createElement('textarea');
+      ta.value = text;
       ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
-      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
       try { document.execCommand('copy'); showToast(); } catch(e) {}
       document.body.removeChild(ta);
     }
 
     function showToast() {
-      var t = document.getElementById('toast'); if (!t) return;
-      t.classList.add('show'); setTimeout(function() { t.classList.remove('show'); }, 2400);
+      var t = document.getElementById('toast');
+      if (!t) return;
+      t.classList.add('show');
+      setTimeout(function() { t.classList.remove('show'); }, 2400);
     }
 
     document.querySelectorAll('.provider-card').forEach(function(card) {
-      card.addEventListener('keydown', function(e) { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); card.click(); } });
+      card.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          card.click();
+        }
+      });
     });
-    document.getElementById('url-box').addEventListener('keydown', function(e) {
-      if (e.key==='Enter'||e.key===' ') { e.preventDefault(); copyManifest(); }
+
+    document.getElementById('manifest-box').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        copyManifest();
+      }
     });
 
     updateState();
