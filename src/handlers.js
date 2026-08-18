@@ -16,7 +16,7 @@ const router  = express.Router();
 const api     = require('./api');
 const mapper  = require('./mapper');
 const { MANIFEST, GENRES, COUNTRIES, buildManifest } = require('./manifest');
-const { decodeConfig, encodeConfig, isConfigToken, DEFAULT_CONFIG, getDefaultToken } = require('./config');
+const { decodeConfig, encodeConfig, isConfigToken, DEFAULT_CONFIG, getDefaultToken, VALID_PROVIDERS, VALID_CATEGORIES } = require('./config');
 const { imdbCache, catalogCache, detailCache }  = require('./lib/cache');
 const { resolveCinemeta } = require('./lib/cinemeta');
 
@@ -40,6 +40,16 @@ const ALL_PROVIDERS = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function sendJSON(res, data) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -148,16 +158,47 @@ function withTimeout(promise, ms = 4000, label = 'Provider') {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  ROUTE: GET / & GET /configure → Taste-Skill Configurator
+//  ROUTE: GET / & GET /configure & GET /:config & GET /:config/configure
+//  → Cyber-Glassmorphism Anti-Slop Configurator Dashboard
 // ─────────────────────────────────────────────────────────────
-router.get(['/', '/configure'], (req, res) => {
+router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, next) => {
+  const token = req.params.config;
+  if (token && !isConfigToken(token)) return next();
+
+  // Resolve user config from req.addonConfig, path token, or query param
+  let userConfig = DEFAULT_CONFIG;
+  if (req.addonConfig) {
+    userConfig = req.addonConfig;
+  } else if (token) {
+    userConfig = decodeConfig(token);
+  } else if (req.query && req.query.config) {
+    userConfig = decodeConfig(req.query.config);
+  }
+
+  const safeProviders = Array.isArray(userConfig.providers) && userConfig.providers.length > 0
+    ? userConfig.providers.filter((p) => VALID_PROVIDERS.includes(p))
+    : DEFAULT_CONFIG.providers;
+  const safeCategories = Array.isArray(userConfig.categories) && userConfig.categories.length > 0
+    ? userConfig.categories.filter((c) => VALID_CATEGORIES.includes(c))
+    : DEFAULT_CONFIG.categories;
+  const safeApiKey = typeof userConfig.apiKey === 'string' ? userConfig.apiKey : '';
+
+  const resolvedConfig = {
+    providers: safeProviders.length > 0 ? safeProviders : DEFAULT_CONFIG.providers,
+    categories: safeCategories.length > 0 ? safeCategories : DEFAULT_CONFIG.categories,
+    apiKey: safeApiKey,
+  };
+
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
   const baseUrl  = `${protocol}://${host}`;
-  const defaultToken       = getDefaultToken();
-  const defaultManifestUrl = `${baseUrl}/${defaultToken}/manifest.json`;
-  const stremioUrl         = `stremio://${host}/${defaultToken}/manifest.json`;
-  const webInstallUrl      = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(defaultManifestUrl)}`;
+  const currentToken       = encodeConfig(resolvedConfig);
+  const currentManifestUrl = `${baseUrl}/${currentToken}/manifest.json`;
+  const stremioUrl         = `stremio://${host}/${currentToken}/manifest.json`;
+  const webInstallUrl      = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(currentManifestUrl)}`;
+
+  const isProvActive = (id) => resolvedConfig.providers.includes(id);
+  const isCatActive  = (cat) => resolvedConfig.categories.includes(cat);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -190,6 +231,7 @@ router.get(['/', '/configure'], (req, res) => {
       --cyan-glow: rgba(6, 182, 212, 0.35);
       --emerald: #10b981;
       --amber: #f59e0b;
+      --purple: #8b5cf6;
       --radius-sm: 10px;
       --radius-md: 16px;
       --radius-lg: 24px;
@@ -212,7 +254,7 @@ router.get(['/', '/configure'], (req, res) => {
       padding: 40px 16px 170px;
       position: relative;
     }
-    /* Taste-Skill Ambient Aurora Mesh */
+    /* Taste-Skill Ambient Aurora Mesh (3 Orbs, 140px Blur & Drift) */
     .ambient-canvas {
       position: fixed;
       inset: 0;
@@ -427,14 +469,20 @@ router.get(['/', '/configure'], (req, res) => {
       background: rgba(255, 255, 255, 0.1);
       margin: 0 2px;
     }
-    /* 7 Provider Bento Cards */
+    /* 7 Provider Bento Layout (1 Flagship Hero + 6 Balanced Grid Cards) */
     .provider-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 14px;
     }
+    .provider-card.vsmov-hero {
+      grid-column: 1 / -1;
+      background: radial-gradient(circle at 90% 15%, rgba(6, 182, 212, 0.12), rgba(255, 255, 255, 0.025) 60%);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
     @media (max-width: 580px) {
       .provider-grid { grid-template-columns: 1fr; }
+      .provider-card.vsmov-hero { grid-column: auto; }
     }
     .provider-card {
       background: rgba(255, 255, 255, 0.025);
@@ -458,7 +506,7 @@ router.get(['/', '/configure'], (req, res) => {
       transition: opacity var(--transition-smooth);
       pointer-events: none;
     }
-    .provider-card.vsmov::before  { background: radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.15), transparent 70%); }
+    .provider-card.vsmov::before  { background: radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.18), transparent 70%); }
     .provider-card.kkphim::before { background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.15), transparent 70%); }
     .provider-card.nguonc::before { background: radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.15), transparent 70%); }
     .provider-card.stp::before    { background: radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.15), transparent 70%); }
@@ -476,8 +524,12 @@ router.get(['/', '/configure'], (req, res) => {
       background: rgba(99, 102, 241, 0.04);
       box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45);
     }
-    .provider-card.active.vsmov  { border-color: rgba(6, 182, 212, 0.55); box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.vsmov  { border-color: rgba(6, 182, 212, 0.6); box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.35), 0 18px 40px rgba(0, 0, 0, 0.5); }
     .provider-card.active.kkphim { border-color: rgba(236, 72, 153, 0.55); box-shadow: 0 0 0 1px rgba(236, 72, 153, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.stp    { border-color: rgba(245, 158, 11, 0.55); box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.hh3d   { border-color: rgba(16, 185, 129, 0.55); box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.yan    { border-color: rgba(236, 72, 153, 0.55); box-shadow: 0 0 0 1px rgba(236, 72, 153, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.clbpx  { border-color: rgba(139, 92, 246, 0.55); box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
     .provider-card.active::before { opacity: 1; }
     .provider-top {
       display: flex;
@@ -495,7 +547,7 @@ router.get(['/', '/configure'], (req, res) => {
       border: 1px solid rgba(255, 255, 255, 0.08);
       font-size: 1.35rem;
     }
-    /* Micro-Interactive Switch Track */
+    /* Micro-Interactive Spring Physics Switch Track */
     .switch-track {
       width: 42px; height: 24px;
       background: rgba(255, 255, 255, 0.1);
@@ -518,8 +570,13 @@ router.get(['/', '/configure'], (req, res) => {
       border-color: transparent;
       box-shadow: 0 0 12px var(--indigo-glow);
     }
-    .provider-card.active.vsmov  .switch-track { background: var(--cyan); box-shadow: 0 0 12px var(--cyan-glow); }
-    .provider-card.active.kkphim .switch-track { background: var(--pink); box-shadow: 0 0 12px var(--pink-glow); }
+    .provider-card.active.vsmov  .switch-track { background: var(--cyan); box-shadow: 0 0 14px var(--cyan-glow); }
+    .provider-card.active.kkphim .switch-track { background: var(--pink); box-shadow: 0 0 14px var(--pink-glow); }
+    .provider-card.active.nguonc .switch-track { background: var(--indigo); box-shadow: 0 0 14px var(--indigo-glow); }
+    .provider-card.active.stp    .switch-track { background: var(--amber); box-shadow: 0 0 14px rgba(245, 158, 11, 0.35); }
+    .provider-card.active.hh3d   .switch-track { background: var(--emerald); box-shadow: 0 0 14px rgba(16, 185, 129, 0.35); }
+    .provider-card.active.yan    .switch-track { background: var(--pink); box-shadow: 0 0 14px var(--pink-glow); }
+    .provider-card.active.clbpx  .switch-track { background: var(--purple); box-shadow: 0 0 14px rgba(139, 92, 246, 0.35); }
     .provider-card.active .switch-thumb {
       transform: translateX(18px);
       background: #ffffff;
@@ -702,21 +759,21 @@ router.get(['/', '/configure'], (req, res) => {
     }
     .cta-button-group {
       display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 12px;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 10px;
     }
-    @media (max-width: 520px) {
-      .cta-button-group { grid-template-columns: 1fr; }
+    @media (max-width: 700px) {
+      .cta-button-group { grid-template-columns: 1fr; gap: 8px; }
     }
     .cta-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 14px 20px;
+      padding: 14px 16px;
       border-radius: var(--radius-md);
       font-weight: 700;
-      font-size: 0.92rem;
+      font-size: 0.88rem;
       text-decoration: none;
       transition: all var(--transition-smooth);
       cursor: pointer;
@@ -759,6 +816,18 @@ router.get(['/', '/configure'], (req, res) => {
       background: rgba(255, 255, 255, 0.1);
       border-color: var(--border-hover);
       transform: translateY(-1.5px);
+    }
+    .cta-btn-copy {
+      background: rgba(167, 139, 250, 0.12);
+      color: #c084fc;
+      border: 1px solid rgba(167, 139, 250, 0.3);
+    }
+    .cta-btn-copy:hover {
+      background: rgba(167, 139, 250, 0.22);
+      border-color: rgba(167, 139, 250, 0.5);
+      color: #ffffff;
+      transform: translateY(-1.5px);
+      box-shadow: 0 6px 20px rgba(167, 139, 250, 0.25);
     }
     /* Toast Notification */
     .clipboard-toast {
@@ -809,7 +878,7 @@ router.get(['/', '/configure'], (req, res) => {
           <span></span>
           <div class="pulse-ping-dot"></div>
         </span>
-        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.1
+        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.5.1
       </div>
     </header>
 
@@ -820,36 +889,37 @@ router.get(['/', '/configure'], (req, res) => {
         <button class="action-pill" onclick="selectAll()">⚡ Bật tất cả</button>
         <button class="action-pill pill-danger" onclick="selectNone()">🚫 Tắt tất cả</button>
         <div class="pill-divider" aria-hidden="true"></div>
-        <button class="action-pill active" id="cat-movie"  onclick="toggleCat('movie')">🎬 Phim Lẻ</button>
-        <button class="action-pill active" id="cat-series" onclick="toggleCat('series')">📺 Phim Bộ</button>
-        <button class="action-pill active" id="cat-anime"  onclick="toggleCat('anime')">🐉 Hoạt Hình</button>
-        <button class="action-pill active" id="cat-cinema" onclick="toggleCat('cinema')">🍿 Chiếu Rạp</button>
+        <button class="action-pill ${isCatActive('movie') ? 'active' : ''}" id="cat-movie"  onclick="toggleCat('movie')">🎬 Phim Lẻ</button>
+        <button class="action-pill ${isCatActive('series') ? 'active' : ''}" id="cat-series" onclick="toggleCat('series')">📺 Phim Bộ</button>
+        <button class="action-pill ${isCatActive('cinema') ? 'active' : ''}" id="cat-cinema" onclick="toggleCat('cinema')">🍿 Chiếu Rạp</button>
+        <button class="action-pill ${isCatActive('anime') ? 'active' : ''}" id="cat-anime"  onclick="toggleCat('anime')">🐉 Hoạt Hình 3D</button>
       </div>
     </section>
 
-    <!-- 7 Provider Bento Grid -->
+    <!-- 7 Provider Bento Grid (1 + 6 Layout) -->
     <section class="taste-card">
       <div class="card-header-label">🌐 7 Cụm Nguồn Phim VIP (Chuẩn 4K &amp; Audio Độc Lập)</div>
       <div class="provider-grid">
-        <!-- VSMOV 4K -->
-        <div class="provider-card vsmov active" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="true" tabindex="0">
+        <!-- VSMOV 4K Flagship Hero Tile -->
+        <div class="provider-card vsmov vsmov-hero ${isProvActive('vsmov') ? 'active' : ''}" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="${isProvActive('vsmov') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🌟</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
           <div>
-            <div class="provider-name">VSMOV 4K</div>
-            <div class="provider-desc">vsmov.com — Master 4K Ultra HD, Vietsub, Lồng Tiếng &amp; Thuyết Minh</div>
+            <div class="provider-name">VSMOV 4K (Master Engine)</div>
+            <div class="provider-desc">vsmov.com — Master 4K Ultra HD, Vietsub, Lồng Tiếng &amp; Thuyết Minh Độc Lập</div>
           </div>
           <div class="tag-row">
             <span class="tag-badge tag-cyan">Master 4K</span>
             <span class="tag-badge tag-green">Đa Server Audio</span>
             <span class="tag-badge tag-cyan">CDN VIP</span>
+            <span class="tag-badge tag-indigo">WebVTT Subtitles</span>
           </div>
         </div>
 
         <!-- KKPhim -->
-        <div class="provider-card kkphim active" id="card-kkphim" onclick="toggleProvider('kkphim')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card kkphim ${isProvActive('kkphim') ? 'active' : ''}" id="card-kkphim" onclick="toggleProvider('kkphim')" role="checkbox" aria-checked="${isProvActive('kkphim') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🔮</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -866,7 +936,7 @@ router.get(['/', '/configure'], (req, res) => {
         </div>
 
         <!-- NguonC -->
-        <div class="provider-card nguonc active" id="card-nguonc" onclick="toggleProvider('nguonc')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card nguonc ${isProvActive('nguonc') ? 'active' : ''}" id="card-nguonc" onclick="toggleProvider('nguonc')" role="checkbox" aria-checked="${isProvActive('nguonc') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🎞️</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -883,7 +953,7 @@ router.get(['/', '/configure'], (req, res) => {
         </div>
 
         <!-- STP -->
-        <div class="provider-card stp active" id="card-stp" onclick="toggleProvider('stp')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card stp ${isProvActive('stp') ? 'active' : ''}" id="card-stp" onclick="toggleProvider('stp')" role="checkbox" aria-checked="${isProvActive('stp') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🗽</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -899,7 +969,7 @@ router.get(['/', '/configure'], (req, res) => {
         </div>
 
         <!-- HH3D -->
-        <div class="provider-card hh3d active" id="card-hh3d" onclick="toggleProvider('hh3d')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card hh3d ${isProvActive('hh3d') ? 'active' : ''}" id="card-hh3d" onclick="toggleProvider('hh3d')" role="checkbox" aria-checked="${isProvActive('hh3d') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">⚔️</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -915,7 +985,7 @@ router.get(['/', '/configure'], (req, res) => {
         </div>
 
         <!-- YAN -->
-        <div class="provider-card yan active" id="card-yan" onclick="toggleProvider('yan')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card yan ${isProvActive('yan') ? 'active' : ''}" id="card-yan" onclick="toggleProvider('yan')" role="checkbox" aria-checked="${isProvActive('yan') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🔥</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -931,7 +1001,7 @@ router.get(['/', '/configure'], (req, res) => {
         </div>
 
         <!-- CLBPX -->
-        <div class="provider-card clbpx active" id="card-clbpx" onclick="toggleProvider('clbpx')" role="checkbox" aria-checked="true" tabindex="0">
+        <div class="provider-card clbpx ${isProvActive('clbpx') ? 'active' : ''}" id="card-clbpx" onclick="toggleProvider('clbpx')" role="checkbox" aria-checked="${isProvActive('clbpx') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🗡️</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -956,7 +1026,7 @@ router.get(['/', '/configure'], (req, res) => {
           <span>Manifest URL</span>
           <span class="copy-pill-hint">📋 Bấm để Sao Chép</span>
         </div>
-        <div class="manifest-url-string" id="manifest-preview">${defaultManifestUrl}</div>
+        <div class="manifest-url-string" id="manifest-preview">${currentManifestUrl}</div>
       </div>
     </section>
 
@@ -971,7 +1041,7 @@ router.get(['/', '/configure'], (req, res) => {
     <div class="dock-container">
       <div class="dock-status-bar">
         <div class="dock-status-text">
-          Đang kích hoạt: <strong id="provider-count">7 nguồn VIP</strong> &nbsp;·&nbsp; <strong id="category-count">4 danh mục</strong>
+          Đang bật: <strong id="provider-count">${resolvedConfig.providers.length} nguồn VIP</strong> &nbsp;·&nbsp; <strong id="category-count">${resolvedConfig.categories.length} danh mục</strong>
         </div>
         <div class="dock-live-tag">
           <span class="dock-live-dot"></span>
@@ -981,7 +1051,7 @@ router.get(['/', '/configure'], (req, res) => {
 
       <div class="apikey-container">
         <span class="apikey-key-icon">🔑</span>
-        <input class="apikey-field" id="apikey-input" type="password" placeholder="API Key riêng tư (tùy chọn)" autocomplete="off" spellcheck="false" oninput="updateState()" aria-label="API Key" />
+        <input class="apikey-field" id="apikey-input" type="password" placeholder="API Key riêng tư (tùy chọn)" autocomplete="off" spellcheck="false" value="${escapeHtml(resolvedConfig.apiKey)}" oninput="updateState()" aria-label="API Key" />
       </div>
 
       <div class="cta-button-group">
@@ -989,8 +1059,11 @@ router.get(['/', '/configure'], (req, res) => {
           <span>⚡</span> Cài đặt vào Stremio App
         </a>
         <a class="cta-btn cta-btn-secondary" id="web-install-btn" href="${webInstallUrl}" target="_blank" rel="noopener noreferrer">
-          <span>🌐</span> Mở Stremio Web
+          <span>🌐</span> Mở trên Stremio Web
         </a>
+        <button class="cta-btn cta-btn-copy" id="dock-copy-btn" onclick="copyManifest()">
+          <span>📋</span> Sao chép link Manifest
+        </button>
       </div>
     </div>
   </div>
@@ -1003,15 +1076,24 @@ router.get(['/', '/configure'], (req, res) => {
   <script>
     var _baseUrl = window.location.origin;
     var _allProvidersList = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
-    var _providers = new Set(['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx']);
-    var _categories = new Set(['movie', 'series', 'anime', 'cinema']);
-    var _apiKey = '';
+    var _providers = new Set(${JSON.stringify(resolvedConfig.providers)});
+    var _categories = new Set(${JSON.stringify(resolvedConfig.categories)});
+    var _apiKey = ${JSON.stringify(resolvedConfig.apiKey)};
 
     function encodeConfigClient(providers, categories, apiKey) {
-      var cfg = { providers: Array.from(providers).sort(), categories: Array.from(categories).sort(), apiKey: apiKey || '' };
+      var cfg = {
+        providers: Array.from(providers).sort(),
+        categories: Array.from(categories).sort(),
+        apiKey: apiKey || ''
+      };
       try {
-        return btoa(unescape(encodeURIComponent(JSON.stringify(cfg)))).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');
-      } catch(e) { return ''; }
+        return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))))
+          .replace(/\\+/g, '-')
+          .replace(/\\//g, '_')
+          .replace(/=+$/, '');
+      } catch(e) {
+        return '';
+      }
     }
 
     function updateState() {

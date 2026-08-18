@@ -1,4 +1,4 @@
-# BRIEFING — 2026-08-18T02:50:26Z
+# BRIEFING — 2026-08-18T02:52:30Z
 
 ## Mission
 Investigate 7 Provider Clusters, 22 Categories, Manifest/Config routes, and test verification suite.
@@ -8,7 +8,7 @@ Investigate 7 Provider Clusters, 22 Categories, Manifest/Config routes, and test
 - Roles: [investigator, synthesizer]
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_clusters_routes_2
 - Original parent: 54bb558b-b5f2-41e2-aa8b-628829575aa9
-- Milestone: Investigation & Synthesis
+- Milestone: Investigation & Synthesis Complete
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
@@ -17,15 +17,19 @@ Investigate 7 Provider Clusters, 22 Categories, Manifest/Config routes, and test
 
 ## Current Parent
 - Conversation ID: 54bb558b-b5f2-41e2-aa8b-628829575aa9
-- Updated: not yet
+- Updated: 2026-08-18T02:52:30Z
 
 ## Investigation State
-- **Explored paths**: None yet
-- **Key findings**: Investigation starting
-- **Unexplored areas**: Manifest/Config routes, 7 Provider Clusters & 22 Categories, Config serializer/deserializer, test verification suite
+- **Explored paths**: `src/manifest.js`, `src/config.js`, `src/handlers.js`, `src/index.js`, `src/routes/manifest.js`, `src/routes/hls.js`, `src/providers/*.js`, `tests/verify_playback.js`, `tests/verify_vsmov_sub_audio.js`, `tests/challenger*.js`.
+- **Key findings**:
+  1. Complete enumeration of all 7 Provider Clusters and 22 Catalogs.
+  2. Verified bidirectional Base64URL config serialization & route dispatching across `:config` endpoints.
+  3. Validated In-App streaming protocols, audio tabs separation, and WebVTT subtitle proxy.
+  4. 100% test pass across verification test suites.
+- **Unexplored areas**: None within scope.
 
 ## Key Decisions Made
-- Initialized investigation tracking
+- Documented full inventory in `report.md` and 5-component `handoff.md`.
 
 ## Artifact Index
 - DISPATCH.md — incoming dispatch request
