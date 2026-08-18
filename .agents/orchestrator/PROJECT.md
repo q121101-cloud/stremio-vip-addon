@@ -39,8 +39,8 @@
 | M2 | Multi-Provider Engine Architecture | `src/providers/` (`vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`) | M1 | **DONE** |
 | M3 | Routing, 404 Prevention & 22 Catalogs | `src/index.js`, `src/routes/manifest.js`, `src/manifest.js`, `src/config.js` | M2 | **DONE** |
 | M4 | Fail-Safe Stream Aggregator | `src/handlers.js`, `src/lib/cinemeta.js` | M1, M2, M3 | **DONE** |
-| M5 | E2E Playback Test Suite | `tests/verify_playback.js`, `tests/e2e.test.js` | M1, M2, M3, M4 | IN_PROGRESS |
-| M6 | UI, Versioning & Deployment | `package.json`, `src/handlers.js`, `src/manifest.js`, git push | M5 | IN_PROGRESS |
+| M5 | E2E Playback Test Suite | `tests/verify_playback.js`, `tests/e2e.test.js` | M1, M2, M3, M4 | **IN_PROGRESS** |
+| M6 | UI, Versioning & Deployment | `package.json`, `src/handlers.js`, `src/manifest.js`, git push | M5 | **PLANNED** |
 
 
 ## Interface Contracts

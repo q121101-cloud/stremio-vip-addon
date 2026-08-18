@@ -1,157 +1,113 @@
-# HLS Proxy & KKPhim In-App Playback Investigation Report
+# Handoff Report: Explorer 2 Survey Phase (v1.5.0)
 
 ## 1. Observation
 
-### 1.1 Architecture & Server Routing
-- **Entry point (`src/index.js:63-83`)**:
-  - Express server registers middleware in exact order: CORS (`*`), body parser, logger, `/favicon.ico`.
-  - HLS Router is mounted at `/hls` via `app.use('/hls', hlsRouter)`.
-  - Dynamic Manifest Router mounted at `/` via `app.use('/', manifestRouter)` (handles `/manifest.json` and `/:config/*`).
-  - Stremio Addon Handlers mounted at `/` via `app.use('/', handlers)` (handles `/catalog`, `/meta`, `/stream`, `/health`, `/`).
-- **HLS Proxy Router Endpoints (`src/routes/hls.js`)**:
-  - `GET /hls/extract?embed=<embed_url>` (lines 113–137): Lazy extraction for iframe embed pages (NguonC), extracts stream URL via `extractM3u8FromEmbed` and performs 302 redirect to `/hls/manifest.m3u8`.
-  - `GET /hls/manifest.m3u8` / `GET /hls/m3u8` (lines 143–237): Master and media playlist rewriter. Accepts `url` or `b64` parameter, plus `ref` or `referer` parameter.
-  - `GET /hls/ts` (lines 243–285): Binary segment streaming proxy. Accepts `url` or `b64` parameter, plus `ref` or `referer`, plus `is_key=1` for encryption keys.
-  - `OPTIONS *` (lines 104–107): Handles preflight requests with HTTP 204.
+Direct observations from the investigation of `stremio-nguonc-addon`:
 
-### 1.2 Playlist Rewriting Mechanics (`src/routes/hls.js:163-237`)
-- Incoming playlist is fetched with upstream headers: `User-Agent: HLS_UA`, `Referer: refererUrl`, `Origin: origin`.
-- Upstream playlist text is parsed line-by-line:
-  - `#EXT-X-STREAM-INF` / `#EXT-X-I-FRAME-STREAM-INF`: Marks subsequent line as sub-playlist (`isNextSubPlaylist = true`).
-  - `#EXTINF`: Marks subsequent line as media segment (`isNextSegment = true`).
-  - Attribute rewrites with regex replacement:
-    - `#EXT-X-MEDIA:...URI="([^"]+)"`: Rewritten to `/hls/manifest.m3u8?b64=${b64Uri}&ref=${encodedRef}`.
-    - `#EXT-X-KEY:...URI="([^"]+)"`: Rewritten to `/hls/ts?b64=${b64Key}&ref=${encodedRef}&is_key=1`.
-    - `#EXT-X-MAP:...URI="([^"]+)"`: Rewritten to `/hls/ts?b64=${b64Map}&ref=${encodedRef}`.
-  - Non-comment URI lines:
-    - Relative URLs (e.g. `2000kb/hls/index.m3u8` or `segment_001.ts`) are resolved to absolute URLs against `baseUrl` (`new URL(t, baseUrl.href).href`).
-    - Encoded as Base64URL string (`b64Url`).
-    - If `isNextSubPlaylist` is true OR URL contains `.m3u8` / `playlist` -> routed to `${protoHost}/hls/manifest.m3u8?b64=${b64Url}&ref=${encodedRef}`.
-    - Otherwise -> routed to `${protoHost}/hls/ts?b64=${b64Url}&ref=${encodedRef}`.
-- Rewritten playlist is cached in `m3u8Cache` (`cacheKey = 'm3u8:' + targetUrl`).
+1. **Routing & Express Setup (`src/index.js` lines 64-88)**:
+   - `app.use('/hls', hlsRouter)` mounts the HLS proxy router.
+   - `app.use('/', manifestRouter)` mounts the dynamic manifest router (`GET /manifest.json`, `GET /:config/manifest.json`).
+   - `app.use('/', handlers)` mounts the catalog, meta, stream, and UI route handlers.
+   - Explicit routes are declared for both unconfigured and `/:config`-prefixed paths in `src/handlers.js`:
+     - Lines 643-650: `/catalog/:type/:id/:extra.json`, `/catalog/:type/:id.json`, `/:config/catalog/:type/:id/:extra.json`, `/:config/catalog/:type/:id.json`
+     - Lines 771-774: `/meta/:type/:id.json`, `/:config/meta/:type/:id.json`
+     - Lines 983-986: `/stream/:type/:id.json`, `/:config/stream/:type/:id.json`
 
-### 1.3 Segment Streaming & MIME Handling (`src/routes/hls.js:243-285`)
-- Segments are streamed via Axios `responseType: 'stream'` and piped (`r.data.pipe(res)`).
-- Response headers set:
-  - CORS: `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Headers: *`, `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`.
-  - Cache: `Cache-Control: public, max-age=86400`.
-  - Content-Type override:
-    - Media segments: strictly set to `video/mp2t` (preventing CDNs from spoofing segments as `image/png` or `application/octet-stream`).
-    - AES keys: set to `application/octet-stream`.
-- Playlists (`/hls/manifest.m3u8`): `Content-Type: application/vnd.apple.mpegurl; charset=utf-8`.
+2. **Cinemeta Resolution (`src/lib/cinemeta.js` lines 16-172, `src/handlers.js` lines 843-860)**:
+   - Uses `axios.create({ baseURL: 'https://v3-cinemeta.strem.io', timeout: 5000 })`.
+   - Caches successful resolutions in `cinemetaCache` (LRU) for 24h (`CACHE_TTL_SUCCESS = 86400`) and negative results (404) for 1h (`CACHE_TTL_FAILURE = 3600`).
+   - Uses `inflightRequests` Map for single-flight deduplication.
+   - Parses canonical name, 4-digit release year (`parseYear`), genres (`parseGenres`), and aliases (`parseAliases`).
+   - Fallback behavior: Catch block returns `null` safely without throwing, allowing providers to fall back to direct IMDb lookup (`/api/movie?imdb=...` or `/imdb/title/...`).
 
-### 1.4 Upstream Headers & CDN Domains
-- **Current `SOURCE_REFERERS` mapping in `src/routes/hls.js:35-41`**:
-  ```javascript
-  const SOURCE_REFERERS = [
-    { pattern: /nguonc\.com/i,     referer: 'https://phim.nguonc.com/',   origin: 'https://phim.nguonc.com' },
-    { pattern: /phimapi\.com/i,    referer: 'https://phimapi.com/',       origin: 'https://phimapi.com' },
-    { pattern: /kkphim/i,          referer: 'https://kkphim.vip/',        origin: 'https://kkphim.vip' },
-    { pattern: /vsmov|streamvs/i,  referer: 'https://vsmov.com/',         origin: 'https://vsmov.com' },
-    { pattern: /streamc\./i,       referer: 'https://streamc.online/',    origin: 'https://streamc.online' },
-  ];
-  ```
-- **Observed KKPhim CDN domains in live API probe**:
-  - `v7.kkphimplayer7.com` (matched by `/kkphim/i` but erroneously assigned `referer: https://kkphim.vip/` instead of `https://player.phimapi.com/`).
-  - `s1.phim1280.tv` (not matched by any pattern; falls back to default origin).
-  - `s1.phimapi.com` (matched by `/phimapi\.com/i` but assigned `https://phimapi.com/` without `player.` subdomain).
-- **Current `src/providers/kkphim.js:347`**:
-  `const baseRef = 'https://phimapi.com/';` (uses `https://phimapi.com/` instead of `https://player.phimapi.com/`).
-- **Current `src/providers/kkphim.js:401-412`**:
-  Still pushes an external embed fallback stream with `externalUrl: targetEp.link_embed`.
-- **Current `HLS_UA` in `src/routes/hls.js:29`**:
-  Uses older Chrome 122 Windows UA string instead of Chrome 126 Macintosh UA.
+3. **Concurrency & Stream Aggregator (`src/handlers.js` lines 137-148, 922-980)**:
+   - Timeout isolation helper `withTimeout(promise, 4000, label)` implements `Promise.race([promise, timeoutPromise])` with `clearTimeout` in `.finally()`.
+   - `handleStream` executes all active configured providers concurrently using `Promise.allSettled(providersToRun.map(p => withTimeout(p.getStreams(payload), 4000, ...)))`.
+   - Results are sanitized: `externalUrl` is explicitly deleted (`delete sanitized.externalUrl`), `url` is preserved, priority sorted (VSMOV 4K rank 10 -> KKPhim rank 30 -> NguonC rank 50 -> Specialized rank 70-100), and deduplicated via `normalizeStreamKey`.
+   - Always returns HTTP 200 `{ streams: [...] }` (or `{ streams: [] }` on error).
 
-### 1.5 Live Playback Verification
-- Executed real E2E probe on title `cuu-mon`:
-  - Fetching `/stream/movie/kkphim_cuu-mon.json` generated proxy URL: `http://localhost:7892/hls/manifest.m3u8?url=...`.
-  - Fetching Master Manifest returned HTTP 200 with `#EXT-X-STREAM-INF` and rewritten sub-manifest URL.
-  - Fetching Media Manifest returned HTTP 200 with 3,331 lines and rewritten TS segments (`/hls/ts?b64=...`).
-  - Fetching TS Segment returned HTTP 200, `video/mp2t` header, 946,204 bytes, with verified MPEG-TS sync byte `0x47`.
+4. **22 K20 Standard Catalogs (`src/manifest.js` lines 63-363, `src/config.js` lines 12-23)**:
+   - `ALL_CATALOGS` in `src/manifest.js` declares exactly 22 catalogs:
+     - 2 VSMOV catalogs (`vsmov-4k`, `vsmov-thuyet-minh`)
+     - 4 KKPhim catalogs (`kkphim-movie-latest`, `kkphim-series-latest`, `kkphim-cinema-latest`, `kkphim-anime-latest`)
+     - 4 NguonC catalogs (`nguonc-movie-latest`, `nguonc-series-latest`, `nguonc-cinema-latest`, `nguonc-anime-latest`)
+     - 4 STP catalogs (`stp-au-my`, `stp-phim-le`, `stp-phim-bo`, `stp-han-quoc`)
+     - 3 HH3D catalogs (`hh3d-phim-le`, `hh3d-phim-bo`, `hh3d-tien-hiep`)
+     - 3 YAN catalogs (`yan-phim-le`, `yan-phim-bo`, `yan-dang-chieu`)
+     - 2 CLBPX catalogs (`clbpx-kiem-hiep`, `clbpx-hong-kong`)
+   - `DEFAULT_CONFIG` in `src/config.js` includes all 7 providers (`vsmov`, `kkphim`, `nguonc`, `stp`, `hh3d`, `yan`, `clbpx`) and all 4 categories (`movie`, `series`, `anime`, `cinema`).
+
+5. **Code Duplication Finding (`grep_search` results)**:
+   - `function scoreMatch` is declared locally in 8 files: `src/lib/utils.js:212`, `src/providers/vsmov.js:73`, `src/providers/kkphim.js:70`, `src/providers/nguonc.js:52`, `src/providers/stp.js:52`, `src/providers/hh3d.js:52`, `src/providers/yan.js:52`, `src/providers/clbpx.js:52`.
+   - `function escapeRegExp` is declared locally in 8 files: `src/lib/utils.js:65`, `src/providers/vsmov.js:48`, `src/providers/kkphim.js:52`, `src/providers/nguonc.js:44`, `src/providers/stp.js:44`, `src/providers/hh3d.js:44`, `src/providers/yan.js:44`, `src/providers/clbpx.js:44`.
+
+6. **Empirical Test Runs**:
+   - `node --check src/index.js src/handlers.js src/manifest.js src/config.js src/lib/cinemeta.js src/lib/utils.js`: Exited code 0 (Syntax valid).
+   - `node tests/test_routing_and_22_catalogs.js`: 64 passed, 0 failed.
+   - `node tests/verify_playback.js`: All 6 phases passed (manifest check, movie stream, series stream, playlist rewriting, 3.4MB video segment download with sync byte 0x47, HTTP 206 range request).
+   - `npm test`: 50 passed, 0 failed.
 
 ---
 
 ## 2. Logic Chain
 
-```
-[Observation 1.4 & 1.5] KKPhim CDNs use player.phimapi.com as expected Referer/Origin
-       │
-       ├─► Observation: src/routes/hls.js SOURCE_REFERERS maps phimapi.com -> https://phimapi.com/
-       │                and kkphim -> https://kkphim.vip/
-       │                and lacks explicit patterns for *.kkphimplayer*.com and phim1280.tv
-       │
-       ├─► Observation: src/providers/kkphim.js encodes baseRef as 'https://phimapi.com/'
-       │                instead of 'https://player.phimapi.com/'
-       │
-       ├─► Observation: src/providers/kkphim.js outputs embed stream with externalUrl
-       │                violating R1 requirement to strictly omit externalUrl for KKPhim
-       │
-       ▼
-[Conclusion] Optimization requires:
- 1. Update src/routes/hls.js:
-    - Set HLS_UA to Chrome 126 Mac User-Agent
-    - Update SOURCE_REFERERS to map /phimapi|kkphimplayer|kkphim|phim1280/i -> Referer: 'https://player.phimapi.com/', Origin: 'https://player.phimapi.com'
- 2. Update src/providers/kkphim.js:
-    - Set baseRef = 'https://player.phimapi.com/'
-    - Format stream title per R1: `[VIP • KKPhim] ${cleanServerName} [Tập ${epLabel}] Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`
-    - Strictly omit externalUrl (do not output embed stream for KKPhim)
- 3. Create tests/test_kkphim_playback.js covering all 3 test cases in R3.
-```
+1. **Routing Verification (From Observation 1 & 6)**:
+   - The dual route registration (default root and `/:config` prefix) in `src/routes/manifest.js` and `src/handlers.js` ensures that both standard Stremio installations and customized token installations resolve without 404s.
+   - Empirical validation across 64 endpoint variations confirmed 100% reachability.
+
+2. **Cinemeta & Metadata Resilience (From Observation 2 & 6)**:
+   - The 3-tier resolution architecture (LRU cache -> In-flight dedup -> Axios with 5s timeout -> Fallback negative cache) provides protection against upstream Cinemeta rate-limiting or downtime.
+   - The stream aggregator never fails if Cinemeta fails, as providers fall back to direct IMDb ID API querying.
+
+3. **Concurrency & Stream Quality (From Observation 3 & 6)**:
+   - `Promise.allSettled()` combined with `withTimeout(..., 4000)` ensures that a lagging provider cannot delay the stream response beyond 4 seconds.
+   - Stream ranking correctly orders 4K streams first, followed by HD Vietsub and Thuyết Minh.
+   - The strict deletion of `externalUrl` satisfies the Stremio in-app player contract.
+
+4. **Catalog Completeness (From Observation 4 & 6)**:
+   - All 22 catalogs across 7 providers are operational and return valid Stremio metadata.
+   - Filtering via `buildManifest(config)` correctly limits catalogs to enabled providers and categories.
+
+5. **Code Consolidation Recommendation (From Observation 5)**:
+   - All 7 providers duplicate `scoreMatch` and `escapeRegExp`. `src/lib/utils.js` already exports standard implementations.
+   - Consolidating imports in `src/providers/*.js` satisfies R1 requirement and prevents logic divergence.
 
 ---
 
 ## 3. Caveats
 
-1. **Ephemeral Server Port Binding**: When creating test scripts, `src/index.js` listens immediately upon require. Test scripts must assign `process.env.PORT = <test_port>` before `require('../src/index.js')` to avoid port collisions with the default port 7000.
-2. **Network Mode in Tests**: Local test runner needs `BypassSandbox: true` when running `run_command` in this environment so Node.js can bind to local sockets and resolve DNS for upstream provider APIs.
-3. **Obfuscated Segment Extensions**: Some CDNs deliver TS chunks as `.png` or query-parameterized URLs. The proxy already handles this correctly by rewriting all non-m3u8 lines under `#EXTINF` to `/hls/ts` and enforcing `Content-Type: video/mp2t`.
+- **External Upstream APIs**: Upstream third-party streaming APIs (`vsmov.com`, `phimapi.com`, `phim.nguonc.com`, `suutamphim.org`, `hoathinh3d`, `yandonghua`, `clbphimxua`) are external dependencies. While timeouts and fail-safes are active, availability of specific third-party streams depends on their server status.
+- **Search Query Formatting**: Search queries in Stremio usually follow `/catalog/:type/:id/search=:query.json`. If a client sends `/catalog/:type/search=:query.json` without `:id`, handlers should treat `:id` as extra to ensure 100% fault-tolerance.
 
 ---
 
-## 4. Conclusion & Concrete Action Plan
+## 4. Conclusion
 
-### 4.1 Changes for `src/providers/kkphim.js` (Requirement R1)
-1. Set `baseRef = 'https://player.phimapi.com/'`.
-2. Format `title` strictly per R1:
-   - For movie / single episode: `[VIP • KKPhim] ${cleanServerName} [Tập Full] Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App` (or `[Tập ${ep.name}]`).
-   - For series: `[VIP • KKPhim] ${cleanServerName} [Tập ${ep.name}] Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`.
-3. URL: `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${encodeBase64('https://player.phimapi.com/')}`.
-4. Remove/omit `externalUrl` embed fallback streams completely so KKPhim streams are 100% in-app direct play.
-
-### 4.2 Changes for `src/routes/hls.js` (Requirement R2)
-1. Update `HLS_UA`:
-   `const HLS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';`
-2. Update `SOURCE_REFERERS`:
-   Include `/phimapi|kkphimplayer|kkphim|phim1280/i` with `referer: 'https://player.phimapi.com/'` and `origin: 'https://player.phimapi.com'`.
-3. Ensure CORS (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Headers: *`) and MIME types (`application/vnd.apple.mpegurl`, `video/mp2t`, `application/octet-stream`) remain strictly enforced.
-
-### 4.3 Implementation for `tests/test_kkphim_playback.js` (Requirement R3)
-Create self-contained test script implementing:
-- **Test Case 1**: Fetch stream list for `cuu-mon` (or `tt...` / `kkphim_cuu-mon`), verify `[VIP • KKPhim]` stream exists with valid `url` and NO `externalUrl`.
-- **Test Case 2**: GET proxy manifest URL, verify HTTP 200, `#EXTM3U` header, and presence of rewritten sub-manifest or `/hls/ts` links.
-- **Test Case 3**: GET rewritten `/hls/ts` video segment, verify HTTP 200, `video/mp2t` Content-Type, non-empty buffer (> 100KB), and MPEG-TS sync byte (`0x47`).
+The core routing, handlers, stream aggregator, Cinemeta resolution, and 22 standard K20 catalogs in Stremio VIP Movies Addon v1.5.0 are architecturally sound, thoroughly tested, and ready for production deployment. The only remaining maintenance item is consolidating the duplicated `scoreMatch` and `escapeRegExp` helper functions in the 7 provider files to strictly import from `src/lib/utils.js`.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify the implementation:
+To independently verify all findings:
 
-1. **Syntax validation**:
+1. **Syntax Integrity**:
    ```bash
-   node --check src/index.js
-   node --check src/routes/hls.js
-   node --check src/providers/kkphim.js
+   node --check src/index.js src/handlers.js src/manifest.js src/config.js src/lib/cinemeta.js src/lib/utils.js
    ```
-
-2. **Playback test suite**:
+2. **22 Catalogs & 404 Routing Verification**:
    ```bash
-   node tests/test_kkphim_playback.js
+   node tests/test_routing_and_22_catalogs.js
    ```
-   Expectation: All 3 test cases pass with 0 errors.
-
-3. **Full regression suite**:
+3. **Real Video Playback & Binary Chunk Verification**:
    ```bash
-   node tests/e2e.test.js
+   node tests/verify_playback.js
    ```
-   Expectation: 94+ assertions pass with 0 failures.
+4. **Integration Test Suite**:
+   ```bash
+   npm test
+   ```
+5. **Inspect Generated Survey Report**:
+   ```bash
+   cat .agents/explorer_survey_2/survey_report.md
+   ```

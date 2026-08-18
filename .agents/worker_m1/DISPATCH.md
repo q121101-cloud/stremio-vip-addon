@@ -1,28 +1,21 @@
-# Dispatch Log
+## 2026-08-18T00:57:52Z
+You are Worker 1 assigned to Milestone 1 (Provider Standardization & Deduplication) for Stremio VIP Movies Addon Engine v1.5.0.
 
-## 2026-08-17T08:26:05Z
-You are Worker 1 implementing Milestone 1: KKPhim Provider In-App Stream Format.
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m1
-The original user request is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-The project plan is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-The project root is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+Your working directory is:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m1/`
+Project root:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 
-MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+Authoritative User Request:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
+Project Architecture & Contracts:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/PROJECT.md`
 
-File Ownership: You exclusively own `src/providers/kkphim.js`. Do not modify other files in this milestone.
-
-Requirements:
-1. Read ORIGINAL_REQUEST.md and PROJECT.md.
-2. In `src/providers/kkphim.js`:
-   - Set `baseRef` to `'https://player.phimapi.com/'`.
-   - Ensure `link_m3u8` is extracted properly from `episodes[].server_data[]`.
-   - Ensure accurate episode resolution (index 0 for movie / single episode, matching `ep.name` or `tap-${episode}` for series).
-   - Format stream objects strictly:
-     - `name`: `"VIP Movies 🎬"`
-     - `title`: `[VIP • KKPhim] ${server.server_name} [Tập ${ep.name}] Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App` (handling 'Full' or episode name cleanly).
-     - `url`: `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(ep.link_m3u8)}&ref=${encodeBase64('https://player.phimapi.com/')}`
-     - Strictly omit `externalUrl` so Stremio plays inside the native player. Remove any embed fallback streams for KKPhim.
-3. Verify with `node --check src/providers/kkphim.js` and test stream generation locally.
-4. Document all changes and test results in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m1/handoff.md`.
-5. Send a completion message when done.
+Tasks:
+1. Inspect `src/lib/utils.js` and all 7 provider files: `src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/stp.js`, `src/providers/hh3d.js`, `src/providers/yan.js`, `src/providers/clbpx.js`.
+2. Refactor all 7 provider files so that `scoreMatch` and `escapeRegExp` are imported directly from `../lib/utils.js` (e.g. `const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');`), and remove the duplicate local function definitions of `scoreMatch` and `escapeRegExp`.
+3. Confirm that all 7 providers export `getStreams(type, id, extra, req)` / `getStreams(payload)` and `getCatalog(type, id, extra, page)`.
+4. Ensure all streams strictly use `url` for in-app HLS Proxy (`/hls/manifest.m3u8?url=...&ref=...`) and omit `externalUrl`.
+5. Run `node --check src/index.js src/providers/*.js src/lib/*.js` to verify syntax.
+6. Run `node tests/verify_playback.js` and `npm test` to verify zero regressions.
+7. Write your changes and handoff report in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m1/handoff.md` and send a message when complete.

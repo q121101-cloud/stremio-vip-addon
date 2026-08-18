@@ -1,16 +1,22 @@
-## 2026-08-17T08:21:53Z
+## 2026-08-18T00:55:10Z
 
 <USER_REQUEST>
-You are Explorer 2 for the initial project survey phase.
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_2
-The original user request is at: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-The project root is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
+You are Explorer 2 for the survey phase of Stremio VIP Movies Addon Engine v1.5.0.
 
-Please read ORIGINAL_REQUEST.md first.
-Investigate the current codebase focusing on:
-1. `src/routes/hls.js` and server setup in `src/index.js` or related route files.
-2. How the HLS proxy currently operates, how playlists (.m3u8) are fetched and rewritten, how segments (.ts) are fetched and proxied.
-3. How upstream headers (`Referer`, `Origin`, `User-Agent`) are handled, what CDN domains need bypassing (e.g., `*.kkphimplayer*.com`), CORS headers, and MIME type handling (`application/vnd.apple.mpegurl`, `video/mp2t`).
+Your working directory is:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_2/`
+Project root:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 
-Produce a detailed analysis report in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_2/handoff.md` and send a message when complete.
+Authoritative User Request:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
+
+Your Mission:
+Investigate routing, handlers, aggregator, manifest, and catalog configuration:
+1. Check `src/handlers.js`, `src/index.js`, `src/manifest.js`, `src/config.js`.
+2. Inspect Cinemeta resolution for IMDb IDs (movie and series) and fallback behavior.
+3. Check concurrency via `Promise.allSettled()` with a 4000ms timeout per provider in `src/handlers.js`.
+4. Inspect routing in `src/index.js` to ensure both default and `/:config`-prefixed routes are mounted for `/manifest.json`, `/catalog/:type/:id.json`, `/catalog/:type/:id/:extra.json`, `/stream/:type/:id.json`, `/meta/:type/:id.json` and ensure search queries never return 404.
+5. Inspect the 22 K20 standard catalogs in `src/manifest.js` and `src/config.js`.
+6. Write your comprehensive survey report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_2/survey_report.md` and a handoff report at `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_2/handoff.md`. Send a message when complete.
 </USER_REQUEST>

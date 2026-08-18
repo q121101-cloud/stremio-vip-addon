@@ -1,13 +1,15 @@
-# Progress — Explorer 1
+# Progress Tracking - Explorer Survey 1
 
-Last visited: 2026-08-17T08:25:00Z
-Status: Survey completed. Writing handoff report.
+**Last visited**: 2026-08-18T00:57:10Z
 
-## Checklist
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] List codebase files and directory layout
-- [x] Analyze `src/providers/kkphim.js`
-- [x] Analyze other providers (`src/providers/nguonc.js`, `src/providers/vsmov.js`)
-- [x] Analyze proxy URL building and base64 encoding across the codebase
-- [x] Live API and Proxy probe on KKPhim `cuu-mon`
-- [x] Synthesize findings and write handoff report (`handoff.md`)
+- [x] Initialized DISPATCH.md, BRIEFING.md, progress.md
+- [x] Inspect `src/lib/utils.js` (exported functions, completeness vs requirements)
+- [x] Inspect all 7 provider files (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`):
+  - [x] Duplicate functions detection (`scoreMatch` and `escapeRegExp` identified across all 7 providers)
+  - [x] Standard contract compliance (`getStreams(type, id, extra, req)` / `getStreams(payload)` & `getCatalog(type, page, extra)`)
+  - [x] Stream extraction logic & upstream CDN Referer headers
+  - [x] Stream title formatting
+  - [x] `url` vs `externalUrl` compliance (strictly `url` used, `externalUrl` omitted)
+- [x] Synthesize findings and write `survey_report.md`
+- [x] Write `handoff.md`
+- [x] Send completion message to parent

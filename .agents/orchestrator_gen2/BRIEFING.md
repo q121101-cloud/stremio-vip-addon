@@ -52,12 +52,16 @@ Complete Milestone 2 remediation, Milestone 3 & 4 implementation, Milestone 5 & 
 | challenger_m3_1_gen2 | teamwork_preview_challenger | M3/M4 Stress Test 1 | in-progress | 292d23d1-890a-435e-ad63-759e71b0de6c |
 | challenger_m3_2_gen2 | teamwork_preview_challenger | M3/M4 Stress Test 2 | in-progress | 99555948-1506-45bb-b237-a45cad70ae40 |
 | auditor_m3_gen2 | teamwork_preview_auditor | M3/M4 Forensic Audit | completed | 38937847-bb30-41a2-adc2-6f42bb29506a |
-| worker_m5_m6_gen2 | teamwork_preview_worker | M5/M6 Verification, UI, Version & Git | in-progress | f1bf47eb-5592-49b4-96a2-0987733b7f63 |
+| worker_m5_m6_gen2 | teamwork_preview_worker | M5/M6 Verification, UI, Version & Git | completed | f1bf47eb-5592-49b4-96a2-0987733b7f63 |
+| reviewer_m5_m6_1_gen2 | teamwork_preview_reviewer | Final Review 1 | in-progress | 6fcdf8ec-f4fe-4c30-ba2a-acb881ff3418 |
+| reviewer_m5_m6_2_gen2 | teamwork_preview_reviewer | Final Review 2 | in-progress | 47edeb6d-2b28-4d92-ad70-97f731efcc32 |
+| challenger_final_gen2 | teamwork_preview_challenger | Final Stress Test | in-progress | 6ae629d3-3174-4d79-a466-893774600539 |
+| auditor_final_gen2 | teamwork_preview_auditor | Final Forensic Audit | in-progress | 5c44083a-f94d-4886-9a0b-b073e3898500 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 13 / 16
-- Pending subagents: f1bf47eb-5592-49b4-96a2-0987733b7f63
+- Spawn count: 17 / 16
+- Pending subagents: 6fcdf8ec-f4fe-4c30-ba2a-acb881ff3418, 47edeb6d-2b28-4d92-ad70-97f731efcc32, 6ae629d3-3174-4d79-a466-893774600539, 5c44083a-f94d-4886-9a0b-b073e3898500
 - Predecessor: orchestrator (Gen 1)
 - Successor: not yet spawned
 

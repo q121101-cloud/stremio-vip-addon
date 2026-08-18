@@ -1,36 +1,22 @@
-## 2026-08-17T08:58:21Z
-You are Worker 4 for Milestone 4: Full Verification & Git Deployment.
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m4
+## 2026-08-18T01:02:14Z
+You are Worker 2 assigned to Milestone 4 (UI Preservation, Versioning & Git Release) for Stremio VIP Movies Addon Engine v1.5.0.
 
-Read:
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+Your working directory is:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m4/`
+Project root:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 
-Tasks:
-1. Run syntax verification on all codebase files:
-   - `node --check src/index.js`
-   - `node --check src/routes/hls.js`
-   - `node --check src/providers/kkphim.js`
-   - `node --check src/handlers.js`
-   - `node --check tests/test_kkphim_playback.js`
-   - `node --check tests/e2e.test.js`
+Authoritative User Request:
+`/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
 
-2. Run all test suites:
-   - `node tests/test_kkphim_playback.js`
-   - `node tests/e2e.test.js`
-   - `node tests/m3_verification.test.js`
-   - `node tests/test_live_kkphim_proxy.js`
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-3. Update `PROJECT.md` if needed to mark Milestone 4 as `DONE`.
-
-4. Git Commit & Push:
-   - Run `git status`
-   - Run `git add .`
-   - Run `git commit -m "Fix & Verify: 100% In-App Playback for KKPhim with E2E verified HLS Proxy"`
-   - Run `git push origin main`
-
-5. MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations and test runs must be genuine. A forensic auditor verifies work integrity.
-
-6. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m4/handoff.md` including exact command outputs, git commit hash, and verification status.
-Send a message to parent when done.
+Your Tasks:
+1. Verify Cyber-Glassmorphism UI in `src/handlers.js` (or related UI files) includes the glowing signature: `VIP Movies Addon v1.5.0 • Powered by <span class="brand-highlight">Q121101</span>`.
+2. Ensure version `1.5.0` is strictly synchronized in `package.json`, `src/manifest.js`, `src/config.js`, and `src/handlers.js`.
+3. Check `git status`. Stage all modified files and commit with the exact required commit message:
+   `git add . && git commit -m "Engine v1.5.0: Production-Ready 7-Source Swarm with 22 Catalogs & E2E Verified 4K Playback via Teamwork Preview" && git push origin main`
+4. Confirm git commit and push completed successfully (check `git log -1` and `git status`).
+5. Run `node --check src/index.js` and `node tests/verify_playback.js` to ensure the release is 100% clean and passing.
+6. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m4/handoff.md` and send a message when complete.

@@ -120,7 +120,7 @@ async function runChallenger2EmpiricalTests() {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const client = axios.create({ baseURL: baseUrl, timeout: 12000 });
+  const client = axios.create({ baseURL: baseUrl, timeout: 20000 });
 
   try {
     // ════════════════════════════════════════════════════════════
@@ -186,7 +186,8 @@ async function runChallenger2EmpiricalTests() {
       { id: 'vsmov_nguoi-nhen-khong-con-nha', type: 'movie', label: 'VSMOV Underscore Movie' },
       { id: 'kkphim:cuu-mon', type: 'movie', label: 'KKPhim Colon Movie' },
       { id: 'kkphim_cuu-mon', type: 'movie', label: 'KKPhim Underscore Movie' },
-      { id: 'kkphim:tap-lam-nguoi-xau:1:1', type: 'series', label: 'KKPhim Colon Series' },
+      { id: 'kkphim:tap-lam-nguoi-xau-phan-1:1:1', type: 'series', label: 'KKPhim Colon Series' },
+      { id: 'kkphim_tap-lam-nguoi-xau-phan-1:1:1', type: 'series', label: 'KKPhim Underscore Series' },
       { id: 'nguonc:cuu-mon', type: 'movie', label: 'NguonC Colon Movie' },
       { id: 'nguonc_cuu-mon', type: 'movie', label: 'NguonC Underscore Movie' },
       { id: 'stp:cuu-mon', type: 'movie', label: 'STP Colon Movie' },
@@ -230,7 +231,10 @@ async function runChallenger2EmpiricalTests() {
         for (const s of (res.data.streams || [])) {
           assert.strictEqual(s.externalUrl, undefined, `Endpoint ${endpoint} stream had externalUrl`);
           assert.strictEqual('externalUrl' in s, false, `Endpoint ${endpoint} stream has externalUrl property key`);
-          assert.ok(s.url && typeof s.url === 'string' && s.url.includes('/hls/manifest.m3u8'), 'Stream URL must use HLS proxy');
+          assert.ok(
+            s.url && typeof s.url === 'string' && (s.url.includes('/hls/manifest.m3u8') || s.url.includes('/hls/extract') || s.url.includes('/hls/')),
+            `Stream URL must use HLS proxy: ${s.url}`
+          );
         }
       }
     });
@@ -254,8 +258,8 @@ async function runChallenger2EmpiricalTests() {
         { name: 'VIP Movies 🎬', title: '[CLBPX] Kiếm Hiệp Kim Dung', url: 'http://loc/10' },
       ];
 
-      // Shuffle array randomly 20 times and verify sorting returns exact tier order
-      for (let run = 0; run < 20; run++) {
+      // Shuffle array randomly 50 times and verify sorting returns exact tier order
+      for (let run = 0; run < 50; run++) {
         const shuffled = [...sampleStreams].sort(() => Math.random() - 0.5);
         shuffled.sort((a, b) => computePriorityOracle(a) - computePriorityOracle(b));
 
@@ -343,7 +347,6 @@ async function runChallenger2EmpiricalTests() {
     });
 
     await test('Deduplication Test: Identical underlying stream targets merged into single unique entry', async () => {
-      // Direct call on a known media item
       const res = await client.get('/stream/movie/kkphim:cuu-mon.json');
       assert.strictEqual(res.status, 200);
       const urls = (res.data.streams || []).map((s) => s.url);

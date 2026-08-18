@@ -1,7 +1,7 @@
-# BRIEFING — 2026-08-17T08:25:50Z
+# BRIEFING — 2026-08-18T07:57:00Z
 
 ## Mission
-Survey the stremio-nguonc-addon test infrastructure, server lifecycle for ephemeral E2E testing, KKPhim playback test requirements, git status, and code syntax.
+Investigate testing infrastructure, HLS proxy mechanics, UI, and release readiness for Stremio VIP Movies Addon Engine v1.5.0.
 
 ## 🔒 My Identity
 - Archetype: explorer
@@ -16,22 +16,23 @@ Survey the stremio-nguonc-addon test infrastructure, server lifecycle for epheme
 - Report findings back to parent via send_message
 
 ## Current Parent
-- Conversation ID: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c
-- Updated: 2026-08-17T08:25:50Z
+- Conversation ID: d0d9d1e0-d0af-4902-a2b7-48ea2868170d
+- Updated: 2026-08-18T07:57:00Z
 
 ## Investigation State
-- **Explored paths**: `tests/`, `src/index.js`, `src/handlers.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `package.json`, git remote and branch status.
+- **Explored paths**: `src/routes/hls.js`, `src/index.js`, `src/handlers.js`, `src/manifest.js`, `src/config.js`, `tests/verify_playback.js`, `tests/test_kkphim_playback.js`, `tests/test_routing_and_22_catalogs.js`, `tests/e2e.test.js`, `package.json`, git remote and branch status.
 - **Key findings**:
-  1. Test infrastructure is robust with `tests/e2e.test.js`, `tests/helpers.js`, and `tests/provider_challenger.test.js`.
-  2. Ephemeral port startup is achieved cleanly via `app.listen(0, '127.0.0.1')`.
-  3. Live empirical probing of KKPhim slug `cuu-mon` succeeded through all 3 stages (stream generation, manifest rewrite, segment binary buffer fetch of ~946KB).
-  4. Git repository is on `main` tracking `https://github.com/q121101-cloud/stremio-vip-addon.git`. All src files pass `node --check`.
-- **Unexplored areas**: None for survey phase.
+  1. HLS proxy router in `src/routes/hls.js` handles anti-403 referer injection, recursive manifest rewriting, key proxying, and streaming video `.ts` chunks with HTTP 206 range seeking.
+  2. `tests/verify_playback.js` starts an ephemeral server on port 0, resolves streams, rewrites manifests, and downloads a real 3.42MB video `.ts` segment with HTTP 200 and valid `0x47` sync bytes.
+  3. UI in `src/handlers.js` implements Cyber-Glassmorphism layout with glowing signature: `VIP Movies Addon v1.5.0 • Powered by <span class="brand-highlight">Q121101</span>`.
+  4. Version numbers synchronized to `1.5.0` in `package.json`, `manifest.js`, and `config.js`. Git tracking `origin/main` at `https://github.com/q121101-cloud/stremio-vip-addon.git`. All JS files pass `node --check` with 0 errors.
+- **Unexplored areas**: None. Survey is comprehensive and complete.
 
 ## Key Decisions Made
-- Completed survey report in `handoff.md`.
+- Generated `survey_report.md` and 5-component `handoff.md` in `.agents/explorer_survey_3/`.
 
 ## Artifact Index
-- handoff.md — Comprehensive survey report
-- progress.md — Heartbeat and progress tracker
-- DISPATCH.md — Received dispatch log
+- survey_report.md — Comprehensive technical survey report
+- handoff.md — 5-Component handoff report
+- progress.md — Progress tracking log
+- DISPATCH.md — Received dispatches

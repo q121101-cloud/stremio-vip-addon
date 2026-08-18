@@ -18,7 +18,7 @@
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
 const { getCachedCinemeta } = require('../lib/cinemeta');
-const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch } = require('../lib/utils');
+const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
 
 const PROVIDER_ID    = 'hh3d';
 const PROVIDER_LABEL = 'HH3D • 3D Donghua';
@@ -40,11 +40,6 @@ function encodeBase64(str) {
   return Buffer.from(str, 'utf8').toString('base64url');
 }
 
-function escapeRegExp(str) {
-  if (!str) return '';
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function formatEpisodeLabel(epName) {
   if (!epName) return '';
   const trimmed = String(epName).trim();
@@ -53,81 +48,6 @@ function formatEpisodeLabel(epName) {
     return ` [${trimmed}]`;
   }
   return ` [Tập ${trimmed}]`;
-}
-
-/**
- * Similarity and year score matching
- */
-function scoreMatch(item, title, year = null, season = null) {
-  if (!item || !title) return 0;
-  const normalize = (s) =>
-    String(s || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[đĐ]/g, 'd')
-      .replace(/[^\w\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const target = normalize(title);
-  if (!target || target.length < 2) return 0;
-
-  const nameNorm = normalize(item.name || item.title);
-  const originNorm = normalize(item.origin_name || item.original_name);
-  const slugNorm = normalize(String(item.slug || '').replace(/[-_]/g, ' '));
-
-  let score = 0;
-  if (nameNorm === target || originNorm === target || slugNorm === target) {
-    score = 1.0;
-  } else if (
-    (target.length >= 4 && (` ${nameNorm} `.includes(` ${target} `) || ` ${originNorm} `.includes(` ${target} `) || ` ${slugNorm} `.includes(` ${target} `))) ||
-    (nameNorm.length >= 4 && ` ${target} `.includes(` ${nameNorm} `)) ||
-    (originNorm.length >= 4 && ` ${target} `.includes(` ${originNorm} `))
-  ) {
-    score = 0.8;
-  } else {
-    const targetWords = new Set(target.split(' ').filter((w) => w.length > 1));
-    const candidateWords = new Set([...nameNorm.split(' '), ...originNorm.split(' '), ...slugNorm.split(' ')].filter((w) => w.length > 1));
-    if (targetWords.size > 0 && candidateWords.size > 0) {
-      const common = [...targetWords].filter((w) => candidateWords.has(w)).length;
-      const ratio = common / targetWords.size;
-      if (ratio >= 0.45) {
-        score = ratio * 0.7;
-      }
-    }
-  }
-
-  if (score <= 0) return 0;
-
-  if (year && (item.year || item.releaseInfo)) {
-    let itemYear = null;
-    if (typeof item.year === 'number') itemYear = item.year;
-    else if (typeof item.year === 'string') {
-      const ym = item.year.match(/\b(19\d\d|20\d\d)\b/);
-      if (ym) itemYear = parseInt(ym[1], 10);
-    }
-    const targetYear = parseInt(year, 10);
-    if (!isNaN(targetYear) && itemYear && !isNaN(itemYear)) {
-      if (itemYear === targetYear) score += 0.25;
-      else if (Math.abs(itemYear - targetYear) <= 1) score += 0.1;
-      else score -= 0.2;
-    }
-  }
-
-  if (season != null) {
-    const sNum = parseInt(season, 10);
-    if (!isNaN(sNum) && sNum > 0) {
-      const sm = nameNorm.match(/\b(?:phan|season|part|ss)\s*(\d+)\b/) ||
-                 originNorm.match(/\b(?:phan|season|part|ss)\s*(\d+)\b/) ||
-                 slugNorm.match(/\b(?:phan|season|part|ss)\s*(\d+)\b/);
-      const itemSeason = sm ? parseInt(sm[1], 10) : 1;
-      if (itemSeason === sNum) score += 0.3;
-      else if (sNum > 1 && itemSeason === 1) score -= 0.25;
-    }
-  }
-
-  return Math.max(0, score);
 }
 
 /**
