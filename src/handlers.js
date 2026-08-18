@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/handlers.js  (Engine v1.5.0)
+ *  VIP Movies Addon — src/handlers.js  (Engine v1.5.1)
  *  Stremio Addon Express Route Handlers
  *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov)
  *  - Dynamic Catalog & Meta Router
@@ -311,7 +311,7 @@ router.get('/', (req, res) => {
       </div>
       <div class="live-badge">
         <span class="pulse-dot" aria-hidden="true"></span>
-        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.0
+        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.1
       </div>
     </header>
 
@@ -433,7 +433,7 @@ router.get('/', (req, res) => {
     </div>
 
     <div class="footer">
-      VIP Movies Addon v1.5.0 &bull; Powered by <span class="brand-highlight">Q121101</span>
+      VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>
     </div>
   </div>
 
@@ -951,6 +951,9 @@ async function handleStream(req, res) {
               ...(item.behaviorHints || {}),
             },
           };
+          if (Array.isArray(item.subtitles)) {
+            sanitized.subtitles = item.subtitles;
+          }
           delete sanitized.externalUrl;
           mergedStreams.push(sanitized);
         }

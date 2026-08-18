@@ -1,13 +1,19 @@
-## Milestone 1 Challenger 1 Dispatch
-Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
-Agent Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1
-Target Module: `src/lib/cinemeta.js` and `src/lib/cache.js`
-Original Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+## 2026-08-18T01:41:00Z
 
-Task:
-1. Write and execute empirical test harness to stress-test `src/lib/cinemeta.js` and `cinemetaCache`.
-2. Test cases:
-   - Live Cinemeta resolution on movie (`tt1375666` -> Inception, 2010), series (`tt0903747:1:1` -> Breaking Bad, 2008).
-   - Cache hit/miss timing and LRU eviction under load.
-   - Fault injection: Invalid IMDb ID, simulated network timeout/failure.
-3. Provide an empirical verdict in handoff.md: **APPROVE** or **REJECT**.
+You are teamwork_preview_challenger_m1_1.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1
+Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+
+As an adversarial challenger, test the Milestone 1 changes in `src/routes/hls.js` and `src/handlers.js`:
+- Create an empirical stress / edge-case test script in your working directory.
+- Test adversarial cases for `/hls/sub.vtt`:
+  - Malformed base64 strings, URL-encoded URLs, spaces, nested URLs.
+  - Large subtitle payloads (>1MB).
+  - Malformed SRTs (multiple linebreaks, non-standard timestamp digits, no trailing newlines, BOM variations).
+  - WebVTT headers already present with styling cues vs plain SRT.
+  - Fast burst concurrency requests to `/hls/sub.vtt`.
+- Verify server stability, memory safety, and proper HTTP status code handling.
+- Conclude with a clear verdict: `APPROVE` or `REJECT`.
+
+Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1/handoff.md` and send a message back to parent.

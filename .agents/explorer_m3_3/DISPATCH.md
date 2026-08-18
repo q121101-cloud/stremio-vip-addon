@@ -1,17 +1,17 @@
-## 2026-08-17T08:49:29Z
+## 2026-08-18T01:51:48Z
+You are Explorer 3 for Milestone 3 (Version Bump & UI Branding).
 
-You are Explorer 3 for Milestone 3: E2E Stream Playback Test & Self-Debug Loop.
-Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3
+Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Project Scope file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
 
-Read:
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/package.json
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/
+MANDATORY: Read ORIGINAL_REQUEST.md and PROJECT.md before starting work.
+You are read-only: do NOT edit source files.
 
-Investigate:
-1. Test execution environment, dependencies (e.g. node-fetch / native fetch, express, etc.).
-2. How `tests/test_kkphim_playback.js` should be structured as a standalone executable test (`node tests/test_kkphim_playback.js`) with exit code 0 on success, non-zero on failure.
-3. Edge cases: What if upstream returns a master playlist vs media playlist? How to handle master playlist parsing to find a media playlist, and then fetch a TS segment?
-4. Write a comprehensive design specification in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/handoff.md`.
-Send a message back to parent when done.
+Task:
+1. Inspect `package.json`, `package-lock.json` (if present), `src/manifest.js`, `src/handlers.js`, `src/index.js`.
+2. Map out the exact diff required to upgrade the addon to `1.5.1`.
+3. Check syntax verification requirements (`node --check ...`) and test impacts.
+4. Recommend exact replacement chunks for the Worker.
+5. Write your analysis to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/handoff.md`.
+6. Send a message back to the orchestrator when finished.

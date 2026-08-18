@@ -1,302 +1,190 @@
-# Milestone 3 Handoff Report: E2E Stream Playback Test & Self-Debug Loop
+# Milestone 3 Investigation Report: Version Bump & UI Branding to v1.5.1
 
 ## 1. Observation
 
-### Codebase & Component Analysis
-1. **Express Server Lifecycle (`src/index.js`)**:
-   - `src/index.js` (lines 21-25, 65, 82, 96):
-     ```javascript
-     const PORT = parseInt(process.env.PORT || '7000', 10);
-     const HOST = process.env.HOST || '0.0.0.0';
-     const app = express();
-     ...
-     const server = app.listen(PORT, HOST, () => { ... });
-     module.exports = app;
-     ```
-   - When loaded, `src/index.js` attempts to bind immediately to `process.env.PORT` or `7000`.
-   - Creating a test-controlled Express instance using the actual routers (`src/routes/hls.js`, `src/handlers.js`) and listening on port `0` (`app.listen(0, '127.0.0.1')`) assigns an OS-managed ephemeral port (`server.address().port`), avoiding any conflict with concurrently running instances.
+Direct code inspection of the repository located all occurrences of version strings and UI branding elements:
 
-2. **KKPhim Stream Provider (`src/providers/kkphim.js`)**:
-   - `getStreams(arg1, title, type, season, episode, proxyBase)` (lines 286-424):
-     - Resolves movie/series detail from `https://phimapi.com/phim/${slug}` via `getDetail(slug)`.
-     - Extracts `targetEp.link_m3u8` from `episodes[].server_data[]`.
-     - Formats stream object strictly for Stremio In-App playback:
-       - `name`: `'VIP Movies 🎬'`
-       - `title`: `[VIP • KKPhim] ${cleanServerName}${epLabel} Full HD (HLS Proxy)\n⚡ Server VIP • Phát trực tiếp trong App`
-       - `url`: `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${encodeBase64('https://player.phimapi.com/')}`
-       - `behaviorHints`: `{ notSupported: false, bingeGroup: 'kkphim-cuu-mon' }`
-       - Strictly omits `externalUrl`.
+### 1.1 `package.json`
+- **Path**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/package.json`
+- **Line 3**: `"version": "1.5.0",`
+- **Context**: Root package descriptor for Node.js / npm.
 
-3. **Stream Aggregator Route (`src/handlers.js`)**:
-   - `GET /stream/:type/:id.json` (lines 551-659):
-     - Parses ID: if `id.startsWith('kkphim:')`, strips prefix to extract `slug`.
-     - For `id = 'kkphim:cuu-mon'` or `id = 'kkphim:cuu-mon:1:1'`, `slug` is parsed as `'cuu-mon'`.
-     - Passes payload `{ slug, type, season, episode, proxyBase }` to `kkphim.getStreams(payload)`.
-     - Sanitizes stream objects, stripping `externalUrl` when `url` is present.
+### 1.2 `src/manifest.js`
+- **Path**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/manifest.js`
+- **Line 5**: ` *  VIP Movies Stremio Addon - src/manifest.js  (v1.5.0)`
+- **Line 387**: `  version: '1.5.0',` inside `BASE_MANIFEST` object.
+- **Context**: The `version` property is exported via `BASE_MANIFEST` and served to Stremio clients when requesting `/manifest.json` and `/:config/manifest.json`.
 
-4. **HLS Proxy Router (`src/routes/hls.js`)**:
-   - `GET /hls/manifest.m3u8` (lines 161-281):
-     - Injects upstream anti-403 headers: `Referer: https://player.phimapi.com/`, `Origin: https://player.phimapi.com`, `User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0.0.0 Safari/537.36`.
-     - Rewrites playlist lines:
-       - Master playlists (`#EXT-X-STREAM-INF` / `.m3u8` URIs) rewrite to `${protoHost}/hls/manifest.m3u8?url=<base64url>&ref=<base64url>`.
-       - Media segments (`.ts` lines) rewrite to `${protoHost}/hls/ts?url=<base64url>&ref=<base64url>`.
-       - Enforces CORS `Access-Control-Allow-Origin: *` and `Content-Type: application/vnd.apple.mpegurl; charset=utf-8`.
-   - `GET /hls/ts` (lines 287-338):
-     - Proxies upstream video chunks with `Referer` and `Origin`.
-     - Pipes binary stream directly to client.
-     - Enforces `Content-Type: video/mp2t` and CORS `Access-Control-Allow-Origin: *`.
+### 1.3 `src/handlers.js` (UI Configurator Dashboard & Route Handlers)
+- **Path**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/handlers.js`
+- **Line 5**: ` *  VIP Movies Addon — src/handlers.js  (Engine v1.5.0)`
+- **Line 314**:
+  ```html
+        <div class="live-badge">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.0
+        </div>
+  ```
+- **Line 436**:
+  ```html
+      <div class="footer">
+        VIP Movies Addon v1.5.0 &bull; Powered by <span class="brand-highlight">Q121101</span>
+      </div>
+  ```
+- **Styling Preservation**:
+  - The Cyber-Glassmorphism CSS design system is defined in lines 174–295 of `src/handlers.js`:
+    - `.aurora` / `.orb` (lines 206–211): Glowing floating blur orbs.
+    - `.glass-card` (line 224): Translucent card with `backdrop-filter: blur(28px)`.
+    - `.brand-highlight` (lines 292–293):
+      ```css
+      .brand-highlight { font-weight:800;background:linear-gradient(135deg,#a855f7 0%,#ec4899 50%,#38bdf8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 8px rgba(236,72,153,0.6));letter-spacing:0.5px;padding:0 2px;display:inline-block;transition:all 0.3s ease; }
+      .brand-highlight:hover { filter:drop-shadow(0 0 14px rgba(56,189,248,0.8));transform:scale(1.06); }
+      ```
+    - `.pulse-dot` (lines 222–223): Animated green blinking status light.
 
-5. **Empirical Live Probing for Slug `cuu-mon`**:
-   - Live request to `https://phimapi.com/phim/cuu-mon` confirmed:
-     - `movie.type`: `'single'` (`Cửu Môn`)
-     - `episodes`: 1 server (`Vietsub`), 1 episode (`name: 'Full'`)
-     - `link_m3u8`: `https://s1.phim1280.tv/20230929/a3nZqLHv/index.m3u8`
-   - Manifest request to proxy returned Master Playlist:
-     `http://127.0.0.1:${port}/hls/manifest.m3u8?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUxIdi8yMDAwa2IvaGxzL2luZGV4Lm0zdTg&ref=aHR0cHM6Ly9wbGF5ZXIucGhpbWFwaS5jb20v`
-   - Sub-manifest request returned Media Playlist with rewritten TS chunks:
-     `http://127.0.0.1:${port}/hls/ts?url=aHR0cHM6Ly9zMS5waGltMTI4MC50di8yMDIzMDkyOS9hM25acUxIdi8yMDAwa2IvaGxzL2dFU1VQMEYwLnRz&ref=aHR0cHM6Ly9wbGF5ZXIucGhpbWFwaS5jb20v`
-   - TS Segment request returned:
-     - Status: `200 OK`
-     - Content-Type: `video/mp2t`
-     - Buffer length: `946,204` bytes (~924 KB > 100 KB)
-     - Byte 0: `0x47` (MPEG-TS Sync Byte standard)
-     - Packet verification: `946,204 / 188 = 5033` exact 188-byte packets, each aligned at `buf[i * 188] === 0x47`.
+### 1.4 `src/index.js` (Server Entry & Startup Banner)
+- **Path**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/index.js`
+- **Line 5**: ` *  VIP Movies Stremio Addon — src/index.js  (Engine v1.5.0)`
+- **Line 105**:
+  ```javascript
+      console.log('╔══════════════════════════════════════════════════════╗');
+      console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.5.0     ║');
+      console.log('╠══════════════════════════════════════════════════════╣');
+  ```
+
+### 1.5 Supporting Module Headers
+- `src/config.js:5`: `* VIP Movies Stremio Addon - src/config.js (v1.5.0)`
+- `src/routes/hls.js:5`: `* VIP Movies Addon — src/routes/hls.js (Engine v1.5.0)`
+- `src/providers/vsmov.js:5`: `* VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.0)`
+- `src/providers/yan.js:5`: `* VIP Movies Addon — src/providers/yan.js (Engine v1.5.0)`
+- `src/providers/clbpx.js:5`: `* VIP Movies Addon — src/providers/clbpx.js (Engine v1.5.0)`
+- `src/providers/stp.js:5`: `* VIP Movies Addon — src/providers/stp.js (Engine v1.5.0)`
+- `src/providers/hh3d.js:5`: `* VIP Movies Addon — src/providers/hh3d.js (Engine v1.5.0)`
+
+### 1.6 Existing Test Suites Asserting Version Strings
+- `tests/e2e.test.js:253`: `runner.assertEqual(manRes.data.version, '1.5.0', 'Manifest version is 1.5.0');`
+- `tests/e2e.test.js:297`: `runner.assertEqual(healthRes.data.version, '1.5.0', 'Health version is 1.5.0');`
+- `tests/e2e.test.js:312`: `runner.assertIncludes(uiRes.data, 'VIP Movies Addon v1.5.0', 'UI contains version "1.5.0" in footer');`
+- `tests/m3_verification.test.js:204`: `assert.strictEqual(packageJson.version, '1.5.0');`
+- `tests/m3_verification.test.js:208`: `assert.strictEqual(MANIFEST.version, '1.5.0');`
+- `tests/m3_challenger1_empirical.test.js:449-477`: Asserts `1.5.0` on packageJson, MANIFEST, UI string, and /health.
+- `tests/empiric_playback_challenger_m1_m4.test.js:92`: Asserts `1.5.0` on manifest.
+- `tests/adversarial_reviewer2_comprehensive.js:335-336`: Asserts `1.5.0` on package.json & manifest.js.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Ephemeral Server Instantiation & Isolation**:
-   - *Observation*: Default port 7000 can be in use during local development or concurrent test runners.
-   - *Inference*: Binding an Express instance to port `0` on IPv4 loopback (`127.0.0.1`) delegates port allocation to the operating system kernel.
-   - *Deduction*: `server.address().port` provides a collision-free port. Setting `proxyBase = 'http://127.0.0.1:' + port` guarantees that all generated stream URLs point exclusively to this isolated test instance.
-   - *Cleanup*: A standard `try { ... } finally { server.close(); }` block ensures zero dangling sockets or process hangs.
-
-2. **Stream Query Resolution for `cuu-mon`**:
-   - *Observation*: `cuu-mon` is a single movie in KKPhim API with `episodes[0].server_data[0].link_m3u8` pointing to `s1.phim1280.tv`.
-   - *Inference*: Querying `GET ${proxyBase}/stream/movie/kkphim:cuu-mon.json` routes through Express and `src/handlers.js`, invoking `providerKKPhim.getStreams({ slug: 'cuu-mon', type: 'movie', proxyBase })`.
-   - *Deduction*: The response contains a stream with title containing `[VIP • KKPhim]`, `url` pointing to `${proxyBase}/hls/manifest.m3u8?...`, and strictly no `externalUrl`.
-
-3. **Manifest Rewriting & Segment Resolution**:
-   - *Observation*: KKPhim's root M3U8 is a master playlist linking to a 2000kb sub-playlist.
-   - *Inference*: Test Case 2 must handle both single-tier and multi-tier (Master → Media) playlists by following any rewritten sub-playlist links to discover the `.ts` segment URL.
-   - *Deduction*: Verifying that sub-playlists and TS segments use `${proxyBase}/hls/...` confirms that CDN hotlink domains are intercepted and proxied.
-
-4. **Binary MPEG-TS Validation**:
-   - *Observation*: MPEG Transport Stream (ISO/IEC 13818-1) packets are fixed at 188 bytes starting with sync byte `0x47` (`'G'`).
-   - *Inference*: Checking `res.status === 200`, `res.headers['content-type'] === 'video/mp2t'`, `buf[0] === 0x47`, `buf.length > 100 * 1024`, and `buf.length % 188 === 0` provides mathematical and empirical proof of a valid, uncorrupted video chunk.
+1. **R4 Alignment**: Milestone 3 requires bumping the project version to `1.5.1` across the core manifests, config files, startup banners, and UI landing pages while preserving the Cyber-Glassmorphism UI layout and glowing brand footer (`VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>` or `&bull;`).
+2. **Consistency Across Consumers**:
+   - `BASE_MANIFEST.version` in `src/manifest.js` directly sets `res.json().version` on `/manifest.json`, `/:config/manifest.json`, and `/health`.
+   - `package.json` represents the npm module version.
+   - `src/handlers.js` renders the HTML landing page on `GET /` displaying the version in both the `.live-badge` (header) and `.footer`.
+   - `src/index.js` prints the startup CLI banner to stdout.
+3. **Preserving UI Structure**:
+   - In `src/handlers.js:314`, only the version string `v1.5.0` is changed to `v1.5.1`.
+   - In `src/handlers.js:436`, `v1.5.0` is changed to `v1.5.1`, retaining `&bull; Powered by <span class="brand-highlight">Q121101</span>`.
+   - No CSS rules or HTML structure are altered.
+4. **Test Suite Alignment**:
+   - Existing test files that asserted hardcoded `'1.5.0'` should be updated to `'1.5.1'` so that all comprehensive test suites (`tests/e2e.test.js`, `tests/m3_verification.test.js`, etc.) pass with 100% assertions.
 
 ---
 
 ## 3. Caveats
 
-- **Network Dependency**: Live playback verification requires an outbound internet connection to `phimapi.com` and `s1.phim1280.tv`. A timeout of 20–25 seconds is recommended on Axios requests to accommodate transient network latency.
-- **Master vs Media Playlist Variations**: Some titles or servers return direct media playlists while others return master playlists. The test script must automatically traverse sub-manifests when `#EXT-X-STREAM-INF` is encountered.
+- **Test Suite Updates**: Existing regression tests in `tests/` check for exact version equality (`'1.5.0'`). When the Worker bumps the source code to `'1.5.1'`, these test assertions must also be updated to `'1.5.1'` to prevent false negative test failures.
+- **Dynamic Manifests**: `src/routes/manifest.js` dynamically builds manifests using `buildManifest` from `src/manifest.js`. No changes to `src/routes/manifest.js` logic are needed since it automatically inherits `BASE_MANIFEST.version`.
+- **Health Endpoint**: `GET /health` returns `version: MANIFEST.version`, so updating `src/manifest.js` automatically propagates the new version to `/health`.
 
 ---
 
-## 4. Conclusion & Implementation Blueprint
+## 4. Conclusion & Worker Instructions
 
-The E2E test script `tests/test_kkphim_playback.js` should be implemented with the following architecture:
+The Worker should apply the following modifications:
 
-### Proposed Architecture for `tests/test_kkphim_playback.js`
-
-```javascript
-'use strict';
-
-/**
- * ============================================================
- *  VIP Movies Addon — tests/test_kkphim_playback.js
- *  Milestone 3: E2E Stream Playback Test & Self-Debug Loop
- *
- *  Test Cases:
- *    TC1: Stream Generation & Stremio In-App Protocol Exclusivity
- *    TC2: Manifest Proxy Verification & Anti-403 Rewriting
- *    TC3: Segment Playback & MPEG-TS Binary Delivery Verification
- * ============================================================
- */
-
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const assert = require('assert');
-
-const hlsRouter = require('../src/routes/hls');
-const handlers = require('../src/handlers');
-const kkphim = require('../src/providers/kkphim');
-
-const TEST_SLUG = 'cuu-mon';
-const TIMEOUT_MS = 25000;
-
-async function runE2EPlaybackTest() {
-  console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║   🎬 VIP MOVIES: KKPHIM E2E STREAM PLAYBACK TEST SUITE       ║');
-  console.log('╚══════════════════════════════════════════════════════════════╝\n');
-
-  // 1. Initialize Express App on Ephemeral Port
-  const app = express();
-  app.use(cors());
-  app.use(express.json());
-  app.use('/hls', hlsRouter);
-  app.use('/', handlers);
-
-  const server = await new Promise((resolve, reject) => {
-    const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    s.on('error', reject);
-  });
-
-  const port = server.address().port;
-  const proxyBase = `http://127.0.0.1:${port}`;
-  console.log(`[Setup] Ephemeral test server listening on ${proxyBase}\n`);
-
-  try {
-    // ══════════════════════════════════════════════════════════════
-    //  TEST CASE 1: Stream Generation & In-App Protocol Compliance
-    // ══════════════════════════════════════════════════════════════
-    console.log(`[TC1] Testing Stream Generation for slug: "${TEST_SLUG}"...`);
-    const streamRes = await axios.get(`${proxyBase}/stream/movie/kkphim:${TEST_SLUG}.json`, {
-      timeout: TIMEOUT_MS,
-    });
-
-    assert.strictEqual(streamRes.status, 200, 'Stream endpoint must return HTTP 200');
-    assert.ok(Array.isArray(streamRes.data?.streams), 'Response must contain streams array');
-    assert.ok(streamRes.data.streams.length > 0, 'Must return at least 1 stream');
-
-    const kkStream = streamRes.data.streams.find(
-      (s) => s.title && s.title.includes('[VIP • KKPhim]')
-    );
-    assert.ok(kkStream, 'Must contain [VIP • KKPhim] stream');
-    assert.strictEqual(kkStream.name, 'VIP Movies 🎬', 'Stream name must be "VIP Movies 🎬"');
-    assert.ok(kkStream.title.includes('[VIP • KKPhim]'), 'Title must contain [VIP • KKPhim]');
-    assert.ok(kkStream.title.includes('Full HD (HLS Proxy)'), 'Title must contain Full HD (HLS Proxy)');
-    assert.ok(kkStream.title.includes('⚡ Server VIP • Phát trực tiếp trong App'), 'Title must contain in-app badge');
-    
-    // Strict Stremio In-App Protocol Exclusivity
-    assert.ok(typeof kkStream.url === 'string' && kkStream.url.startsWith(`${proxyBase}/hls/manifest.m3u8`), 'URL must point to local HLS proxy');
-    assert.strictEqual(kkStream.externalUrl, undefined, 'externalUrl MUST NOT be defined');
-    assert.ok(!('externalUrl' in kkStream), 'externalUrl property key MUST NOT exist on stream object');
-    assert.strictEqual(kkStream.behaviorHints?.bingeGroup, `kkphim-${TEST_SLUG}`, 'bingeGroup must match pattern');
-
-    console.log(`  ✅ TC1 PASSED: Stream generated with 100% Stremio In-App compliance.`);
-    console.log(`     Stream URL: ${kkStream.url}\n`);
-
-    // ══════════════════════════════════════════════════════════════
-    //  TEST CASE 2: Manifest Proxy Verification & Anti-403 Rewriting
-    // ══════════════════════════════════════════════════════════════
-    console.log('[TC2] Fetching & validating HLS proxy manifest...');
-    const manifestRes = await axios.get(kkStream.url, { timeout: TIMEOUT_MS });
-
-    assert.strictEqual(manifestRes.status, 200, 'Manifest proxy must return HTTP 200');
-    assert.ok(manifestRes.headers['content-type']?.includes('application/vnd.apple.mpegurl'), 'Content-Type must be mpegurl');
-    assert.strictEqual(manifestRes.headers['access-control-allow-origin'], '*', 'Must have CORS header *');
-    assert.ok(typeof manifestRes.data === 'string' && manifestRes.data.includes('#EXTM3U'), 'Manifest must start with #EXTM3U');
-
-    // Parse sub-playlists / segments
-    let targetSegmentUrl = null;
-    const lines = manifestRes.data.split('\n').map((l) => l.trim()).filter(Boolean);
-
-    for (const line of lines) {
-      if (line.startsWith('http') && line.includes('/hls/ts')) {
-        targetSegmentUrl = line;
-        break;
-      }
-      if (line.startsWith('http') && line.includes('/hls/manifest.m3u8')) {
-        console.log(`  ℹ️ Master playlist detected. Traversing sub-manifest: ${line}`);
-        const subRes = await axios.get(line, { timeout: TIMEOUT_MS });
-        assert.strictEqual(subRes.status, 200, 'Sub-manifest must return HTTP 200');
-        assert.ok(subRes.headers['content-type']?.includes('application/vnd.apple.mpegurl'), 'Sub-manifest Content-Type must be mpegurl');
-        assert.ok(subRes.data.includes('#EXTM3U'), 'Sub-manifest must contain #EXTM3U');
-
-        const subLines = subRes.data.split('\n').map((sl) => sl.trim()).filter(Boolean);
-        for (const sl of subLines) {
-          if (sl.startsWith('http') && sl.includes('/hls/ts')) {
-            targetSegmentUrl = sl;
-            break;
-          }
-        }
-        break;
-      }
-    }
-
-    assert.ok(targetSegmentUrl, 'Target TS segment URL must be found in rewritten manifest');
-    assert.ok(targetSegmentUrl.startsWith(`${proxyBase}/hls/ts?url=`), 'TS segment URL must route through proxy');
-
-    console.log(`  ✅ TC2 PASSED: Manifest verified & rewritten segment URL resolved.`);
-    console.log(`     Segment URL: ${targetSegmentUrl}\n`);
-
-    // ══════════════════════════════════════════════════════════════
-    //  TEST CASE 3: Segment Playback & MPEG-TS Binary Delivery
-    // ══════════════════════════════════════════════════════════════
-    console.log('[TC3] Fetching video segment through proxy & validating MPEG-TS binary buffer...');
-    const segRes = await axios.get(targetSegmentUrl, {
-      responseType: 'arraybuffer',
-      timeout: TIMEOUT_MS,
-    });
-
-    assert.strictEqual(segRes.status, 200, 'Segment fetch must return HTTP 200 (No 403 Forbidden / 500)');
-    assert.strictEqual(segRes.headers['access-control-allow-origin'], '*', 'Segment must include CORS header *');
-    assert.strictEqual(segRes.headers['content-type'], 'video/mp2t', 'Segment Content-Type must be video/mp2t');
-
-    const buf = Buffer.from(segRes.data);
-    const sizeKB = Math.round(buf.length / 1024);
-    console.log(`  ℹ️ Received binary buffer: ${buf.length} bytes (${sizeKB} KB)`);
-
-    assert.ok(buf.length > 100 * 1024, `Segment buffer size must be > 100KB, got ${buf.length} bytes (${sizeKB} KB)`);
-    assert.strictEqual(buf[0], 0x47, `First byte must be MPEG-TS sync byte 0x47, got 0x${buf[0].toString(16)}`);
-    assert.strictEqual(buf.length % 188, 0, `Buffer length (${buf.length}) must be an exact multiple of 188-byte MPEG-TS packets`);
-
-    const packetCount = buf.length / 188;
-    console.log(`  ℹ️ Validated ${packetCount} MPEG-TS 188-byte packets aligned on sync byte 0x47.`);
-    console.log('  ✅ TC3 PASSED: Segment binary delivery & MPEG-TS structure verified 100%.\n');
-
-    console.log('╔══════════════════════════════════════════════════════════════╗');
-    console.log('║   🎉 ALL 3 TEST CASES PASSED WITH 0 ERRORS! (100% VERIFIED) ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝');
-  } catch (err) {
-    console.error('\n❌ TEST CASE FAILURE / SELF-DEBUG DIAGNOSTICS:');
-    console.error(`   Message: ${err.message}`);
-    if (err.response) {
-      console.error(`   HTTP Status: ${err.response.status}`);
-      console.error(`   Headers: ${JSON.stringify(err.response.headers, null, 2)}`);
-      if (err.response.data) {
-        console.error(`   Response Preview: ${String(err.response.data).slice(0, 300)}`);
-      }
-    }
-    process.exit(1);
-  } finally {
-    server.close();
-  }
-}
-
-runE2EPlaybackTest().catch((e) => {
-  console.error('Fatal execution error:', e);
-  process.exit(1);
-});
+### Step 1: Update `package.json`
+```diff
+--- a/package.json
++++ b/package.json
+@@ -3,1 +3,1 @@
+-  "version": "1.5.0",
++  "version": "1.5.1",
 ```
+
+### Step 2: Update `src/manifest.js`
+```diff
+--- a/src/manifest.js
++++ b/src/manifest.js
+@@ -5,1 +5,1 @@
+- *  VIP Movies Stremio Addon - src/manifest.js  (v1.5.0)
++ *  VIP Movies Stremio Addon - src/manifest.js  (v1.5.1)
+@@ -387,1 +387,1 @@
+-  version: '1.5.0',
++  version: '1.5.1',
+```
+
+### Step 3: Update `src/handlers.js`
+```diff
+--- a/src/handlers.js
++++ b/src/handlers.js
+@@ -5,1 +5,1 @@
+- *  VIP Movies Addon — src/handlers.js  (Engine v1.5.0)
++ *  VIP Movies Addon — src/handlers.js  (Engine v1.5.1)
+@@ -314,1 +314,1 @@
+-        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.0
++        Hệ thống Trực tuyến &nbsp;·&nbsp; v1.5.1
+@@ -436,1 +436,1 @@
+-      VIP Movies Addon v1.5.0 &bull; Powered by <span class="brand-highlight">Q121101</span>
++      VIP Movies Addon v1.5.1 &bull; Powered by <span class="brand-highlight">Q121101</span>
+```
+
+### Step 4: Update `src/index.js`
+```diff
+--- a/src/index.js
++++ b/src/index.js
+@@ -5,1 +5,1 @@
+- *  VIP Movies Stremio Addon — src/index.js  (Engine v1.5.0)
++ *  VIP Movies Stremio Addon — src/index.js  (Engine v1.5.1)
+@@ -105,1 +105,1 @@
+-    console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.5.0     ║');
++    console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.5.1     ║');
+```
+
+### Step 5: Update Supporting Headers (Optional but recommended)
+- `src/config.js:5`: `(v1.5.1)`
+- `src/routes/hls.js:5`: `(Engine v1.5.1)`
+- `src/providers/vsmov.js:5`: `(Engine v1.5.1)`
+- `src/providers/yan.js:5`: `(Engine v1.5.1)`
+- `src/providers/clbpx.js:5`: `(Engine v1.5.1)`
+- `src/providers/stp.js:5`: `(Engine v1.5.1)`
+- `src/providers/hh3d.js:5`: `(Engine v1.5.1)`
+
+### Step 6: Update Version Assertions in Test Files
+- `tests/e2e.test.js`: lines 5, 23, 28, 253, 297, 312 (`1.5.0` -> `1.5.1`)
+- `tests/m3_verification.test.js`: lines 203–208 (`1.5.0` -> `1.5.1`)
+- `tests/m3_challenger1_empirical.test.js`: lines 449, 450, 463, 477 (`1.5.0` -> `1.5.1`)
+- `tests/empiric_playback_challenger_m1_m4.test.js`: lines 6, 92 (`1.5.0` -> `1.5.1`)
+- `tests/adversarial_reviewer2_comprehensive.js`: lines 6, 61, 335, 336 (`1.5.0` -> `1.5.1`)
 
 ---
 
 ## 5. Verification Method
 
-To independently verify this investigation:
-1. Run syntax verification:
+To independently verify the changes once applied:
+
+1. **Syntax Check**:
    ```bash
-   node --check src/index.js
-   node --check src/routes/hls.js
-   node --check src/providers/kkphim.js
-   node --check src/handlers.js
+   node --check src/index.js && node --check src/handlers.js && node --check src/manifest.js
    ```
-2. Execute the test command once implemented:
+2. **Verify Version Property via Node**:
    ```bash
-   node tests/test_kkphim_playback.js
+   node -e "const pkg = require('./package.json'); const { MANIFEST } = require('./src/manifest'); console.log('pkg:', pkg.version, 'manifest:', MANIFEST.version); if (pkg.version !== '1.5.1' || MANIFEST.version !== '1.5.1') process.exit(1);"
    ```
-3. Run existing test suites to ensure no regressions:
+3. **Verify UI Branding Strings via Express Execution**:
    ```bash
-   node tests/e2e.test.js
-   node tests/m3_verification.test.js
+   node -e "const handlers = require('./src/handlers'); const express = require('express'); const app = express(); app.use('/', handlers); const s = app.listen(0, async () => { const axios = require('axios'); const res = await axios.get('http://127.0.0.1:' + s.address().port); s.close(); const html = res.data; if (!html.includes('VIP Movies Addon v1.5.1') || !html.includes('<span class=\"brand-highlight\">Q121101</span>')) { console.error('Branding check failed'); process.exit(1); } console.log('✅ UI Branding Verified Successfully'); });"
    ```
-4. Invalidation conditions:
-   - Upstream CDN `s1.phim1280.tv` returns HTTP 403 Forbidden.
-   - `Content-Type` is not `video/mp2t`.
-   - TS buffer length is under 100KB or does not start with `0x47`.
-   - KKPhim stream contains `externalUrl`.
+4. **Execute Core E2E Suite**:
+   ```bash
+   node tests/verify_vsmov_sub_audio.js
+   ```

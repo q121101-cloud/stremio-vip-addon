@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.0)
+ *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.1)
  *  VSMOV 4K Provider Module (100% Official API: vsmov.com/api)
  *
  *  Features:
@@ -63,59 +63,156 @@ function formatEpisodeLabel(epName) {
 }
 
 /**
- * Extract master m3u8 playlist URL from link_embed or link_m3u8
+ * Classify server tab name into distinct audio type (Vietsub, Lồng Tiếng, Thuyết Minh)
  */
-async function resolveMasterPlaylistUrl(linkEmbed, linkM3u8) {
+function classifyServerAudio(serverName) {
+  const name = String(serverName || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/#/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/l.{1,5}ng\s*ti.{1,5}ng/i.test(name) || /long\s*tieng/i.test(name)) {
+    return {
+      type: 'longtieng',
+      label: 'Lồng Tiếng',
+      bingeGroup: 'vsmov-longtieng-4k-vip-1',
+    };
+  }
+  if (/thuy.{1,5}t\s*minh/i.test(name) || /thuyet\s*minh/i.test(name)) {
+    return {
+      type: 'thuyetminh',
+      label: 'Thuyết Minh',
+      bingeGroup: 'vsmov-thuyetminh-4k-vip-1',
+    };
+  }
+  return {
+    type: 'vietsub',
+    label: 'Vietsub',
+    bingeGroup: 'vsmov-vietsub-4k-vip-1',
+  };
+}
+
+/**
+ * Extract master m3u8 playlist URL and WebVTT/SRT subtitle URL from link_embed or link_m3u8
+ */
+async function resolveEmbedMedia(linkEmbed, linkM3u8) {
+  let masterPlaylistUrl = null;
+  let subtitleUrl = null;
+
   if (linkM3u8 && typeof linkM3u8 === 'string' && linkM3u8.startsWith('http')) {
-    return linkM3u8;
-  }
-  if (!linkEmbed || typeof linkEmbed !== 'string') return null;
-
-  if (linkEmbed.includes('.m3u8')) {
-    return linkEmbed;
+    masterPlaylistUrl = linkM3u8;
+  } else if (linkEmbed && typeof linkEmbed === 'string' && linkEmbed.includes('.m3u8')) {
+    masterPlaylistUrl = linkEmbed;
   }
 
-  const cacheKey = `vsmov:m3u8:${linkEmbed}`;
+  if (!linkEmbed || typeof linkEmbed !== 'string') {
+    return { masterPlaylistUrl, subtitleUrl };
+  }
+
+  const cacheKey = `vsmov:embed:${linkEmbed}`;
   const cached = imdbCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached && typeof cached === 'object' && cached.masterPlaylistUrl) {
+    return cached;
+  }
 
   try {
     const res = await http.get(linkEmbed, {
       timeout: 3000,
     });
     const html = String(res.data);
+    let embedOrigin = '';
+    try {
+      embedOrigin = new URL(linkEmbed).origin;
+    } catch {}
 
-    // 1. Check baseUrl + videoHash
-    const mBase = html.match(/baseUrl\s*=\s*["'\x27]([^"'\x27]+)["'\x27]/i);
-    const mHash = html.match(/videoHash\s*=\s*["'\x27]([^"'\x27]+)["'\x27]/i);
-    if (mBase && mHash) {
-      const resolved = `${mBase[1]}/stream/${mHash[1]}/master.m3u8`;
-      imdbCache.set(cacheKey, resolved, 86400);
-      return resolved;
+    // 1. Extract master m3u8 if not already found
+    if (!masterPlaylistUrl) {
+      // 1a. Check baseUrl + videoHash
+      const mBase = html.match(/baseUrl\s*=\s*["'\x27]([^"'\x27]+)["'\x27]/i);
+      const mHash = html.match(/videoHash\s*=\s*["'\x27]([^"'\x27]+)["'\x27]/i);
+      if (mBase && mHash) {
+        masterPlaylistUrl = `${mBase[1]}/stream/${mHash[1]}/master.m3u8`;
+      }
+
+      // 1b. Check quote/backtick URL containing .m3u8
+      if (!masterPlaylistUrl) {
+        const m = html.match(/(?:["`'\x27\s=:(])(https?:\/\/[^"`'\x27\s()]+\.m3u8[^"`'\x27\s()]*)/i);
+        if (m && m[1]) {
+          masterPlaylistUrl = m[1];
+        }
+      }
     }
 
-    // 2. Check backtick or quote URL containing .m3u8
-    const m = html.match(/(?:["`'\x27\s=:(])(https?:\/\/[^"`'\x27\s()]+\.m3u8[^"`'\x27\s()]*)/i);
-    if (m && m[1]) {
-      const resolved = m[1];
-      imdbCache.set(cacheKey, resolved, 86400);
-      return resolved;
+    // 2. Extract subtitles from playerOptions.subtitles or html
+    const mSub = html.match(/subtitles\s*:\s*(\[[^\]]*\])/i);
+    if (mSub && mSub[1]) {
+      try {
+        const parsed = JSON.parse(mSub[1]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const viSub = parsed.find(
+            (s) =>
+              s &&
+              (s.code === 'vie' ||
+                s.code === 'vi' ||
+                s.lang === 'vie' ||
+                s.lang === 'vi' ||
+                (s.name && /vie|tiếng việt|viet/i.test(s.name)))
+          ) || parsed[0];
+
+          if (viSub && viSub.url) {
+            subtitleUrl = String(viSub.url).trim();
+          }
+        }
+      } catch {}
+    }
+
+    // 2b. Fallback regex for subtitle file path
+    if (!subtitleUrl) {
+      const mSubFile = html.match(/["'\x27](https?:\/\/[^"'\x27\s]+\.(?:vtt|srt)[^"'\x27\s]*)["'\x27]/i)
+        || html.match(/["'\x27](\/[^"'\x27\s]+\.(?:vtt|srt)[^"'\x27\s]*)["'\x27]/i);
+      if (mSubFile && mSubFile[1]) {
+        subtitleUrl = mSubFile[1].trim();
+      }
+    }
+
+    // Resolve relative subtitle URL to absolute URL
+    if (subtitleUrl && !subtitleUrl.startsWith('http://') && !subtitleUrl.startsWith('https://')) {
+      if (embedOrigin) {
+        try {
+          subtitleUrl = new URL(subtitleUrl, embedOrigin).href;
+        } catch {
+          subtitleUrl = `${embedOrigin}${subtitleUrl.startsWith('/') ? '' : '/'}${subtitleUrl}`;
+        }
+      }
     }
   } catch (err) {
-    console.warn(`[VSMOV/resolveMasterPlaylistUrl] Embed parse warning for ${linkEmbed}:`, err.message);
+    console.warn(`[VSMOV/resolveEmbedMedia] Embed parse warning for ${linkEmbed}:`, err.message);
   }
 
-  // Fallback pattern
-  try {
-    const u = new URL(linkEmbed);
-    const parts = u.pathname.split('/').filter(Boolean);
-    const videoHash = parts[parts.length - 1];
-    if (videoHash && videoHash.length >= 8) {
-      return `${u.origin}/stream/${videoHash}/master.m3u8`;
-    }
-  } catch {}
+  // Fallback pattern for masterPlaylistUrl
+  if (!masterPlaylistUrl && linkEmbed) {
+    try {
+      const u = new URL(linkEmbed);
+      const parts = u.pathname.split('/').filter(Boolean);
+      const videoHash = parts[parts.length - 1];
+      if (videoHash && videoHash.length >= 8) {
+        masterPlaylistUrl = `${u.origin}/stream/${videoHash}/master.m3u8`;
+      }
+    } catch {}
+  }
 
-  return null;
+  const result = { masterPlaylistUrl, subtitleUrl };
+  if (masterPlaylistUrl) {
+    imdbCache.set(cacheKey, result, 86400);
+    imdbCache.set(`vsmov:m3u8:${linkEmbed}`, masterPlaylistUrl, 86400);
+  }
+  return result;
+}
+
+async function resolveMasterPlaylistUrl(linkEmbed, linkM3u8) {
+  const { masterPlaylistUrl } = await resolveEmbedMedia(linkEmbed, linkM3u8);
+  return masterPlaylistUrl;
 }
 
 function mapCatalogMeta(item, forceType = null) {
@@ -461,28 +558,40 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
 
       if (!targetEp) continue;
 
-      const masterPlaylistUrl = await resolveMasterPlaylistUrl(targetEp.link_embed, targetEp.link_m3u8);
+      const { masterPlaylistUrl, subtitleUrl } = await resolveEmbedMedia(targetEp.link_embed, targetEp.link_m3u8);
       if (!masterPlaylistUrl) continue;
 
       const b64MasterUrl = encodeBase64(masterPlaylistUrl);
       const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${b64MasterUrl}&ref=${b64Ref}`;
       const epLabel = formatEpisodeLabel(targetEp.name);
 
-      const isTM = /thuy.{1,5}t minh|l.{1,5}ng ti.{1,5}ng/i.test(rawServerName);
-      let titleHeader = isTM
-        ? `[VIP 1 • VSMOV] Thuyết Minh Full HD${epLabel} (HLS Proxy)`
-        : `[VIP 1 • VSMOV] Master 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)`;
+      const audioInfo = classifyServerAudio(rawServerName);
 
       // STRICT INVARIANT: url only, STRICTLY NO externalUrl
-      streams.push({
+      const streamObj = {
         name: 'VIP Movies 🎬',
-        title: `${titleHeader}\n⚡ Server VIP 1 • Master 4K Ultra HD (3840x2160)`,
+        title: `[VIP 1 • VSMOV] ${audioInfo.label} 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP ${audioInfo.label} • vsmov.com`,
         url: streamUrl,
         behaviorHints: {
+          notWebReady: false,
           notSupported: false,
-          bingeGroup: `vsmov-${movie.slug || slug || 'stream'}`,
+          bingeGroup: audioInfo.bingeGroup,
         },
-      });
+      };
+
+      if (subtitleUrl) {
+        const b64Sub = encodeBase64(subtitleUrl);
+        const proxySubUrl = `${proxyBase || ''}/hls/sub.vtt?url=${b64Sub}&ref=${b64Ref}`;
+        streamObj.subtitles = [
+          {
+            id: 'vi_vsmov',
+            lang: 'vie',
+            url: proxySubUrl,
+          },
+        ];
+      }
+
+      streams.push(streamObj);
     }
 
     return streams;
@@ -501,4 +610,7 @@ module.exports = {
   getByTmdb,
   getCatalog,
   getStreams,
+  classifyServerAudio,
+  resolveEmbedMedia,
+  resolveMasterPlaylistUrl,
 };

@@ -2,14 +2,15 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/routes/hls.js (Engine v1.5.0)
+ *  VIP Movies Addon — src/routes/hls.js (Engine v1.5.1)
  *  HLS Proxy Router: Anti-403, Full Segment & Key Rewriter, HTTP Range 206
  *
  *  Routes:
  *    GET /hls/extract?url=...&ref=...
- *    GET /hls/manifest.m3u8?url=...&ref=...  (and /m3u8)
- *    GET /hls/segment.ts?url=...&ref=...     (and /ts, /segment)
+ *    GET /hls/manifest.m3u8?url=...&ref=...  (and /m3u8, /m3u8-proxy)
+ *    GET /hls/segment.ts?url=...&ref=...     (and /ts, /segment, /ts-proxy)
  *    GET /hls/key?url=...&ref=...            (and /key.key)
+ *    GET /hls/sub.vtt?url=...&ref=...        (and /sub)
  * ============================================================
  */
 
@@ -142,7 +143,7 @@ router.get('/extract', async (req, res) => {
 });
 
 // ─── GET /hls/manifest.m3u8 ─────────────────────────────────────
-router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
+router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
   setCorsHeaders(res);
   res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -273,8 +274,8 @@ router.get(['/manifest.m3u8', '/m3u8'], async (req, res) => {
   }
 });
 
-// ─── GET /hls/segment.ts (and aliases /ts, /segment) ────────────
-router.get(['/segment.ts', '/ts', '/segment'], async (req, res) => {
+// ─── GET /hls/segment.ts (and aliases /ts, /segment, /ts-proxy) ─
+router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => {
   setCorsHeaders(res);
   res.setHeader('Content-Type', req.query.is_key ? 'application/octet-stream' : 'video/MP2T');
   res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=31536000, immutable');
@@ -367,6 +368,66 @@ router.get(['/key', '/key.key'], async (req, res) => {
   } catch (err) {
     console.error('[HLS/key]', err.message, targetUrl.slice(0, 80));
     if (!res.headersSent) res.status(502).send('Key proxy error');
+  }
+});
+
+// ─── GET /hls/sub.vtt (and alias /sub) ──────────────────────────
+router.get(['/sub.vtt', '/sub'], async (req, res) => {
+  setCorsHeaders(res);
+  res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+
+  const rawUrl = req.query.url || req.query.b64 || req.query.sub;
+  const targetUrl = resolveParamUrl(rawUrl);
+  if (!targetUrl) {
+    return res.status(400).send('Invalid or missing subtitle url');
+  }
+
+  const rawRef = req.query.ref || req.query.referer;
+  const refParam = resolveParamUrl(rawRef);
+  const referer = refParam || 'https://vsmov.com/';
+  let origin = 'https://vsmov.com';
+  try {
+    origin = new URL(referer).origin;
+  } catch {}
+
+  try {
+    const upstreamRes = await axios({
+      url: targetUrl,
+      method: 'GET',
+      responseType: 'text',
+      headers: {
+        'User-Agent': HLS_UA,
+        Referer: referer,
+        Origin: origin,
+        Accept: '*/*',
+      },
+      timeout: 15000,
+      maxRedirects: 5,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+
+    let content = String(upstreamRes.data || '');
+    // Strip UTF-8 BOM
+    if (content.charCodeAt(0) === 0xFEFF || content.startsWith('\uFEFF')) {
+      content = content.slice(1);
+    }
+    // Normalize CRLF to LF
+    content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+    // If content is SRT format (does not start with WEBVTT), convert SRT to WebVTT
+    if (!content.startsWith('WEBVTT')) {
+      const convertedTimestamps = content.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+      content = `WEBVTT\n\n${convertedTimestamps}`;
+    }
+
+    return res.send(content);
+  } catch (err) {
+    console.error('[HLS/sub.vtt]', err.message, targetUrl.slice(0, 80));
+    if (!res.headersSent) {
+      const status = (err.response && err.response.status >= 400) ? err.response.status : 502;
+      return res.status(status).send('Subtitle fetch failed: ' + err.message);
+    }
   }
 });
 

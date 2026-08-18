@@ -1,19 +1,19 @@
-# Challenger 1 Progress — Milestone 2
+# Progress Tracking — teamwork_preview_challenger_m2_1
 
-**Last visited:** 2026-08-17T10:36:00+07:00
-**Status:** Completed
-**Current Step:** Handoff report completed and ready for orchestrator notification.
+**Last visited**: 2026-08-18T01:50:00Z
+**Current Status**: Empirical stress testing complete with 100% pass rate across 93 adversarial assertions. Verdict: APPROVE.
 
-## Task Checklist
-- [x] Review ORIGINAL_REQUEST.md and DISPATCH.md
-- [x] Read source code of `kkphim.js`, `nguonc.js`, `vsmov.js`, `handlers.js`
-- [x] Create empirical test suite in `tests/m2_challenger_empirical.test.js`
-- [x] Test Suite 1: Protocol Compliance (HLS Proxy vs Embed Player exclusivity) — 100% PASS
-- [x] Test Suite 2: Title Standardization & Server / Episode formatting — 100% PASS
-- [x] Test Suite 3: Movie vs Series resolution (`tt1375666`, `tt0903747:1:1`, custom slugs) — 100% PASS
-- [x] Test Suite 4: Fault Injection (timeouts, network aborts, 500/502/404 errors, malformed responses) — 100% PASS
-- [x] Test Suite 5: Fuzzing & Edge Cases (null, undefined, special regex chars, empty arrays, missing attributes) — 100% PASS
-- [x] Test Suite 6: Search Matching & Year Scoring algorithm verification — 2 missing dependency exports detected
-- [x] Test Suite 7: Live/Mock Integration with Cinemeta resolver & handlers aggregator — 100% PASS
-- [x] Write comprehensive handoff.md with APPROVE/REJECT verdict (Verdict: **REJECT**)
-- [x] Send message to orchestrator with results
+## Checklist
+- [x] Create DISPATCH.md and BRIEFING.md
+- [x] Implement `test_adversarial_vsmov.js` empirical test harness in workspace folder
+- [x] Run full project test suite (`tests/verify_vsmov_sub_audio.js`, `tests/test_m1_subtitle_proxy.js`)
+- [x] Run custom adversarial stress harness across all target edge cases:
+  - [x] Single-server movies vs multi-server movies (Harry Potter tt0373889, Spider-Man, Anime/Series)
+  - [x] Embed HTML without playerOptions, malformed script tags, empty subtitles array, regex fallbacks
+  - [x] Unusual server names with whitespace, unicode variations, tabs/newlines, corrupted text
+  - [x] Subtitle URL resolution (relative path vs absolute CDN URL vs root-relative)
+  - [x] Multi-language subtitle prioritization (Vietnamese over English/French)
+  - [x] Strict zero-externalUrl invariant & proper bingeGroup isolation
+- [x] Analyze results, identify any vulnerabilities or confirm robustness (0 failures across 93 assertions)
+- [x] Update BRIEFING.md and write comprehensive `handoff.md`
+- [x] Send coordination message to parent

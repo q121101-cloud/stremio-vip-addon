@@ -1,43 +1,45 @@
-# BRIEFING — 2026-08-18T08:15:30+07:00
+# BRIEFING — 2026-08-18T09:36:23+07:00
 
 ## Mission
-Deploy Engine v1.5.0: Verify syntax and end-to-end tests, commit and push to GitHub origin main, and verify remote commit status.
+Deploy Hotfix v1.5.1 by verifying git status, staging changes, committing with designated message, pushing to origin main, and reporting deployment results.
 
 ## 🔒 My Identity
-- Archetype: worker_deploy
-- Roles: implementer, qa
+- Archetype: Deployment Worker
+- Roles: implementer, qa, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy
-- Original parent: fba97c8d-11f8-4b91-a84e-0732134f065c
-- Milestone: Milestone 5 (Deployment & GitHub Sync)
+- Original parent: bd1246e0-6215-4530-925a-ca6d5fbeb2fe
+- Milestone: Hotfix v1.5.1 Deployment
 
 ## 🔒 Key Constraints
-- Verify syntax and run tests to ensure 100% passing before git push.
-- Clean git status, push to origin main.
-- Self-contained handoff.md following 5-Component protocol.
+- Execute git add . && git commit -m "Hotfix v1.5.1: Swarm verified - Split VSMOV Vietsub/Audio tabs with Subtitle Proxy & Fixed KKPhim 404 episode matching" && git push origin main
+- Confirm push completed successfully with exit code 0
+- Write handoff report and notify parent via send_message
 
 ## Current Parent
-- Conversation ID: fba97c8d-11f8-4b91-a84e-0732134f065c
-- Updated: 2026-08-18T08:15:30+07:00
+- Conversation ID: bd1246e0-6215-4530-925a-ca6d5fbeb2fe
+- Updated: 2026-08-18T09:36:23+07:00
 
 ## Task Summary
-- **What to build**: Verify tests, stage, commit, and push Engine v1.5.0 to origin main.
-- **Success criteria**: 100% test pass, successful git push, verified remote status.
-- **Interface contracts**: PROJECT.md
-- **Code layout**: PROJECT.md
+- **What to build**: Hotfix v1.5.1 deployment commit and push
+- **Success criteria**: Clean working tree committed and pushed to origin main with exit code 0
+- **Interface contracts**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+- **Code layout**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
 
 ## Key Decisions Made
-- Executing syntax validation and verify_playback.js suite first.
+- Proceed with verification of git status, branch, and diffs before committing.
 
 ## Artifact Index
 - /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy/handoff.md — Deployment handoff report
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy/progress.md — Progress log
 
 ## Change Tracker
-- **Files modified**: None yet
-- **Build status**: Pending test run
+- **Files modified**: Pending git status
+- **Build status**: Pending
 - **Pending issues**: None
 
 ## Quality Status
 - **Build/test result**: Pending verification
 - **Lint status**: Clean
-- **Tests added/modified**: verify_playback.js
+- **Tests added/modified**: Covered by upstream test suite
+
+## Loaded Skills
+None

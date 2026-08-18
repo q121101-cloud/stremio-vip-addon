@@ -1,58 +1,48 @@
-# BRIEFING — 2026-08-17T03:34:00Z
+# BRIEFING — 2026-08-18T08:48:35+07:00
 
 ## Mission
-Review Milestone 2 implementation: `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js` for correctness, error isolation, timeout compliance, Cinemeta canonical matching, multi-server handling, stream protocol exclusivity, and title formatting.
+Conduct quality review and adversarial challenge of Milestone 2 changes in `src/providers/vsmov.js`.
 
 ## 🔒 My Identity
-- Archetype: reviewer
+- Archetype: preview_reviewer
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: Milestone 2
+- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
+- Milestone: Milestone 2 (VSMOV Audio Classification, Subtitles & Formatting)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Review and challenge work products adversarially
-- Must verify all claims against code and test executions
+- Check for integrity violations (no hardcoded test results, facade logic, cheats)
+- Stress-test assumptions and edge cases
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Updated: not yet
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
+- Updated: 2026-08-18T08:48:35+07:00
 
 ## Review Scope
-- **Files to review**: `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
-- **Review criteria**: 5s timeout, Cinemeta search matching, multi-server handling, stream protocol exclusivity (`url` vs `externalUrl`), title formatting, error isolation, integrity.
-
-## Key Decisions Made
-- Executed syntax validation (`node --check`) across all provider files and index (all passed).
-- Executed unit and E2E test suites with empirical simulations.
-- Uncovered 2 Critical runtime integration bugs:
-  1. `src/providers/nguonc.js` attempts to invoke `mapper.extractYear()`, which is undefined in `src/mapper.js` module exports, causing all title search matching to abort and return `[]`.
-  2. `src/providers/vsmov.js` attempts to invoke `unpackDeanEdwards()`, which is undefined in `src/mapper.js` module exports, causing packed embed scrapers to throw `TypeError: unpackDeanEdwards is not a function`.
-- Formulated verdict: **REQUEST_CHANGES**.
-
-## Artifact Index
-- `.agents/teamwork_preview_reviewer_m2_1/progress.md` — Progress tracker and heartbeat
-- `.agents/teamwork_preview_reviewer_m2_1/handoff.md` — Final handoff report with findings and verdict
+- **Files to review**: `src/providers/vsmov.js`, `tests/verify_vsmov_sub_audio.js`, `.agents/teamwork_preview_worker_m2_1/handoff.md`
+- **Interface contracts**: `PROJECT.md`, `.agents/ORIGINAL_REQUEST.md`
+- **Review criteria**: correctness, subtitle extraction, audio classification, proxy routing, stream format, test results, integrity
 
 ## Review Checklist
-- **Items reviewed**:
-  - `src/providers/kkphim.js`: 5s timeout, direct IMDb lookup, fallback Cinemeta search, multi-server extraction, stream exclusivity.
-  - `src/providers/nguonc.js`: 5s timeout, Cinemeta search matching (`scoreMatch`), multi-server extraction, stream exclusivity.
-  - `src/providers/vsmov.js`: 5s timeout, multi-gateway fallback, regex/unpack extraction, stream exclusivity.
-  - `src/mapper.js`: Export surface and helper functions.
-- **Verdict**: REQUEST_CHANGES
-- **Unverified claims**: Worker claimed full title/year search matching for NguonC and Dean Edwards unpacking for VsMov; both fail at runtime due to missing exports in `src/mapper.js`.
+- **Items reviewed**: `src/providers/vsmov.js`, `src/routes/hls.js`, `src/handlers.js`, `tests/verify_vsmov_sub_audio.js`, `tests/m2_providers.test.js`, `tests/test_m1_subtitle_proxy.js`, `src/test.js`
+- **Verdict**: APPROVE
+- **Unverified claims**: none; all claims independently verified
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Hypothesis 1: NguonC title search with year metadata works when search API returns results. Result: FAILED (`TypeError: mapper.extractYear is not a function`).
-  - Hypothesis 2: VsMov extracts stream when embed contains Dean Edwards packed JS. Result: FAILED (`TypeError: unpackDeanEdwards is not a function`).
-  - Hypothesis 3: Stream protocol exclusivity strictly maintained across all providers. Result: PASSED (all streams have either `url` XOR `externalUrl`).
-  - Hypothesis 4: 5s timeout and error isolation prevent unhandled exceptions. Result: PASSED (`try...catch` returns `[]`).
-- **Vulnerabilities found**:
-  - Missing exports in `src/mapper.js` causing runtime TypeErrors in `nguonc.js` and `vsmov.js`.
-- **Untested angles**:
-  - Live external network scraping in non-sandboxed environments (verified via empirical mocking and offline error degradation).
+  - Malformed / missing embed HTML parsing: Handled with fallback regex and videoHash extraction
+  - Audio label normalization with newlines/special characters: Sanitized cleanly with regex
+  - Subtitle relative URL resolution vs absolute URLs: Validated with URL origin resolution
+  - Zero-externalUrl invariant under edge cases: Strictly maintained across all stream objects
+- **Vulnerabilities found**: None
+- **Untested angles**: None
+
+## Key Decisions Made
+- Confirmed full compliance with Milestone 2 and zero integrity violations
+- Issue verdict: APPROVE
+
+## Artifact Index
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1/progress.md` — Liveness & progress tracking
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1/handoff.md` — Final handoff report

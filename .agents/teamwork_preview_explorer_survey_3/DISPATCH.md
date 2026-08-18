@@ -1,17 +1,14 @@
-## 2026-08-17T03:16:59Z
-You are Survey Explorer 3.
-Your working directory is /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3.
-Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md.
+## 2026-08-18T01:34:59Z
+You are teamwork_preview_explorer_survey_3.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3
+Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
 
-Task:
-1. Thoroughly explore stream protocol formatting in src/handlers.js, proxy in src/proxy.js, UI/manifest in src/manifest.js, package.json, and existing tests/scripts.
-2. Compare against R3 and R4 in ORIGINAL_REQUEST.md:
-   - Stremio stream protocol rules: HLS Proxy (`url: "${baseUrl}/hls/manifest.m3u8?url=${b64Url}&ref=${b64Ref}"` and NO `externalUrl`, title formatted per R3) vs Embed Player (`externalUrl: "${linkEmbed}"` and NO `url`, title formatted per R3).
-   - Cyber-Glassmorphism UI, glowing brand footer: `VIP Movies Addon v1.4.0 • Powered by <span class="brand-highlight">Q121101</span>`.
-   - Version 1.4.0 across files, test harness, `node --check src/index.js`, and git status.
-3. Produce a comprehensive report in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/handoff.md detailing:
-   - Current handlers, proxy, manifest, and UI state
-   - Exact gap analysis for R3 and R4
-   - Stream protocol compliance requirements
-   - Test strategy and verification steps
-4. Update your progress.md and send a message to orchestrator upon completion.
+Please read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md.
+Investigate the overall codebase architecture, testing infrastructure, versioning, UI branding, and git deployment readiness.
+Specifically analyze:
+1. Existing test files in `tests/` and test runner setup (package.json scripts, how tests are structured and executed).
+2. Requirements for `tests/verify_vsmov_sub_audio.js` (E2E test starting ephemeral server, querying Harry Potter tt0373889 and series, validating >=2 distinct stream options, testing `/hls/sub.vtt`, checking 100% assertions).
+3. Versioning in `package.json`, `src/manifest.js`, and `src/handlers.js` (updating to v1.5.1, preserving Cyber-Glassmorphism UI brand signature `VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`).
+4. Git repo status and deployment command requirements (`git add . && git commit -m "..." && git push origin main`).
+
+Write your detailed findings to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/analysis.md` and a summary `handoff.md`. Send a completion message back to parent when done.

@@ -1,16 +1,24 @@
-## 2026-08-18T01:11:05Z
-You are a Reviewer subagent (reviewer_2).
-Your working directory is: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/`
-Project root: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
+## 2026-08-18T02:32:21Z
 
-Authoritative User Request: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
-Project document: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
+You are Reviewer 2 reviewing Hotfix v1.5.1.
 
-Read `ORIGINAL_REQUEST.md` before starting work.
-Your task:
-Adversarially and objectively review the Stremio VIP Movies Addon Engine v1.5.0:
-1. Verify HLS proxy routing in `src/routes/hls.js`: anti-403 domain headers table, Chrome 126 Macintosh User-Agent, CORS headers, M3U8 sub-manifest and media segment rewriting, HTTP Range request / 206 partial content handling.
-2. Verify stream aggregation resilience: simulate/test edge cases (invalid IDs, empty results, slow providers, upstream network errors) ensuring the addon always returns HTTP 200 `{ streams: [...] }` or `{ metas: [...] }` without crashing.
-3. Run verification commands (`node --check src/index.js`, `node tests/test_routing_and_22_catalogs.js`, etc.).
-4. Write your structured review report and definitive verdict (APPROVE or REQUEST_CHANGES) to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/handoff.md`.
-Use send_message to report your verdict back to parent.
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2
+Scope document: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+Original user request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Worker handoff report: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_hotfix/handoff.md
+
+Review Scope:
+1. Examine functionality and test coverage:
+   - Verify VSMOV multi-stream separation for Harry Potter `tt0373889` returning >= 2 distinct audio groups (Vietsub, Lồng Tiếng/Thuyết Minh).
+   - Verify subtitle proxy `/hls/sub.vtt` returning HTTP 200, `text/vtt`, and CORS `*`.
+   - Verify KKPhim series episode `tt0903747:1:1` resolving valid HLS manifest without HTTP 404.
+   - Verify `.ts` segment download > 50KB with sync byte `0x47` and Range request 206 partial content.
+   - Verify version bump consistency (1.5.1) across `package.json`, `src/manifest.js`, `src/handlers.js`.
+2. Run test suites:
+   - `node tests/verify_playback.js`
+   - `node tests/verify_vsmov_sub_audio.js`
+   - `node tests/test_m1_subtitle_proxy.js`
+   - `node tests/test_kkphim_playback.js`
+   - `npm test`
+3. Give a clear verdict: APPROVE or REQUEST_CHANGES.
+4. Write your full report to /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/handoff.md and send message back.

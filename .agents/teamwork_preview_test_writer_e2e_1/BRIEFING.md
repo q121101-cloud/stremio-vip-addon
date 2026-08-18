@@ -1,50 +1,45 @@
-# BRIEFING — 2026-08-17T03:20:25Z
+# BRIEFING — 2026-08-18T01:40:10Z
 
 ## Mission
-Design and write a comprehensive E2E test suite in `tests/e2e.test.js`, write `TEST_INFRA.md` following 4-tier testing methodology, verify test execution, publish `TEST_READY.md`, and report handoff.
+Write comprehensive Tier 1-4 E2E tests in `tests/verify_vsmov_sub_audio.js`, author `TEST_INFRA.md`, publish `TEST_READY.md`, verify tests pass, and report handoff to parent.
 
 ## 🔒 My Identity
 - Archetype: test_writer
 - Roles: specialist, qa
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_test_writer_e2e_1
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: E2E Test Suite & Test Infrastructure
+- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
+- Milestone: E2E Testing Track
 
 ## 🔒 Key Constraints
-- Write and modify TEST CODE ONLY — never modify implementation code.
-- Opaque-box testing exercising public API routes, modules, and error isolation.
-- Verify Stremio Protocol Stream exclusivity (`url` vs `externalUrl`).
-- Test Cinemeta resolver, 24h LRUCache, KKPhim, NguonC, VsMov providers, timeout handling (5s), UI branding and v1.4.0.
-- Create `TEST_INFRA.md` with 4-tier methodology (Category-Partition, BVA, Pairwise, Real-World Workload).
-- Create `TEST_READY.md` when tests are verified.
+- Test writer role: test code only, never implementation code. Escalate any implementation bugs discovered.
+- Must use standalone test framework (`tests/helpers.js` or ephemeral server `app.listen(0)`).
+- 4 tiers of comprehensive coverage (Feature, Boundary/Corner, Cross-Feature, Real-World).
+- Layout compliance: source and tests in project root/tests, metadata only in `.agents/`.
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Updated: 2026-08-17T03:25:00Z
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
+- Updated: not yet
 
 ## Task Summary
-- **What to build**: Comprehensive E2E test suite (`tests/e2e.test.js`), test fixtures (`tests/fixtures.js`), test helpers (`tests/helpers.js`), `TEST_INFRA.md`, and `TEST_READY.md`.
-- **Success criteria**: All test suites pass cleanly with `node tests/e2e.test.js`, testing all features in PROJECT.md.
-- **Interface contracts**: PROJECT.md Interface Contracts §1, §2, §3.
-- **Code layout**: `tests/e2e.test.js`, `tests/fixtures.js`, `tests/helpers.js`, `TEST_INFRA.md`, `TEST_READY.md`.
-
-## Key Decisions Made
-- Implemented lightweight custom TestRunner in `tests/helpers.js` to eliminate external test runner dependencies.
-- Added fixture injection for offline/hermetic test execution ensuring tests pass 100% reliably in sandboxed/offline environments.
-- Implemented strict `assertStreamProtocol` asserting `url` vs `externalUrl` schema exclusivity.
-- Tested all 4 systematic tiers: Category-Partition, BVA, Pairwise, Real-World Workload Stress.
-
-## Artifact Index
-- `tests/fixtures.js` — Mock data fixtures for Cinemeta, KKPhim, NguonC, and VsMov
-- `tests/helpers.js` — Test runner framework, assertions, stream protocol validator, and server lifecycle
-- `tests/e2e.test.js` — Comprehensive 4-tier E2E test suite
-- `TEST_INFRA.md` — 4-tier test infrastructure methodology specification
-- `TEST_READY.md` — Test readiness report and QA findings
+- **What to build**: `TEST_INFRA.md`, `tests/verify_vsmov_sub_audio.js`, `TEST_READY.md`.
+- **Success criteria**: All test cases specified across 4 tiers; test harness verified syntactically and functionally; infrastructure documented; clear handoff with escalated implementation items.
+- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
+- **Code layout**: PROJECT.md
 
 ## Loaded Skills
-- None required directly
+- None required
 
 ## Quality Status
-- **Build/test result**: All 90/90 assertions in `tests/e2e.test.js` passed (100% PASS).
-- **Lint status**: Zero syntax errors (`node --check` clean across all files).
-- **Tests added/modified**: Full 4-tier test suite covering Cinemeta resolver, 24h LRUCache, provider matching, stream protocol exclusivity, error isolation, manifests, routes, and UI v1.4.0.
+- **Build/test result**: `node --check tests/verify_vsmov_sub_audio.js` passed (0 syntax errors). Baseline execution completed (52 passed, 1 expected implementation pending in M2).
+- **Lint status**: Zero syntax/lint errors.
+- **Tests added/modified**: `tests/verify_vsmov_sub_audio.js` (53 assertions across Tiers 1-4).
+
+## Key Decisions Made
+- Used ephemeral port 0 for both mock upstream and addon test servers for zero-port-conflict isolation.
+- Implemented mock upstream providing sample WebVTT, sample SRT with comma timestamps, CRLF line endings, and 500 error routes.
+- Fully validated Stremio In-App protocol exclusivity (`url` present, `externalUrl` undefined).
+
+## Artifact Index
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_INFRA.md` — Test Architecture & Methodology
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/verify_vsmov_sub_audio.js` — Tier 1-4 Verification Test Suite
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_READY.md` — Readiness & execution summary

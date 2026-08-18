@@ -1,7 +1,7 @@
-# BRIEFING — 2026-08-17T03:26:00Z
+# BRIEFING — 2026-08-18T01:42:00Z
 
 ## Mission
-Empirically test `src/lib/cinemeta.js` and `src/lib/cache.js` for concurrency resilience, edge cases, input parsing, synchronous cache access, and provide an empirical verdict (APPROVE / REJECT) with full verification evidence.
+Empirically stress-test Milestone 1 changes independently: route aliases (`/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/sub.vtt`, `/hls/sub`), stream object sanitization in `handleStream` with varied subtitle structures, and In-App direct play protocol invariants (`externalUrl` absent, `url` preserved).
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
@@ -18,26 +18,22 @@ Empirically test `src/lib/cinemeta.js` and `src/lib/cache.js` for concurrency re
 - Produce 5-component handoff report with explicit APPROVE or REJECT verdict
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Updated: 2026-08-17T03:26:00Z
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
+- Updated: 2026-08-18T01:42:00Z
 
 ## Review Scope
-- **Files reviewed**: `src/lib/cinemeta.js`, `src/lib/cache.js`
-- **Related consumers**: `src/handlers.js`, `src/api.js`, `src/providers/*.js`
-- **Review criteria**: Concurrency under load, edge-case parsing, synchronous cache retrieval (`getCachedCinemeta`), negative caching / error resilience.
+- **Files reviewed**: `src/routes/hls.js`, `src/handlers.js`, `src/index.js`, `src/manifest.js`
+- **Route Aliases**: `/hls/manifest.m3u8`, `/hls/m3u8-proxy`, `/hls/m3u8`, `/hls/segment.ts`, `/hls/ts-proxy`, `/hls/ts`, `/hls/segment`, `/hls/sub.vtt`, `/hls/sub`
+- **Review criteria**: Subtitle proxying, SRT->WebVTT conversion, UTF-8 BOM removal, CRLF normalization, anti-403 header injection, stream sanitization, in-app direct play invariants (`url` required, `externalUrl` prohibited).
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - High concurrency (50–100 simultaneous requests) on warm and cold cache.
-  - Season/episode parsing and variations (`tt0903747:1:1`, `tt0903747:5:16`, `tt0903747:01:05`).
-  - Uppercase IMDb ID formatting (`TT1375666`, `TT0903747`).
-  - Regex injection / trailing garbage inputs (`tt12345/../path`, `tt1375666; DROP TABLE`).
-  - Year parsing across numbers, Unicode hyphen ranges (`2008–2013`), and `releaseInfo` fallbacks.
-  - Synchronous `getCachedCinemeta` across hits, misses, negative cache, and episode queries.
-- **Vulnerabilities found**:
-  1. Uppercase IMDb ID (`TT...`) matches `/^tt\d+/i` but is not lowercased, causing upstream Cinemeta HTTP 404 and breaking title resolution.
-  2. Regex `/^tt\d+/i` lacks end anchor `$`, allowing trailing non-digit characters (`tt12345/../path`) to bypass validation.
-  3. Lack of in-flight promise memoization on cold cache bursts triggers redundant parallel HTTP requests.
+  - Route aliases return identical valid responses when URL provided, and 400 when URL missing.
+  - Subtitle proxy correctly converts SRT `,` timestamps to `.`, prepends `WEBVTT\n\n`, and leaves native WebVTT intact without duplicate header.
+  - Subtitle proxy strips UTF-8 BOM `\uFEFF` and normalizes `\r\n` line endings.
+  - Stream aggregator `handleStream` properly sanitizes streams: preserves `subtitles` if Array, drops if null/undefined/non-array, deletes `externalUrl`, and enforces `url`.
+  - 50 concurrent requests execute without memory leak, crash, or socket starvation.
+- **Vulnerabilities found**: None in Milestone 1 implementation.
 - **Untested angles**: None.
 
 ## Loaded Skills
@@ -45,12 +41,11 @@ Empirically test `src/lib/cinemeta.js` and `src/lib/cache.js` for concurrency re
 - **Core methodology**: Empirical test-driven adversarial validation
 
 ## Key Decisions Made
-- Verdict: **REJECT** pending a simple 2-line normalization fix for uppercase IMDb IDs and regex anchoring in `src/lib/cinemeta.js`.
+- Final Verdict: **APPROVE** (103/103 assertions passed in `tests/test_m1_preview_challenger2.js`, full regression clean in `npm test` and `tests/challenger_m1_2_deep_hls.test.js`).
 
 ## Artifact Index
 - `.agents/teamwork_preview_challenger_m1_2/BRIEFING.md` — Agent working memory
 - `.agents/teamwork_preview_challenger_m1_2/progress.md` — Liveness & status tracking
-- `tests/test_cinemeta_challenger.js` — Main empirical test harness
-- `tests/test_cinemeta_deep.js` — In-depth unit & mock test harness
-- `tests/test_cinemeta_edgecases.js` — Edge-case reproduction script
+- `.agents/teamwork_preview_challenger_m1_2/DISPATCH.md` — Dispatch log
+- `tests/test_m1_preview_challenger2.js` — Dedicated Challenger M1.2 adversarial test suite
 - `.agents/teamwork_preview_challenger_m1_2/handoff.md` — Final 5-component handoff report

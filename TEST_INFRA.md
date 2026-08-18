@@ -1,43 +1,44 @@
-# Test Infrastructure & Methodology Specification (VIP Movies Addon v1.4.0)
+# Test Infrastructure & Methodology Specification (VIP Movies Addon v1.5.1)
 
-This document establishes the comprehensive 4-tier testing infrastructure, test matrices, and verification methodologies for the **VIP Movies Stremio Addon Engine v1.4.0**.
+This document establishes the comprehensive 4-tier testing infrastructure, test matrices, and verification methodologies for the **VIP Movies Stremio Addon Hotfix v1.5.1**.
 
 ---
 
 ## 1. Quality Architecture & 4-Tier Test Framework
 
-The VIP Movies Addon is a high-availability streaming proxy and metadata aggregation service for Stremio/Nuvio. Testing is organized into 4 systematic tiers:
+The VIP Movies Addon is a high-availability streaming proxy and metadata aggregation service for Stremio and Nuvio clients. Testing is structured into 4 systematic tiers covering functional correctness, adversarial boundary values, cross-module interactions, and live real-world streaming lifecycles:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        VIP MOVIES TEST SUITE                           │
+│                   VIP MOVIES v1.5.1 TEST SUITE                         │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Tier 1: Feature Coverage (Category-Partition Testing)                 │
-│         - Cinemeta Resolver & LRUCache                                 │
-│         - KKPhim, NguonC, VsMov Providers                              │
-│         - Stream Protocol Exclusivity (HLS Proxy vs Embed Player)      │
-│         - Multi-Provider Error & Timeout Isolation                     │
-│         - Manifest, Catalogs, Meta, HLS Proxy, Health, UI Branding     │
+│         - Subtitle Proxy Endpoint (/hls/sub.vtt)                       │
+│         - Base64URL & Plain URL Referer/Origin Handling               │
+│         - VSMOV Multi-Server Audio Stream Resolution (tt0373889)       │
+│         - In-App Protocol Invariants (url vs externalUrl)              │
+│         - Dynamic Manifest, Catalogs, Meta & Health Endpoints          │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Tier 2: Boundary & Corner Cases (Boundary Value Analysis - BVA)        │
-│         - Malformed & Non-IMDb IDs, Missing Prefixes                   │
-│         - Year Parsing Extremes (1895–2099, Multi-Year Series)         │
-│         - Episode / Season Number Boundaries (0, 1, 999, Negatives)    │
-│         - Unicode, Vietnamese Diacritics & Special Query Characters    │
-│         - LRUCache Eviction & Max Capacity Stress                      │
-│         - Config Token Malformations & Fallbacks                       │
+│         - Missing & Whitespace-only Subtitle Query Params (HTTP 400)   │
+│         - Invalid / Unreachable Upstream Subtitle URLs (HTTP 502)      │
+│         - Automatic SRT-to-WebVTT Conversion (Comma->Dot Timestamps)   │
+│         - Strict In-App Protocol Invariants across all streams         │
+│         - Special Characters, Diacritics & Malformed Base64 Strings    │
 ├────────────────────────────────────────────────────────────────────────┤
-│ Tier 3: Cross-Feature Combinations (Pairwise Matrix)                   │
-│         - Provider Status Combinations (Success / Timeout / Error)     │
-│         - Content Type × Filter Combinations                           │
-│         - Stream Protocol Exclusivity across all generated streams     │
+│ Tier 3: Cross-Feature Combinations (Pairwise & Aggregation)            │
+│         - Multi-Server Audio Track Separation (Vietsub, LT, TM)        │
+│         - Subtitles Array Schema ({ id, lang, url }) Attachment        │
+│         - Aggregator Subtitle Field Pass-Through in handleStream       │
+│         - Exact Title & Server Group Formatting Verification           │
+│         - Multi-Provider Timeout & Fault Isolation                     │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Tier 4: Real-World Scenarios & Workload Stress                         │
-│         - Real Blockbuster Resolution (Inception tt1375666)            │
-│         - Multi-Season TV Series (Breaking Bad tt0903747)              │
-│         - Vietnamese / Asian Drama & Anime Catalog Workflows           │
+│         - End-to-End Movie Discovery & Playback (Harry Potter tt0373889│
+│         - End-to-End Subtitle Retrieval & WebVTT Body Validation       │
+│         - Multi-Season TV Series Stream & Episode Discovery            │
+│         - M3U8 Playlist Traversal & MPEG-TS Stream Integrity           │
 │         - High-Concurrency Burst & 24h LRUCache Hit Latency Stress     │
-│         - M3U8 Playlist Parsing & MPEG-TS Stream Integrity             │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -45,59 +46,25 @@ The VIP Movies Addon is a high-availability streaming proxy and metadata aggrega
 
 ## 2. Tier 1: Feature Coverage (Category-Partition Testing)
 
-Category-Partition systematically divides each module's input domain into equivalence classes and tests the canonical behavior.
+Category-Partition systematically divides each module's input domain into equivalence classes and tests canonical behavior:
 
-### 2.1 Cinemeta Official Resolver (`src/lib/cinemeta.js`)
+### 2.1 Subtitle Proxy Endpoint `/hls/sub.vtt` (`src/routes/hls.js`)
+- **Route Specification**: `GET /hls/sub.vtt?url=<b64Sub>&ref=<b64Ref>` (supports `url`, `b64`, `sub` query keys).
 - **Equivalence Classes**:
-  - `EC-CINE-1`: Valid Movie IMDb ID (`tt1375666`) → canonical title (`Inception`), 4-digit release year (`2010`), genres array, aliases array.
-  - `EC-CINE-2`: Valid Series IMDb ID (`tt0903747` / `tt0903747:1:1`) → canonical title (`Breaking Bad`), start year (`2008`), `releaseInfo` (`2008–2013`).
-  - `EC-CINE-3`: Non-IMDb ID (`nguonc:slug`, `custom-id`) → returns `null` immediately without network call.
-  - `EC-CINE-4`: Missing/404 IMDb ID (`tt0000000`) → returns `null` gracefully with failure caching.
+  - `EC-SUB-1`: Valid WebVTT upstream URL (plain HTTP/HTTPS) → proxies upstream file, sets `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
+  - `EC-SUB-2`: Valid Base64URL-encoded upstream URL → decodes URL correctly, injects anti-403 headers (`Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, Chrome User-Agent), returns WebVTT body.
+  - `EC-SUB-3`: Dynamic Referer parameter → extracts upstream origin and passes matching `Referer` and `Origin` headers.
 
-### 2.2 24-Hour LRU Caching (`src/lib/cache.js` & `cinemetaCache`)
+### 2.2 VSMOV Multi-Server Audio Stream Resolution (`src/providers/vsmov.js`)
 - **Equivalence Classes**:
-  - `EC-CACHE-1`: Cache Miss on initial query → fetches from upstream, saves to cache with 24h (86,400s) TTL.
-  - `EC-CACHE-2`: Cache Hit on subsequent queries → returns cached object synchronously with zero upstream latency.
-  - `EC-CACHE-3`: Cache Stats & Pruning → `stats()` accurately tracks `hits`, `misses`, `size`, `evictions`, and `hitRate`.
+  - `EC-VSMOV-1`: Movie Query (Harry Potter `tt0373889` / `harry-potter-va-menh-lenh-phuong-hoang`) → parses all server tabs from `episodes` array without collapsing into one stream.
+  - `EC-VSMOV-2`: Embed Player Scraper → extracts `playerOptions.subtitles`, constructs proxy URL, and attaches `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
+  - `EC-VSMOV-3`: Stream Protocol Compliance → every stream object strictly has `url` and NO `externalUrl`.
 
-### 2.3 Provider Search Matching & Resolution
-- **KKPhim** (`src/providers/kkphim.js`):
-  - Direct IMDb lookup via `/imdb/title/${imdbId}`.
-  - Fallback search via `/v1/api/tim-kiem?keyword=${title}` matching year and slug.
-  - Generates streams across all available servers (Vietsub, Thuyết Minh, Lồng Tiếng).
-- **NguonC** (`src/providers/nguonc.js`):
-  - Keyword search via `/films/search?keyword=${title}` with year verification.
-  - Returns Vietsub and Thuyết Minh server streams.
-- **VsMov** (`src/providers/vsmov.js`):
-  - Multi-gateway fallback scraper extracting 1080p `master.m3u8`.
-  - Graceful degradation returning `[]` on scraper failure.
-
-### 2.4 Stremio Protocol Stream Exclusivity (`src/handlers.js`)
-Stremio and Nuvio clients enforce strict schema exclusivity:
-- **In-App Direct Play (HLS Proxy)**:
-  - MUST contain `url` pointing to `${proxyBase}/hls/manifest.m3u8?...` (or `/hls/extract?...`).
-  - **MUST NOT** contain `externalUrl` (`stream.externalUrl === undefined`).
-  - Title standard format: `[VIP • ${Provider}] ${ServerName} (HLS Proxy)\n⚡ Phát trực tiếp trong App`.
-- **External Web Browser Play (Embed Player)**:
-  - MUST contain `externalUrl` pointing to `${linkEmbed}`.
-  - **MUST NOT** contain `url` (`stream.url === undefined`).
-  - Title standard format: `[Dự phòng • ${Provider}] ${ServerName} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`.
-
-### 2.5 Multi-Provider Error & Timeout Isolation
-- Concurrency orchestrator via `Promise.allSettled`.
-- 5-second axios timeout guard per provider.
-- Failure/timeout in Provider A (e.g. KKPhim) must NEVER abort or degrade responses from Provider B (NguonC) or Provider C (VsMov).
-- If all providers fail, endpoint returns `{ streams: [] }` with HTTP 200 (never HTTP 500).
-
-### 2.6 Route & Middleware Verification
-- `GET /manifest.json`: Returns valid Stremio v1.4.0 manifest declaring `resources`, `types`, `catalogs`, and `idPrefixes`.
-- `GET /:config/manifest.json`: Decodes Base64URL configuration token and filters catalogs/providers accordingly.
-- `GET /catalog/:type/:id.json`: Returns catalog metadata items with proper poster/thumbnail URLs.
-- `GET /meta/:type/:id.json`: Returns detailed film metadata, episodes, and cast.
-- `GET /hls/manifest.m3u8`: Rewrites playlists with CORS headers (`Access-Control-Allow-Origin: *`).
-- `GET /hls/ts`: Streams MPEG-TS video with `Content-Type: video/mp2t`.
-- `GET /health`: Returns status `ok`, version `1.4.0`, active providers, and cache metrics.
-- `GET /`: Renders Cyber-Glassmorphism UI with brand footer `VIP Movies Addon v1.4.0 • Powered by <span class="brand-highlight">Q121101</span>`.
+### 2.3 Addon Handlers & Manifest (`src/handlers.js`, `src/manifest.js`)
+- **Equivalence Classes**:
+  - `EC-HAND-1`: `GET /manifest.json` → returns valid Stremio v1.5.1 manifest.
+  - `EC-HAND-2`: `GET /stream/:type/:id.json` → aggregates streams across active providers, preserves `subtitles` array, sanitizes fields, sorts 4K VIP streams to top priority.
 
 ---
 
@@ -105,63 +72,83 @@ Stremio and Nuvio clients enforce strict schema exclusivity:
 
 | ID | Boundary Category | Test Input | Expected Behavior |
 |---|---|---|---|
-| `BVA-ID-1` | IMDb ID Prefix | `tt` (missing digits) | Returns `null`, no upstream call |
-| `BVA-ID-2` | Non-IMDb ID | `kodi:12345`, `custom_id` | Skips Cinemeta, delegates to slug |
-| `BVA-ID-3` | Series ID Delimiters | `tt0903747:1:1`, `tt0903747:10:25` | Extracts clean IMDb ID `tt0903747`, season `10`, episode `25` |
-| `BVA-YEAR-1` | Boundary Year Min | `"1895"` (First cinema film) | Parsed as integer `1895` |
-| `BVA-YEAR-2` | Boundary Year Max | `"2099"` | Parsed as integer `2099` |
-| `BVA-YEAR-3` | Multi-Year Series Range | `"2008–2013"` | Extracts start year `2008`, preserves releaseInfo |
-| `BVA-YEAR-4` | Missing / Empty Year | `null`, `""`, `"TBA"` | `year` is `null`, does not throw |
-| `BVA-UNICODE-1`| Vietnamese Diacritics | `"Tà Đạo Thành Thần"`, `"Huyết Chiến"` | Correctly URL-encoded in search queries |
-| `BVA-UNICODE-2`| Special Characters | `"Fast & Furious: Tokyo Drift (2006)"` | Sanitized search query, special characters escaped |
-| `BVA-CACHE-1`| Max Capacity Eviction | Insert 5,001 items into 5,000 LRUCache | 1st item evicted, size maintained at 5,000 |
-| `BVA-CACHE-2`| TTL Expiration | Query expired entry after TTL | Returns `undefined`, increment miss count |
-| `BVA-CONFIG-1`| Corrupted Base64 Token | `GET /invalid_token_!@#/manifest.json`| Falls back to `DEFAULT_CONFIG` |
+| `BVA-SUB-1` | Missing Query Parameter | `GET /hls/sub.vtt` | Returns HTTP 400 Bad Request (`Missing subtitle URL`) |
+| `BVA-SUB-2` | Empty / Whitespace Query | `GET /hls/sub.vtt?url=%20%20` | Returns HTTP 400 Bad Request |
+| `BVA-SUB-3` | Unreachable Upstream | `GET /hls/sub.vtt?url=http://127.0.0.1:1/nonexistent.vtt` | Returns HTTP 502 Bad Gateway gracefully (no crash) |
+| `BVA-SUB-4` | Upstream 404/500 | `GET /hls/sub.vtt?url=https://example.com/missing.vtt` | Returns HTTP 502 Bad Gateway |
+| `BVA-SRT-1` | SRT Comma Timestamps | `00:00:01,000 --> 00:00:04,500\nHello World` | Converts commas to dots (`00:00:01.000 --> 00:00:04.500`) |
+| `BVA-SRT-2` | SRT Missing WEBVTT Header | Standard SRT without `WEBVTT` header | Prepends `WEBVTT\n\n` header, sets `text/vtt` Content-Type |
+| `BVA-SRT-3` | CRLF Windows Linebreaks | `\r\n` line endings in SRT/VTT file | Normalized to standard `\n` linebreaks |
+| `BVA-PROT-1`| In-App Stream Protocol | Every stream object from `handleStream` | `url` is non-empty string; `'externalUrl' in stream === false` |
+| `BVA-B64-1` | Base64URL vs Standard Base64 | `url` encoded with `-` and `_` vs `+` and `/` | Decoded successfully by URL resolver |
 
 ---
 
-## 4. Tier 3: Cross-Feature Combinations (Pairwise Testing)
+## 4. Tier 3: Cross-Feature Combinations (Pairwise & Aggregation Matrix)
 
-Testing interactions between provider statuses and content configurations:
-
-| Matrix # | KKPhim Status | NguonC Status | VsMov Status | Target Type | Expected Stream Result |
-|---|---|---|---|---|---|
-| `PAIR-1` | 🟢 Success (2 streams) | 🟢 Success (2 streams) | 🟢 Success (1 stream) | Movie | 5 total streams aggregated, 100% protocol exclusive |
-| `PAIR-2` | 🔴 Error (500) | 🟢 Success (2 streams) | 🟢 Success (1 stream) | Movie | 3 total streams returned without 500 error |
-| `PAIR-3` | ⏱️ Timeout (>5s) | 🟢 Success (2 streams) | 🔴 Error (404) | Series | 2 NguonC streams returned within 5.5s timeout window |
-| `PAIR-4` | 🔴 Error | 🔴 Error | 🔴 Error | Movie | 0 streams returned (`{ streams: [] }`), HTTP 200 |
-| `PAIR-5` | 🟢 Success | 🔴 Skipped (Config) | 🔴 Skipped (Config) | Series | Filtered to KKPhim streams only |
+| Matrix # | VSMOV Server Group | Subtitle Status | Handler Sanitization | Expected Result |
+|---|---|---|---|---|
+| `PAIR-1` | Vietsub | WebVTT Present in Embed | Preserves `subtitles` array | 1 Vietsub 4K stream with `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: ... }]` |
+| `PAIR-2` | Lồng Tiếng | No Subtitle (Audio Dubbed) | Omit / Empty Subtitles | 1 Lồng Tiếng 4K stream, 0 subtitles attached |
+| `PAIR-3` | Thuyết Minh | WebVTT Present in Embed | Preserves `subtitles` array | 1 Thuyết Minh 4K stream with `subtitles` attached |
+| `PAIR-4` | Vietsub + Lồng Tiếng | Vietsub has subs, LT does not | Parallel multi-server | 2 distinct streams with distinct titles and audio tags |
+| `PAIR-5` | Provider Timeout | VSMOV times out (>4s) | Promise.allSettled isolation | KKPhim & NguonC streams returned; no 500 error |
 
 ---
 
 ## 5. Tier 4: Real-World Scenarios & Workload Stress
 
-1. **Scenario 1: Global Blockbuster Resolution (Inception `tt1375666`)**
-   - Resolves canonical title `Inception` (2010) via Cinemeta.
-   - Searches all 3 active providers.
-   - Asserts HLS Proxy streams have `url` (and NO `externalUrl`) and Embed streams have `externalUrl` (and NO `url`).
-2. **Scenario 2: Multi-Season Series Episode Play (Breaking Bad `tt0903747:1:1`)**
-   - Resolves canonical title `Breaking Bad` (2008) via Cinemeta.
-   - Identifies Season 1 Episode 1 across provider catalogs.
-3. **Scenario 3: Asian Cinema & Anime Workflows**
-   - Resolves and verifies streams for anime (`one-piece`, `sayonara-lara`) and historical drama (`hoa-khai-cam-tu`).
-4. **Scenario 4: High-Concurrency Burst & 24h LRUCache Verification**
-   - Fires 25 concurrent requests to `/stream/movie/tt1375666.json`.
-   - Validates that subsequent requests are served instantly from LRUCache with 100% data consistency.
-5. **Scenario 5: HLS Playlist & Segment Streamability**
-   - Verifies `/hls/manifest.m3u8` rewrites child playlist/TS segments correctly with CORS and MIME overrides (`video/mp2t`).
+1. **Scenario 1: Global Blockbuster Multi-Server Audio Discovery (Harry Potter `tt0373889`)**:
+   - Resolves canonical metadata for Harry Potter and the Order of the Phoenix.
+   - Extracts at least 2 distinct VSMOV audio streams (`Vietsub` and `Lồng Tiếng` / `Thuyết Minh`).
+   - Validates exact title formatting: `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`.
+2. **Scenario 2: End-to-End Subtitle Fetch & Header Integrity**:
+   - Extracts proxy subtitle URL from stream object: `/hls/sub.vtt?url=...&ref=...`.
+   - Sends HTTP GET request to subtitle proxy endpoint.
+   - Validates HTTP 200, `Content-Type: text/vtt; charset=utf-8`, CORS `*`, and `WEBVTT` body header.
+3. **Scenario 3: Multi-Season Series Episode Discovery**:
+   - Queries series streams (e.g. Breaking Bad `tt0903747:1:1` or active series catalog).
+   - Validates episode labels `[Tập 1]` and binge group tagging.
+4. **Scenario 4: High-Concurrency Burst & Cache Stress**:
+   - Fires concurrent requests to stream endpoints, validating sub-millisecond LRUCache hits and zero memory leak.
 
 ---
 
-## 6. Execution Command & Automation
+## 6. Feature Coverage Inventory
 
-The entire 4-tier test suite is automated and executable with standard Node.js without external runner dependencies:
+| # | Feature Description | Milestone | Covered in Test File | Tiers Covered |
+|---|---------------------|-----------|----------------------|---------------|
+| 1 | Subtitle Proxy Endpoint `/hls/sub.vtt` | M1 | `tests/verify_vsmov_sub_audio.js` | Tier 1, 2, 4 |
+| 2 | SRT to WebVTT Auto-Conversion | M1 | `tests/verify_vsmov_sub_audio.js` | Tier 2 |
+| 3 | Aggregator Subtitle Pass-Through | M1 | `tests/verify_vsmov_sub_audio.js`, `tests/e2e.test.js` | Tier 1, 3 |
+| 4 | VSMOV Multi-Server Audio Separation | M2 | `tests/verify_vsmov_sub_audio.js` | Tier 1, 3, 4 |
+| 5 | VSMOV Stream Title & Name Formatting | M2 | `tests/verify_vsmov_sub_audio.js` | Tier 3 |
+| 6 | VSMOV Subtitle Extraction & Attachment | M2 | `tests/verify_vsmov_sub_audio.js` | Tier 1, 3, 4 |
+| 7 | In-App Stream Protocol Compliance (`url` only) | M2 | `tests/verify_vsmov_sub_audio.js`, `tests/verify_playback.js` | Tier 1, 2, 3 |
+| 8 | UI Branding & Version Bumping (v1.5.1) | M3 | `tests/verify_playback.js`, `tests/e2e.test.js` | Tier 1 |
+| 9 | E2E Testing Suite (`tests/verify_vsmov_sub_audio.js`) | M-E2E / M4 | `tests/verify_vsmov_sub_audio.js` | Tier 1, 2, 3, 4 |
+| 10| Git Deployment & Main Branch Verification | M4 | Deployment audit & git verification | Operational |
+
+---
+
+## 7. Test Suite Index & Invocation Commands
+
+All test suites are self-contained and run on ephemeral Express instances on port 0:
 
 ```bash
-# Run complete E2E test suite
+# 1. Run VSMOV Subtitle & Multi-Server Audio E2E Test Suite (Hotfix v1.5.1 Target)
+node tests/verify_vsmov_sub_audio.js
+
+# 2. Run Mandatory Playback & Binary MPEG-TS Verification Test
+node tests/verify_playback.js
+
+# 3. Run Full System 4-Tier E2E Regression Suite
 node tests/e2e.test.js
+
+# 4. Run Multi-Provider Integration Suite
+node tests/m2_providers.test.js
 ```
 
 ### Exit Codes:
-- `0`: All test tiers passed successfully.
-- `1`: One or more test assertions failed (with detailed failure diagnostics printed).
+- `0`: All assertions passed successfully.
+- `1`: One or more assertions failed (with full failure diagnostics printed).

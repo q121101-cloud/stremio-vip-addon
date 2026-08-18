@@ -1,42 +1,38 @@
-# BRIEFING — 2026-08-17T08:52:00Z
+# BRIEFING — 2026-08-18T01:55:14Z
 
 ## Mission
-Investigate KKPhim live API behavior, E2E stream URL flow (manifest to segments), robust live test harness in `tests/test_kkphim_playback.js`, and self-debug loop strategy for live upstream CDNs.
+Investigate and formulate changes for Milestone 3: bump version to 1.5.1 and verify UI branding / styling in repository files.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: Read-only investigation: analyze problems, synthesize findings, produce structured reports
+- Roles: [Investigation, Synthesis]
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_2
-- Original parent: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Milestone: Milestone 3 - E2E Stream Playback Test & Self-Debug Loop (KKPhim focus)
+- Original parent: e013fc0a-505e-462d-b6df-24ebb83a7b3c
+- Milestone: Milestone 3 (Version Bump & UI Branding)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Produce handoff report in `.agents/explorer_m3_2/handoff.md`
+- Read-only investigation — do NOT implement / modify source code files
+- Adhere strictly to 5-Component Handoff Report format in handoff.md
+- Ensure tests and contracts are thoroughly verified for version bump 1.5.1
 
 ## Current Parent
-- Conversation ID: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Updated: 2026-08-17T08:52:00Z
+- Conversation ID: e013fc0a-505e-462d-b6df-24ebb83a7b3c
+- Updated: 2026-08-18T01:55:14Z
 
 ## Investigation State
-- **Explored paths**:
-  - `src/providers/kkphim.js`: Stream resolution, title formatting, Base64URL encoding, no externalUrl.
-  - `src/routes/hls.js`: Anti-403 header injection, manifest rewriting (master & media), segment streaming pipe.
-  - `src/handlers.js`: Stream aggregation & Stremio protocol compliance.
-  - `src/index.js`: Express app startup and route mounting.
-  - Live endpoints: `https://phimapi.com/phim/cuu-mon`, `https://s1.phim1280.tv/...`, `https://v7.kkphimplayer7.com/...`.
+- **Explored paths**: package.json, src/manifest.js, src/handlers.js, src/index.js, src/config.js, src/routes/hls.js, src/providers/*.js, tests/*.js, README.md, push-to-github.sh
 - **Key findings**:
-  - Live KKPhim stream resolution is 100% operational with real upstream CDNs (`s1.phim1280.tv`, `v7.kkphimplayer7.com`).
-  - HLS proxy correctly rewrites sub-playlists and TS segments using `?url=...&ref=...`.
-  - TS segment downloading through proxy returns HTTP 200, 946KB binary buffer with MPEG-TS sync byte `0x47` and `Content-Type: video/mp2t`.
-  - Defined exact 3-case test harness and self-debug decision tree for `tests/test_kkphim_playback.js`.
-- **Unexplored areas**: None. All core investigation questions answered.
+  - `package.json` line 3: "1.5.0" -> bump to "1.5.1"
+  - `src/manifest.js` line 387: "1.5.0" -> bump to "1.5.1"
+  - `src/handlers.js` line 314 & 436: update live badge and footer to "v1.5.1" while keeping `<span class="brand-highlight">Q121101</span>` glowing CSS styling intact
+  - `src/index.js` line 105: update banner to Engine v1.5.1
+  - Test suites (`tests/e2e.test.js`, `tests/m3_verification.test.js`, `tests/adversarial_reviewer2_comprehensive.js`, `tests/empiric_playback_challenger_m1_m4.test.js`) identified for test version string alignment to 1.5.1
+  - `tests/verify_vsmov_sub_audio.js` verified passing 62/62 assertions
+- **Unexplored areas**: None
 
 ## Key Decisions Made
-- Structured the complete test suite specification for `tests/test_kkphim_playback.js`.
-- Documented self-debug loop taxonomy and remediation procedures for CDN issues.
+- Formulated exact target line replacements for Worker across code and test files in handoff.md.
 
 ## Artifact Index
-- `.agents/explorer_m3_2/DISPATCH.md` — Dispatch log
-- `.agents/explorer_m3_2/progress.md` — Progress tracker
-- `.agents/explorer_m3_2/handoff.md` — Complete handoff report
+- handoff.md — Final 5-component analysis and recommendation report (/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_2/handoff.md)
+- progress.md — Liveness and step tracking

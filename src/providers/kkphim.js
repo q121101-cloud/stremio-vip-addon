@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/kkphim.js
+ *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.5.1)
  *  KKPhim Provider Module (100% Official Endpoints: phimapi.com)
  *
  *  Features:
@@ -57,6 +57,48 @@ function formatEpisodeLabel(epName) {
     return ` [${trimmed}]`;
   }
   return ` [Tập ${trimmed}]`;
+}
+
+/**
+ * Flexible episode matching helper supporting exact name, zero-padded 01/001,
+ * "Tập 1", "Tập 01", "tap-1", "episode-1", slug suffix "-1", regex number extraction, and fallback.
+ */
+function matchEpisodeItem(ep, targetEpStr, targetEpNum) {
+  if (!ep) return false;
+  const nameStr = String(ep.name || '').trim();
+  const slugStr = String(ep.slug || '').trim();
+  const pad2 = !isNaN(targetEpNum) && targetEpNum > 0 ? String(targetEpNum).padStart(2, '0') : targetEpStr;
+  const pad3 = !isNaN(targetEpNum) && targetEpNum > 0 ? String(targetEpNum).padStart(3, '0') : targetEpStr;
+
+  // Direct name equality
+  if (nameStr === targetEpStr || nameStr === pad2 || nameStr === pad3) return true;
+  if (nameStr === `Tập ${targetEpStr}` || nameStr === `Tập ${pad2}` || nameStr === `Tập ${pad3}`) return true;
+  if (nameStr === `Tập${targetEpStr}` || nameStr === `Tập${pad2}` || nameStr === `Tập${pad3}`) return true;
+  if (nameStr.toLowerCase() === `episode ${targetEpStr}` || nameStr.toLowerCase() === `ep ${pad2}`) return true;
+
+  // Slug equality & slug patterns
+  if (slugStr === targetEpStr || slugStr === pad2 || slugStr === pad3) return true;
+  if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-${pad2}` || slugStr === `tap-${pad3}`) return true;
+  if (slugStr === `episode-${targetEpStr}` || slugStr === `ep-${targetEpStr}` || slugStr === `ep-${pad2}`) return true;
+  if (slugStr.endsWith(`-${targetEpStr}`) || slugStr.endsWith(`-${pad2}`) || slugStr.endsWith(`-${pad3}`)) return true;
+  if (slugStr.endsWith(`-tap-${targetEpStr}`) || slugStr.endsWith(`-tap-${pad2}`)) return true;
+
+  // Regex extraction from name / slug
+  if (!isNaN(targetEpNum) && targetEpNum > 0) {
+    const nameMatch = nameStr.match(/(?:tập|tap|ep|episode)\s*(\d+)/i) || nameStr.match(/\b(\d+)\b/);
+    if (nameMatch && parseInt(nameMatch[1], 10) === targetEpNum) return true;
+
+    const slugMatch = slugStr.match(/(?:tap|ep|episode)[-_](\d+)/i) || slugStr.match(/[-_](\d+)$/);
+    if (slugMatch && parseInt(slugMatch[1], 10) === targetEpNum) return true;
+  }
+
+  if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
+    try {
+      const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
+      if (re.test(nameStr) || re.test(slugStr)) return true;
+    } catch {}
+  }
+  return false;
 }
 
 function mapCatalogMeta(item, forceType = null) {
@@ -343,7 +385,7 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       const server = episodes[sIdx];
       const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
       const cleanServerName = rawServerName.replace(/[\r\n#]+/g, ' ').replace(/\s+/g, ' ').trim() || `Server ${sIdx + 1}`;
-      const serverData = server.server_data || [];
+      const serverData = server.server_data || server.episode_data || server.items || server.episodes || [];
 
       if (!serverData.length) continue;
 
@@ -355,27 +397,8 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
         if (!isNaN(epNum) && epNum <= 0) {
           targetEp = null;
         } else {
-          // Khớp ep.name == episode hoặc ep.slug == "tap-" + episode hoặc regex / index
-          targetEp = serverData.find((ep) => {
-            if (!ep) return false;
-            const nameStr = String(ep.name || '').trim();
-            const slugStr = String(ep.slug || '').trim();
-            if (nameStr === targetEpStr || nameStr === `Tập ${targetEpStr}` || nameStr === `Tập 0${targetEpStr}`) return true;
-            if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-0${targetEpStr}`) return true;
-            if (!isNaN(epNum) && epNum > 0) {
-              const numFromName = parseInt(nameStr.replace(/\D+/g, ''), 10);
-              if (numFromName === epNum) return true;
-              const numFromSlug = parseInt(slugStr.replace(/\D+/g, ''), 10);
-              if (numFromSlug === epNum) return true;
-            }
-            if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
-              try {
-                const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
-                if (re.test(nameStr) || re.test(slugStr)) return true;
-              } catch {}
-            }
-            return false;
-          });
+          // Khớp linh hoạt ep.name, ep.slug, 01/001, Tập 1, tap-1, regex, index fallback
+          targetEp = serverData.find((ep) => matchEpisodeItem(ep, targetEpStr, epNum));
 
           // Index fallback
           if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
@@ -454,11 +477,12 @@ function mapDetailMeta(movie, episodes = [], forceType = null) {
     const videos = [];
     const seen = new Set();
     for (const server of episodes) {
-      for (const ep of (server.server_data || [])) {
+      for (const ep of (server.server_data || server.episode_data || server.items || server.episodes || [])) {
         const epName = ep.name || ep.slug || '1';
         if (!seen.has(epName)) {
           seen.add(epName);
-          const epNum = parseInt(epName, 10) || 1;
+          const epMatch = String(epName).match(/\d+/);
+          const epNum = epMatch ? parseInt(epMatch[0], 10) : (parseInt(epName, 10) || 1);
           videos.push({
             id: `kkphim_${movie.slug}:1:${epNum}`,
             title: `Tập ${epName}`,
@@ -483,5 +507,6 @@ module.exports = {
   getCatalog,
   getStreams,
   mapDetailMeta,
+  matchEpisodeItem,
   formatImageUrl,
 };

@@ -49,11 +49,48 @@ Integrity mode: development
 - Execute git commit & push:
   `git add . && git commit -m "Engine v1.5.0: Production-Ready 7-Source Swarm with 22 Catalogs & E2E Verified 4K Playback via Teamwork Preview" && git push origin main`.
 
+## 2026-08-18T02:21:45Z
+
+<USER_REQUEST>
+Hotfix v1.5.1 for Stremio VIP Movies Addon: separate VSMOV server audio tabs into distinct `Vietsub`, `Lồng Tiếng`, `Thuyết Minh` streams with WebVTT subtitle proxy; fix KKPhim HTTP 404 episode-matching bug; run E2E verification with real video segment download (> 50KB); deploy to GitHub.
+
+Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
+Integrity mode: development
+
+## Requirements
+
+### R1. VSMOV Multi-Server Separation & Subtitle Proxy (`src/providers/vsmov.js`, `src/routes/hls.js`)
+- Extract all server groups from VSMOV API/player response (`Vietsub`, `Lồng tiếng`, `Thuyết minh`). Return them as independent stream objects with titles:
+  - `[VIP 1 • VSMOV] Vietsub 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Vietsub • vsmov.com`
+  - `[VIP 1 • VSMOV] Lồng Tiếng 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Lồng Tiếng • vsmov.com`
+  - `[VIP 1 • VSMOV] Thuyết Minh 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Thuyết Minh • vsmov.com`
+- Extract WebVTT/SRT subtitle files (when present), proxy via `GET /hls/sub.vtt?url=...&ref=...`, and attach as `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
+- `/hls/sub.vtt` must return: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, auto-convert SRT to WebVTT.
+- All streams must contain `url` and NO `externalUrl`.
+
+### R2. KKPhim 404 Episode-Matching Fix (`src/providers/kkphim.js`)
+- Fix episode lookup to flexibly match all variants: `ep.name === String(targetEp)`, zero-padded (`"01"`), Vietnamese label (`"Tập 1"`), and slug suffix (`"-1"`).
+- Ensure CDN referer headers are set to valid player origin (e.g. `https://player.phimapi.com/`) to prevent 403/404 from CDN.
+- Ensure Base64URL encoding/decoding of m3u8 links preserves all security query parameters intact.
+
+### R3. E2E Verification (`tests/verify_playback.js`)
+- Automated test against live upstream:
+  1. Harry Potter `tt0373889` must return at least 2 distinct VSMOV stream objects (Vietsub + Lồng Tiếng / Thuyết Minh).
+  2. A KKPhim series episode (e.g. `tt0903747:1:1`) must resolve a valid HLS manifest with HTTP 200 (no 404).
+  3. Download a real `.ts` segment via `/hls/segment.ts`: verify HTTP 200 / 206, payload > 50KB, MPEG-TS sync byte `0x47`.
+- Self-debug loop until 100% pass.
+
+### R4. Versioning & GitHub Deployment
+- Update version string to `1.5.1` in `package.json`, `src/manifest.js`, and the footer in `src/handlers.js` (`VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`).
+- `git add . && git commit -m "Hotfix v1.5.1: Swarm verified - Split VSMOV Vietsub/Audio tabs with Subtitle Proxy & Fixed KKPhim 404 episode matching" && git push origin main`.
+
 ## Acceptance Criteria
 
-### Verification Standards
-- [ ] `node tests/verify_playback.js` passes all tests and downloads a real `.ts` segment (> 50KB) with HTTP 200.
-- [ ] All catalog and search endpoints return HTTP 200 `{ metas: [...] }` without 404 errors.
-- [ ] In-app stream objects strictly contain `url` and NO `externalUrl`.
-- [ ] `node --check src/index.js` passes with zero errors.
-- [ ] `git push origin main` completes successfully.
+- [ ] VSMOV streams include at least 2 distinct audio-group entries (Vietsub and one of Lồng Tiếng / Thuyết Minh) verified by test script.
+- [ ] `/hls/sub.vtt` returns HTTP 200, `text/vtt`, CORS `*`.
+- [ ] KKPhim series episode stream resolves to valid HLS manifest (HTTP 200, no 404).
+- [ ] Real `.ts` segment download > 50KB with HTTP 200 / 206.
+- [ ] `node --check src/index.js` zero errors.
+- [ ] `git push origin main` succeeds.
+
+</USER_REQUEST>

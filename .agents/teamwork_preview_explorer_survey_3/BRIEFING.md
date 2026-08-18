@@ -1,44 +1,31 @@
-# BRIEFING — 2026-08-17T03:19:40Z
+# BRIEFING — 2026-08-18T08:37:00+07:00
 
 ## Mission
-Investigate stream protocol formatting (handlers.js), proxy endpoints (proxy.js / routes/hls.js), UI/manifest (manifest.js, index.js), package versioning, and test harness to perform gap analysis for R3 and R4.
+Investigate testing infrastructure, versioning, UI branding, and git deployment readiness for Hotfix v1.5.1.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigation, synthesis
+- Roles: [explorer, survey]
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: Survey Phase - Stream Protocol, Proxy, UI/Manifest & Test Strategy (R3/R4)
+- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
+- Milestone: Hotfix v1.5.1 Investigation & Survey
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Analyze stream protocol formatting in src/handlers.js, proxy in src/proxy.js, UI/manifest in src/manifest.js, package.json, tests/scripts
-- Compare against R3 and R4 in ORIGINAL_REQUEST.md
+- Analyze existing tests, verify_vsmov_sub_audio.js requirements, versioning in package.json/manifest.js/handlers.js, UI branding, and git deployment status
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Updated: 2026-08-17T03:19:40Z
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
+- Updated: 2026-08-18T08:37:00+07:00
 
 ## Investigation State
-- **Explored paths**:
-  - `src/handlers.js`: stream aggregation, Cyber-Glassmorphism UI dashboard, route handlers.
-  - `src/routes/hls.js`: proxy endpoints (`/hls/extract`, `/hls/manifest.m3u8`, `/hls/ts`), CORS, video/mp2t override.
-  - `src/manifest.js` & `src/routes/manifest.js`: BASE_MANIFEST (v1.4.0), dynamic manifest generation, token prefixes.
-  - `src/providers/` (`nguonc.js`, `kkphim.js`, `vsmov.js`): stream construction and title format.
-  - `package.json`: v1.4.0.
-  - Test suites: `src/test.js`, `test_all.js`, `e2e_test.js`, `verify_matrix.js`, `test_decoder.js`, `test_thuyetminh.js`.
-- **Key findings**:
-  - Identified critical protocol gap: Embed streams currently have both `url` and `externalUrl`, breaking external browser playback in Stremio.
-  - Identified title formatting mismatches against R3 across all 3 providers.
-  - Confirmed UI and manifest retain Cyber-Glassmorphism UI, glowing brand footer, and v1.4.0 versioning.
-  - Verified `node --check src/index.js` and all source files exit with 0.
-  - Documented complete test strategy and verification commands in `handoff.md`.
-- **Unexplored areas**: None (Survey completed).
+- **Explored paths**: `tests/`, `src/test.js`, `src/manifest.js`, `src/handlers.js`, `src/index.js`, `src/routes/hls.js`, `src/providers/vsmov.js`, `package.json`, git repository.
+- **Key findings**: Complete architectural map for Hotfix v1.5.1. VSMOV separates into Vietsub, Lồng Tiếng, and Thuyết Minh tabs. Subtitles extract from `playerOptions.subtitles` in embed HTML. Subtitle proxy requires `/hls/sub.vtt`. Version bump to `1.5.1` with brand signature `VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`. Test suite `tests/verify_vsmov_sub_audio.js` blueprint created.
+- **Unexplored areas**: None.
 
 ## Key Decisions Made
-- Documented full gap analysis and exact before/after actions in `handoff.md`.
+- Fully documented all 4 investigation areas in `analysis.md` and synthesized into `handoff.md`.
 
 ## Artifact Index
-- handoff.md — Comprehensive handoff analysis for R3 and R4
-- progress.md — Liveness heartbeat
-- DISPATCH.md — Agent dispatch log
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/analysis.md` — Detailed architecture and test investigation report
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/handoff.md` — 5-component handoff report

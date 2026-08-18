@@ -1,15 +1,17 @@
-## 2026-08-17T03:16:59Z
-You are Survey Explorer 2.
-Your working directory is /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2.
-Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md.
+## 2026-08-18T01:35:00Z
+You are teamwork_preview_explorer_survey_2.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2
+Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
 
-Task:
-1. Thoroughly explore the provider implementations in src/providers/ (KKPhim, NguonC, VsMov).
-2. Investigate current behavior, API endpoints, query params, error handling, timeouts, and return data structures for each provider.
-3. Compare against R2 in ORIGINAL_REQUEST.md (5s axios timeout, isolated try-catch, KKPhim direct IMDb -> fallback Cinemeta title -> all servers, NguonC Cinemeta title -> Vietsub/ThuyetMinh, VsMov multi-gateway scraper -> 1080p master.m3u8).
-4. Produce a comprehensive report in /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2/handoff.md detailing:
-   - Current implementation of KKPhim, NguonC, VsMov
-   - Exact gap analysis for each provider
-   - Timeout and isolation patterns
-   - Required changes and interface contracts
-5. Update your progress.md and send a message to orchestrator upon completion.
+Please read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md.
+Investigate HLS routes and proxying in `src/routes/hls.js`, `src/index.js`, and related files.
+Specifically analyze:
+1. Current routes in `src/routes/hls.js` and how `/hls/m3u8-proxy` and `/hls/ts-proxy` work.
+2. Requirements for the new `GET /hls/sub.vtt` endpoint:
+   - Query parameters (e.g. `url`, `ref`).
+   - Fetching upstream subtitle files with required headers (`Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, standard Chrome User-Agent).
+   - Response headers: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
+   - Detection and conversion logic for SRT to WebVTT format when upstream serves SRT content.
+3. How `proxyBase` is determined / constructed across handlers and routes.
+
+Write your detailed findings to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_2/analysis.md` and a summary `handoff.md`. Send a completion message back to parent when done.

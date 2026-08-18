@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Stremio Addon - src/manifest.js  (v1.5.0)
+ *  VIP Movies Stremio Addon - src/manifest.js  (v1.5.1)
  *  Định nghĩa manifest của addon theo chuẩn Stremio / Nuvio
  *  Hỗ trợ Dynamic Manifest theo config token & đa nguồn (NguonC, KKPhim, VsMov)
  * ============================================================
@@ -384,7 +384,7 @@ const ALL_ID_PREFIXES = [
 
 const BASE_MANIFEST = {
   id: 'org.vipmovies.stremio.addon',
-  version: '1.5.0',
+  version: '1.5.1',
   name: 'VIP Movies 🎬',
   description:
     'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ VSMOV 4K, KKPhim, NguonC, STP, HH3D, YAN, CLBPX & IMDb. Cấu hình 22 Catalog K20 chuẩn quốc tế.',

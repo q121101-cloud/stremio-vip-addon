@@ -1,43 +1,40 @@
-# BRIEFING — 2026-08-17T08:50:50Z
+# BRIEFING — 2026-08-18T01:53:50Z
 
 ## Mission
-Investigate test execution environment and specify design for tests/test_kkphim_playback.js and E2E Stream Playback test for Milestone 3.
+Analyze version bump and UI branding requirements for Milestone 3 (upgrade to v1.5.1) and produce a detailed handoff report with exact replacement chunks and verification steps.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: [explorer, investigator]
+- Roles: [investigation, synthesis]
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3
-- Original parent: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Milestone: Milestone 3: E2E Stream Playback Test & Self-Debug Loop
+- Original parent: e013fc0a-505e-462d-b6df-24ebb83a7b3c
+- Milestone: Milestone 3 (Version Bump & UI Branding)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Write all findings, designs, and reports to .agents/explorer_m3_3/
-- Produce a structured handoff.md following 5-component report protocol
+- Read-only investigation — do NOT implement / modify source code directly
+- Write only to /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/
+- Provide exact line-level observations, diffs, and replacement chunks for the Worker
+- Send message to parent on completion
 
 ## Current Parent
-- Conversation ID: 136861b5-8dea-4750-bca0-abf6c3ca0270
-- Updated: 2026-08-17T08:50:50Z
+- Conversation ID: e013fc0a-505e-462d-b6df-24ebb83a7b3c
+- Updated: 2026-08-18T01:53:50Z
 
 ## Investigation State
-- **Explored paths**:
-  - `ORIGINAL_REQUEST.md`, `PROJECT.md`, `package.json`
-  - `src/providers/kkphim.js`, `src/routes/hls.js`, `src/index.js`, `src/handlers.js`, `src/mapper.js`
-  - `tests/` directory (`test_live_kkphim_proxy.js`, `m3_verification.test.js`, `m3_challenger1_empirical.test.js`, `empirical_m3_challenger_2.js`, `e2e.test.js`, `helpers.js`)
+- **Explored paths**: `package.json`, `package-lock.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js`, `src/config.js`, `src/routes/hls.js`, `src/providers/*.js`, `tests/verify_vsmov_sub_audio.js`, `tests/e2e.test.js`, `tests/m3_challenger1_empirical.test.js`
 - **Key findings**:
-  - Node.js runtime: v26.7.0 (supports ES2022, native fetch, Buffer, async/await).
-  - Dependencies: `axios: ^1.7.7`, `express: ^4.21.1`, `cors: ^2.8.5`, `node-cache: ^5.1.2`.
-  - Upstream KKPhim provider generates in-app streams with HLS proxy URL (`/hls/manifest.m3u8?url=...&ref=...`) and strictly omits `externalUrl`.
-  - HLS proxy (`src/routes/hls.js`) rewrites both master playlists (to sub-manifests `/hls/manifest.m3u8`) and media playlists (to segments `/hls/ts`), injecting anti-403 headers (`Referer: https://player.phimapi.com/`, `Origin: https://player.phimapi.com`, Chrome Mac UA) and enforcing CORS `*` + MIME `video/mp2t`.
-  - Live probe confirmed slug `cuu-mon` generates a master playlist (`#EXT-X-STREAM-INF`), which rewrites to sub-manifest, which yields TS segment chunks with valid MPEG-TS sync bytes (`0x47` at offset 0 and offset 188) and > 940KB binary payload with HTTP 200.
-  - Test runner architecture for `tests/test_kkphim_playback.js`: Ephemeral port server (port 0), 3 sequential test cases, deep MPEG-TS packet validation, self-debug logging, and standalone process exit code 0/1.
-- **Unexplored areas**: None.
+  1. Primary version bump targets: `package.json:3` (1.5.0 -> 1.5.1), `src/manifest.js:387` (1.5.0 -> 1.5.1), `src/handlers.js:314` (v1.5.0 -> v1.5.1) and `src/handlers.js:436` (v1.5.0 -> v1.5.1), `src/index.js:105` (v1.5.0 -> v1.5.1).
+  2. Health check route dynamically consumes `MANIFEST.version`, hence automatically updates.
+  3. `package-lock.json` contains `version: "1.0.0"` in root entries that should be bumped to `"1.5.1"`.
+  4. Header comments in `src/manifest.js`, `src/handlers.js`, `src/index.js`, `src/config.js`, `src/routes/hls.js`, `src/providers/vsmov.js`, `src/providers/stp.js`, `src/providers/hh3d.js`, `src/providers/yan.js`, `src/providers/clbpx.js` can be harmonized to v1.5.1.
+  5. `tests/verify_vsmov_sub_audio.js` runs cleanly (60/60 passing).
+- **Unexplored areas**: None for M3.
 
 ## Key Decisions Made
-- Fully specified standalone test structure for `tests/test_kkphim_playback.js` with master/media playlist recursion, TS sync byte checks, and process exit codes.
+- Mapped exact replacement chunks with StartLine/EndLine and character-exact strings.
 
 ## Artifact Index
-- DISPATCH.md — Dispatch instructions from parent
-- BRIEFING.md — Persistent context and awareness
-- progress.md — Heartbeat and status
-- handoff.md — Comprehensive Design Specification & 5-Component Report
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/DISPATCH.md — Initial dispatch prompt
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/BRIEFING.md — Situational awareness working memory
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/progress.md — Liveness heartbeat
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_m3_3/handoff.md — Complete analysis and Worker implementation guide

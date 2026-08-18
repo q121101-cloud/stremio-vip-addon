@@ -1,61 +1,54 @@
-# BRIEFING — 2026-08-17T03:31:30Z
+# BRIEFING — 2026-08-18T01:42:30Z
 
 ## Mission
-Empirically test `src/lib/cinemeta.js` and `cinemetaCache` using test harnesses, stress tests, edge cases, and fault injection to determine APPROVE or REJECT verdict.
+Adversarially challenge and stress-test Milestone 1 subtitle proxy and converter in `src/routes/hls.js` and `src/handlers.js` through empirical tests, benchmarks, edge cases, and concurrency bursts.
 
 ## 🔒 My Identity
-- Archetype: empirical_challenger
+- Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: M1 (Cinemeta Resolver & Cache)
+- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
+- Milestone: Milestone 1
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Run verification code empirically (never trust unverified claims)
-- Save test harnesses in designated project dirs (e.g. tests/), NOT in .agents/
+- Run all tests empirically; do not assume or trust claims without execution
+- Produce stress test harness, measure stability, memory, HTTP responses
+- Deliver handoff.md with verdict (APPROVE / REJECT)
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
 - Updated: not yet
 
 ## Review Scope
-- **Files to review**: `src/lib/cinemeta.js`, `src/lib/cache.js`
-- **Interface contracts**: PROJECT.md Cinemeta Resolver Contract
-- **Review criteria**: Correctness, performance, resilience, error handling, cache TTL/LRU, boundary behaviors
+- **Files to review**: `src/routes/hls.js`, `src/handlers.js`, `tests/`
+- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
+- **Review criteria**: correctness, stability, memory safety, DOS/burst resilience, error handling, status codes
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Live Cinemeta movie resolution (`tt1375666` -> Inception, 2010): PASSED
-  - Live Cinemeta series resolution with season/episode (`tt0903747:1:1` -> Breaking Bad, 2008): PASSED
-  - Type normalization (`tv` -> `series`, unknown -> `movie`): PASSED
-  - Cache hit sub-millisecond retrieval (5.38µs) and zero network re-query: PASSED
-  - Synchronous `getCachedCinemeta`: PASSED
-  - Negative caching for 404 responses (1h TTL): PASSED
-  - Transient failure (500 / Timeout) error resilience without cache corruption: PASSED
-  - Format variations and regex year extraction (`2008–2013` -> 2008, `2021` in text -> 2021): PASSED
-  - Empty or corrupt metadata handling: PASSED
-  - Input fuzzing (14 malformed, empty, and non-string inputs): PASSED
-  - LRU eviction stress under 10,000 key overload on 5,000 capacity cache: PASSED
-  - LRU MRU promotion preventing premature eviction: PASSED
-  - TTL expiration and proactive `prune()`: PASSED
-  - 100 concurrent parallel stampede requests: PASSED
-  - PROJECT.md contract field and type integrity: PASSED
-- **Vulnerabilities found**: None. Implementation exhibits robust isolation, negative cache partitioning, and thread-safe LRU mechanics.
-- **Untested angles**: Live external DNS outside sandbox (sandboxed offline verified via mock adapter).
+  1. Base64URL vs Standard Base64 vs plain URL parsing in `/hls/sub.vtt`
+  2. Malformed Base64, whitespace padding, spaces, nested URLs
+  3. Large subtitle payloads (>1MB up to 4MB) & memory leak / OOM safety
+  4. Malformed SRTs (multiple blank lines, Windows CRLF, BOM variations `0xFEFF`, missing trailing newlines, HTML tags)
+  5. WebVTT headers already present with CSS `STYLE` blocks, `REGION`, `NOTE`, cue settings
+  6. High-concurrency burst (100 parallel requests)
+  7. Upstream error responses (403, 404, 500, connection refused 502) & CORS headers
+  8. Aggregator subtitle pass-through & strict In-App stream protocol (`url` only, `externalUrl` omitted)
+- **Vulnerabilities found**: None in Milestone 1 implementation. Code handles all tested adversarial vectors cleanly.
+- **Untested angles**: Live provider scraping with multiple audio streams (VSMOV provider changes belong to Milestone 2).
 
 ## Loaded Skills
 - None explicitly loaded
 
 ## Key Decisions Made
-- Executed 16-vector empirical test harness in `tests/cinemeta_challenger.test.js`.
-- All 16 test vectors passed with zero errors.
-- Final verdict: **APPROVE**.
+- Implemented standalone empirical stress test `.agents/teamwork_preview_challenger_m1_1/stress_test.js` with 78 assertions covering all required attack surfaces.
+- All 78 assertions passed with 100% success rate, sub-100ms burst execution, safe memory footprint (<2MB delta).
+- Verdict: **APPROVE**.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_m1_1/DISPATCH.md` — Dispatch requirements
-- `.agents/teamwork_preview_challenger_m1_1/BRIEFING.md` — Persistent state index
-- `.agents/teamwork_preview_challenger_m1_1/progress.md` — Progress heartbeat
+- `.agents/teamwork_preview_challenger_m1_1/DISPATCH.md` — Inbound message log
+- `.agents/teamwork_preview_challenger_m1_1/progress.md` — Execution progress & heartbeat
+- `.agents/teamwork_preview_challenger_m1_1/stress_test.js` — Empirical test harness (78/78 passed)
 - `.agents/teamwork_preview_challenger_m1_1/handoff.md` — Final handoff report
-- `tests/cinemeta_challenger.test.js` — 16-vector empirical test suite

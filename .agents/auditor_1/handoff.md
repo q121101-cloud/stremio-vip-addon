@@ -1,145 +1,121 @@
-# Forensic Integrity Audit & Handoff Report: Stremio VIP Movies Addon Engine v1.5.0
+# Forensic Audit Report: Hotfix v1.5.1
 
-## Forensic Audit Report
-
-**Work Product**: Stremio VIP Movies Addon Engine v1.5.0 (`src/`, `tests/`, `package.json`)  
-**Profile**: General Project (Development Mode)  
-**Verdict**: **CLEAN**  
-
-### Phase Results
-- **Phase 1: Source Code & Static Integrity Analysis**: **PASS** — No hardcoded test responses, dummy scrapers, facade implementations, or duplicate declarations in `src/`. `src/lib/utils.js` exports canonical helper functions (`scoreMatch`, `normalizeText`, `escapeRegExp`, `safeExtra`, `safeSlug`, `safeKeyword`, `safePage`, `extractSeasonNumber`, `isSeasonMatch`).
-- **Phase 2: Runtime & Network Tracing**: **PASS** — `src/routes/hls.js` genuinely fetches real upstream playlists and video segments. `tests/verify_playback.js` genuinely starts an ephemeral server, traverses playlists, and downloads a real upstream CDN video chunk of **3,426,676 bytes (~3.35 MB)** with HTTP 200, MPEG-TS sync byte `0x47` on 188-byte boundaries, and HTTP Range 206 partial content support.
-- **Phase 3: Stream Exclusivity & Protocol Invariants**: **PASS** — All in-app stream objects emitted by `src/handlers.js` and all 7 provider modules (`vsmov.js`, `kkphim.js`, `nguonc.js`, `stp.js`, `hh3d.js`, `yan.js`, `clbpx.js`) strictly contain `url` pointing to the local HLS proxy and omit `externalUrl`.
-- **Phase 4: Dynamic Routing & 404 Prevention**: **PASS** — All 22 K20 standard catalogs and `/:config`-prefixed routes are mounted and return HTTP 200 with `{ metas: [...] }` or `{ streams: [...] }` with zero 404 crashes.
+**Work Product**: Hotfix v1.5.1 (`src/providers/vsmov.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `tests/verify_playback.js`, `package.json`, `src/manifest.js`, `src/handlers.js`)  
+**Profile**: General Project (Development Integrity Mode)  
+**Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-### Observation 1: Static Code Inspection & Absence of Hardcoded Mocks / Duplicates
-- File `src/lib/utils.js` (lines 313-326) exports canonical utility functions:
-  ```javascript
-  module.exports = {
-    safeString,
-    safeType,
-    normalizeText,
-    escapeRegExp,
-    safeExtra,
-    safeSlug,
-    safeKeyword,
-    safePage,
-    extractSeasonNumber,
-    isSeasonMatch,
-    scoreMatch,
-  };
-  ```
-- File `src/providers/vsmov.js` (line 21) and `src/providers/kkphim.js` (line 20) import canonical helpers from `../lib/utils`:
-  ```javascript
-  const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
-  ```
-  Neither provider contains duplicate local function definitions for `scoreMatch`.
-- Full-text search across `src/` confirmed zero hardcoded test identifiers (`cuu-mon`, `tt0903747`, `spider-man`, `silo`), zero synthetic buffers (`Buffer.alloc` with static 0x47 bytes), and zero mock flags or dummy data tables.
+A full forensic analysis was conducted on the source code, routes, providers, tests, and live network behaviors.
 
-### Observation 2: Stream Exclusivity Invariant Enforcement
-- In `src/handlers.js` (lines 943-956), stream sanitization strictly enforces `url` only and purges `externalUrl`:
-  ```javascript
-  const sanitized = {
-    name: item.name || 'VIP Movies 🎬',
-    title: item.title ? String(item.title).replace(/#/g, '') : 'VIP Server',
-    url: String(item.url).trim(),
-    behaviorHints: {
-      notSupported: false,
-      bingeGroup: item.behaviorHints?.bingeGroup || `stream-${slug || imdbId || 'main'}`,
-      ...(item.behaviorHints || {}),
-    },
-  };
-  delete sanitized.externalUrl;
-  mergedStreams.push(sanitized);
-  ```
-- Every provider module (`vsmov.js` line 477, `kkphim.js` line 405, `nguonc.js` line 361, `stp.js` line 313, `hh3d.js` line 305, `yan.js` line 305, `clbpx.js` line 314) constructs stream objects with `url` only and zero `externalUrl`.
+### 1.1 Direct Source Code Observations
+1. **VSMOV Multi-Server Audio Separation & Subtitle Extraction (`src/providers/vsmov.js`)**:
+   - `classifyServerAudio(rawServerName)` (lines 14–41) parses server names using regular expressions (`/l.{1,5}ng\s*ti.{1,5}ng/i`, `/thuy.{1,5}t\s*minh/i`) to categorize streams into `Vietsub`, `Lồng Tiếng`, and `Thuyết Minh` with dedicated binge groups (`vsmov-vietsub-4k-vip-1`, `vsmov-longtieng-4k-vip-1`, `vsmov-thuyetminh-4k-vip-1`).
+   - `resolveEmbedMedia(linkEmbed, linkM3u8)` (lines 46–152) performs live HTTP GET requests to player embed pages, extracts `playerOptions.subtitles` (JSON array) and regex fallbacks (`.(?:vtt|srt)`), converts relative subtitle URLs into absolute URLs, and extracts `.m3u8` master playlists.
+   - `getStreams` (lines 520–600) iterates through all server tabs, attaches proxied subtitles `[{ id: 'vi_vsmov', lang: 'vie', url: '${proxyBase}/hls/sub.vtt?url=${b64Sub}&ref=${b64Ref}' }]`, and strictly omits `externalUrl`.
 
-### Observation 3: Real Upstream Network Proxy & Binary Delivery
-- `src/routes/hls.js` (lines 277-334) proxies media segments via genuine streaming axios requests with anti-403 headers and HTTP Range support:
-  ```javascript
-  const upstreamRes = await axios({
-    url: targetUrl,
-    method: 'GET',
-    responseType: 'stream',
-    headers: upstreamHeaders,
-    timeout: 25000,
-    maxRedirects: 5,
-    validateStatus: (status) => status >= 200 && status < 400,
-  });
-  ```
-- Executed `node tests/verify_playback.js`:
-  ```text
-  ▶ PHASE 5: Real Video TS Segment Download (>50KB & Sync Byte 0x47)
-    Downloading chunk from: http://127.0.0.1:54530/hls/segment.ts?url=aHR0cHM6Ly9wMjQuc3RyZWFtdnNtb3YuY29tL2ZpbGU...
-    Downloaded Buffer: 3426676 bytes (3346.36 KB)
-    ✅ PASS: Video chunk verified (3346.36 KB, MPEG-TS sync byte 0x47 confirmed)
+2. **Subtitle Proxy Endpoint (`src/routes/hls.js`)**:
+   - `GET /hls/sub.vtt` & alias `/sub` (lines 374–433) resolves `url`/`b64`/`sub` parameters, injects `Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, and Chrome `User-Agent`.
+   - Strips UTF-8 BOM (`\uFEFF`), normalizes line endings (`\r\n` -> `\n`), converts SRT timestamps (`00:00:01,000` -> `00:00:01.000`), prepends `WEBVTT\n\n` header if not present, and sets `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
 
-  ▶ PHASE 6: HTTP Range Request Verification (206 Partial Content)
-    Range Request Status: 206
-    Content-Range Header: bytes 0-1023/3426676
-    ✅ PASS: HTTP Range request handling verified
-  ```
-  Result: 3,426,676 bytes received (far exceeding the 50KB requirement), MPEG-TS sync byte `0x47` confirmed at index 0 and index 188.
+3. **KKPhim Flexible Episode Matching (`src/providers/kkphim.js`)**:
+   - `matchEpisodeItem(ep, targetEpStr, targetEpNum)` (lines 66–102) handles all episode formats: exact numeric string (`"1"`, `"01"`, `"001"`), Vietnamese prefix (`"Tập 1"`, `"Tập 01"`), English labels (`"Episode 1"`), slug variants (`"tap-1"`, `"episode-1"`, `"-1"`), regex number extraction, and index fallback.
+   - `serverData` normalization (lines 388, 480) handles `server.server_data || server.episode_data || server.items || server.episodes || []`.
 
-### Observation 4: Syntax & Route Verification Execution
-- Executed `node --check` across all 16 core JS files in `src/`: exit code 0.
-- Executed `node tests/test_routing_and_22_catalogs.js`: 64/64 test cases passed (all 22 K20 catalogs, `/:config` path prefixes, malformed queries handled without 404).
-- Executed `node tests/e2e.test.js`: 88/88 assertions passed.
-- Executed `node tests/empiric_playback_challenger_m1_m4.test.js`: 115/115 checks passed.
+4. **Stream Aggregator Invariant (`src/handlers.js`)**:
+   - Lines 954–957 preserve `subtitles` array when present on sanitized stream objects while strictly executing `delete sanitized.externalUrl`.
+   - Footer and badge synchronized to `v1.5.1` and `VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`.
+
+5. **Version Consistency (`package.json`, `src/manifest.js`, `src/handlers.js`)**:
+   - `package.json`: `"version": "1.5.1"`.
+   - `src/manifest.js`: `BASE_MANIFEST.version: '1.5.1'`.
+   - `src/handlers.js`: `v1.5.1` in HTML badge and footer.
+
+6. **E2E Playback Test (`tests/verify_playback.js`)**:
+   - Listens on ephemeral port `0` (`127.0.0.1:0`), mounts real Express app, makes real network requests across 7 validation phases.
+   - Phase 6 downloads a real binary TS segment (`7,447,877 bytes` / `7.27 MB`) and validates MPEG-TS sync byte `0x47` at offset 0/188 or inside wrapper.
+   - Phase 7 issues HTTP Range `bytes=0-1023` and receives `HTTP 206 Partial Content` with `Content-Range: bytes 0-1023/7447877`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Static Analysis & Verification of Logic**:
-   From Observation 1, all utility functions are centralized in `src/lib/utils.js`, removing previous duplication in `vsmov.js` and `kkphim.js`. Since grep searches across `src/` confirmed no hardcoded mock objects or static responses, all provider functions (`getStreams`, `getCatalog`, `getDetail`, `search`) genuinely execute against real external APIs (`vsmov.com/api`, `phimapi.com`, `phim.nguonc.com/api`).
+1. **Absence of Hardcoded/Faked Outputs**:
+   - A search across the repository (`find . -name '*.log' -o -name '*result*'`) confirmed zero pre-populated verification artifacts or fake caches.
+   - All test files (`verify_playback.js`, `verify_vsmov_sub_audio.js`, `test_kkphim_playback.js`, `test_m1_subtitle_proxy.js`) perform real HTTP calls to local Express instances and upstream CDNs (`vsmov.com`, `phimapi.com`, `streamvsmov.com`).
+   - Binary segment verification downloaded 7,447,877 real bytes from live upstream CDN and successfully checked MPEG-TS packet sync byte `0x47`.
 
-2. **Stream Exclusivity & Security**:
-   From Observation 2, `src/handlers.js` explicitly deletes `externalUrl` and validates that `url` is populated with Base64URL-encoded proxy routes. All 7 providers strictly emit `{ name, title, url, behaviorHints }`. This guarantees that in-app playback is exclusively routed through the addon's HLS proxy without leaking external player URLs.
+2. **Genuine VSMOV Multi-Server Audio Separation & Subtitle Extraction**:
+   - `vsmov.classifyServerAudio` was tested with 12 distinct string variations; all mapped cleanly to `vietsub`, `longtieng`, and `thuyetminh` with appropriate binge groups.
+   - `vsmov.resolveEmbedMedia` was verified to fetch actual embed HTML, parse JSON/regex subtitle tracks, and resolve relative paths.
+   - On Harry Potter `tt0373889`, the live aggregator returned 2 distinct VSMOV audio streams (Vietsub and Lồng Tiếng) with live subtitle URL attached.
 
-3. **Authenticity of Video Playback**:
-   From Observation 3, running `tests/verify_playback.js` starts a real ephemeral Express instance, queries real upstream metadata, rewrites the M3U8 variant playlists, and downloads a real video segment from the upstream CDN (`p24.streamvsmov.com`). The payload is 3.35 MB (> 50KB), returns HTTP 200 (and HTTP 206 on Range request), and contains valid MPEG-TS sync bytes (`0x47` at offset 0 and 188), proving that real video binary data is delivered.
+3. **Authentic Subtitle Proxy & SRT-to-WebVTT Conversion**:
+   - Live endpoint `/hls/sub.vtt` was tested against synthetic SRT with commas and BOM, native WebVTT, and live VSMOV upstream subtitles.
+   - All tests produced valid `WEBVTT` bodies with period timestamps (`00:00:01.234`), stripped BOM, normalized CRLF, CORS `*`, and `text/vtt` MIME.
 
-4. **Conclusion Support**:
-   The logic chain from genuine source implementation, verified network streaming, protocol conformance, and empirical test execution directly supports a binary verdict of **CLEAN**.
+4. **Authentic KKPhim Episode Matcher**:
+   - `matchEpisodeItem` passed 13/13 test cases including leading zeroes, prefixes, slugs, and suffixes.
+   - Series query for `tt0903747:1:1` resolved an active `#EXTM3U` manifest from `phimapi.com`/`phim1280.tv` with HTTP 200 (no 404).
+
+5. **In-App Direct Play Invariant**:
+   - Empirical audit across 42 streams from 13 titles verified 0 occurrences of `externalUrl`. Every stream contained only valid In-App `url`.
 
 ---
 
 ## 3. Caveats
 
-- **Upstream Rate Limiting (HTTP 429)**: Public test runs against external APIs (e.g. `phimapi.com`) may intermittently encounter HTTP 429 rate limits when tests run concurrently in quick succession. The codebase properly isolates and handles these failures via `Promise.allSettled()` and per-provider timeouts (4000ms/5000ms), falling back cleanly to available alternative providers without crashing or returning 500/404 errors.
+- **Upstream CDN Latency / Rate Limiting**: Upstream APIs (`phimapi.com`) may occasionally return HTTP 429 if queried rapidly without pause. Tests include appropriate timeouts (25s) and resilient fallbacks.
+- **Title Subtitle Availability**: Subtitles are attached only when upstream provides a soft subtitle track (WebVTT/SRT). Releases with hardcoded subtitles or raw audio dubs omit the `subtitles` array cleanly.
 
 ---
 
 ## 4. Conclusion
 
-The Stremio VIP Movies Addon Engine v1.5.0 satisfies all integrity, functional, and protocol requirements outlined in `ORIGINAL_REQUEST.md`. There are no hardcoded responses, facade mocks, or bypassed playback logic. The HLS proxy authentically fetches and rewrites upstream manifests and media chunks, delivering genuine >50KB MPEG-TS video segments.
-
 **Verdict: CLEAN**
+
+No integrity violations, hardcoded test results, facade implementations, or faked outputs exist. All components of Hotfix v1.5.1 are genuinely implemented, fully functional, and independently verified against live upstream services.
 
 ---
 
 ## 5. Verification Method
 
-To independently re-verify all forensic assertions:
+To independently reproduce all forensic checks:
 
-1. **Syntax Check**:
-   ```bash
-   node --check src/index.js
-   ```
-2. **Playback & TS Segment E2E Verification**:
-   ```bash
-   node tests/verify_playback.js
-   ```
-3. **22 K20 Catalogs & 404 Routing Verification**:
-   ```bash
-   node tests/test_routing_and_22_catalogs.js
-   ```
-4. **Comprehensive E2E Test Suite**:
-   ```bash
-   node tests/e2e.test.js
-   ```
+```bash
+# 1. Syntax Check across all modified and test files
+node --check src/index.js src/handlers.js src/manifest.js src/providers/vsmov.js src/providers/kkphim.js src/routes/hls.js tests/verify_playback.js
+
+# 2. Independent Auditor Forensic Probe
+node .agents/auditor_1/probe.js
+
+# 3. Core Unit Test Suite
+npm test
+
+# 4. Comprehensive 7-Phase E2E Playback Verification (Live Upstream & Binary TS Download)
+node tests/verify_playback.js
+
+# 5. VSMOV Multi-Server Audio Separation & Subtitle Verification
+node tests/verify_vsmov_sub_audio.js
+
+# 6. Subtitle Proxy & KKPhim Playback Tests
+node tests/test_m1_subtitle_proxy.js && node tests/test_kkphim_playback.js
+```
+
+### Empirical Test Output Summary
+- `node --check`: **0 errors (Exit code 0)**
+- `node .agents/auditor_1/probe.js`: **5/5 checks PASSED (100% SUCCESS)**
+- `npm test`: **50/50 tests PASSED (0 failures)**
+- `node tests/verify_playback.js`: **7/7 phases PASSED**
+  - Phase 1 (Manifest): HTTP 200, v1.5.1, 22 catalogs.
+  - Phase 2 (VSMOV Audio Separation): 2 distinct streams (`Vietsub`, `Lồng Tiếng`), In-App compliant, subtitle URL detected.
+  - Phase 3 (Subtitle Proxy): HTTP 200, `text/vtt; charset=utf-8`, CORS `*`, valid `WEBVTT` body.
+  - Phase 4 (KKPhim Episode Anti-404): HTTP 200, valid `#EXTM3U` manifest.
+  - Phase 5 (Manifest Rewriter): HTTP 200, sub-variant playlist traversed.
+  - Phase 6 (Segment Download): HTTP 200, `7,447,877 bytes` (7.27 MB), MPEG-TS sync byte `0x47` confirmed.
+  - Phase 7 (HTTP Range Seeking): HTTP 206 Partial Content, `bytes 0-1023/7447877`.
+- `node tests/verify_vsmov_sub_audio.js`: **62/62 assertions PASSED**
+- `node tests/test_m1_subtitle_proxy.js`: **27/27 assertions PASSED**
+- `node tests/test_kkphim_playback.js`: **3/3 test cases PASSED**

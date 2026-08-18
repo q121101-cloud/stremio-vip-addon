@@ -1,22 +1,15 @@
-## 2026-08-18T01:15:25Z
-You are a Worker subagent (worker_deploy).
-Your working directory is: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy/`
-Project root: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
+## 2026-08-18T02:36:23Z
 
-Authoritative User Request: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md`
-Project document: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
+You are the Deployment Worker for Hotfix v1.5.1.
 
-Read `ORIGINAL_REQUEST.md` before starting work.
+Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy
+Scope document: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+Original user request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
 
-MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. An auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
-
-Your task:
-1. Check repository git status.
-2. Run `node --check src/index.js` and `node tests/verify_playback.js` to ensure 100% test passing before deployment.
-3. Stage changes, commit if there are uncommitted changes, and push to GitHub origin main:
-   `git add . && git commit -m "Engine v1.5.0: Production-Ready 7-Source Swarm with 22 Catalogs & E2E Verified 4K Playback via Teamwork Preview" || true`
-   `git push origin main`
-4. Confirm git push success and remote commit status.
-5. Write your deployment handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy/handoff.md`.
-Use send_message to report completion back to parent.
+Deployment Tasks:
+1. Verify git status in `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`.
+2. Ensure working directory is clean of unwanted temporary files and all hotfix changes are staged.
+3. Execute the required git commit and push command:
+   `git add . && git commit -m "Hotfix v1.5.1: Swarm verified - Split VSMOV Vietsub/Audio tabs with Subtitle Proxy & Fixed KKPhim 404 episode matching" && git push origin main`
+4. Confirm push completed successfully with exit code 0.
+5. Write your deployment handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_deploy/handoff.md` and send a message back with the git log and push output.

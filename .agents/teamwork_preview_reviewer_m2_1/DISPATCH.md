@@ -1,21 +1,20 @@
-## 2026-08-17T03:32:03Z
+## 2026-08-18T01:47:24Z
+You are teamwork_preview_reviewer_m2_1.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1
+Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+Worker handoff: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2_1/handoff.md
 
-## Milestone 2 Reviewer 1 Dispatch
-Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
-Agent Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1
-Target Files: `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js`
-Worker Handoff: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2/handoff.md
-Original Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-PROJECT.md: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+Review Milestone 2 changes in `src/providers/vsmov.js`:
+- Verify server audio classification (`classifyServerAudio` for Vietsub, Lồng Tiếng, Thuyết Minh).
+- Verify exact title formatting:
+  `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`
+- Verify subtitle extraction from embed HTML (`playerOptions.subtitles`), proxy routing (`${proxyBase}/hls/sub.vtt?url=...`), and attachment `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
+- Verify In-App stream protocol compliance (`url` present, `externalUrl` omitted).
+- Run verification tests:
+  - `node --check src/providers/vsmov.js`
+  - `node tests/verify_vsmov_sub_audio.js`
+  - `npm test`
+- Conclude with a clear verdict: `APPROVE` or `REQUEST_CHANGES`.
 
-Task:
-1. Examine `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js` for correctness, completeness, and adherence to R2 and R3.
-2. Verify:
-   - 5s axios timeout across all providers (`timeout: 5000`).
-   - Isolated `try...catch` returning `[]` on error/timeout.
-   - KKPhim: Direct IMDb lookup -> fallback Cinemeta canonical title & year search -> all servers (Vietsub, Thuyết Minh, Lồng Tiếng).
-   - NguonC: Search with Cinemeta canonical title & year -> return Vietsub & Thuyết Minh.
-   - VsMov: Multi-gateway scraper with fallback -> 1080p master.m3u8 stream.
-   - Stream protocol: HLS Proxy has `url` and NO `externalUrl`; Embed Player has `externalUrl` and NO `url`.
-   - Title format: `[VIP • ${Provider}] ...` and `[Dự phòng • ${Provider}] ...`.
-3. Provide explicit verdict in handoff.md: **APPROVE** or **REQUEST_CHANGES**.
+Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1/handoff.md` and send a message to parent.

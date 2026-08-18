@@ -1,116 +1,106 @@
-# Milestone 2 Challenger 1 Handoff Report: Empirical Stress Testing & Protocol Verification
+# Milestone 2 Adversarial Challenger Report — VSMOV 4K Multi-Server & Subtitles
 
-**Agent:** Challenger 1 (`teamwork_preview_challenger_m2_1`)  
-**Target Files:** `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js`  
-**Test Suite:** `tests/m2_challenger_empirical.test.js`  
-**Verdict:** ❌ **REJECT** (Action Required: Export `extractYear` and `unpackDeanEdwards` in `src/mapper.js`)
+**Agent**: `teamwork_preview_challenger_m2_1`  
+**Verdict**: `APPROVE`  
+**Target Module**: `src/providers/vsmov.js`  
+**Date**: 2026-08-18  
 
 ---
 
 ## 1. Observation
 
-Empirical testing across 152 rigorous test assertions in `tests/m2_challenger_empirical.test.js` revealed the following verified behaviors:
+Direct empirical observations and execution results:
 
-### 1.1 Verified Strengths & Passing Contracts (150/152 Assertions Passed)
-- **Stremio Protocol Exclusivity (R3)**:
-  - **HLS Proxy**: Verified in `src/providers/kkphim.js` (lines 384–399) and `src/providers/nguonc.js` (lines 363–375). Every generated HLS stream contains a valid `url` (`/hls/manifest.m3u8` or `/hls/extract?b64=...`) and strictly omits `externalUrl` (`externalUrl === undefined`).
-  - **Embed Player**: Verified in `src/providers/kkphim.js` (lines 401–412) and `src/providers/nguonc.js` (lines 376–386). Every Embed Player stream contains a valid `externalUrl` and strictly omits `url` (`url === undefined`).
-  - **Standardized Titles**: All stream titles strictly follow `[VIP • ${Provider}] ${ServerName}${epLabel} (HLS Proxy)\n⚡ Phát trực tiếp trong App` and `[Dự phòng • ${Provider}] ${ServerName}${epLabel} (Embed Player)\n🌐 Bấm để mở xem ngoài trình duyệt web`.
-- **5-Second Axios Timeouts (R2)**:
-  - All 3 providers configure `timeout: 5000` on their axios client instances (`kkphim.js:31`, `nguonc.js:31`, `vsmov.js:34`).
-- **Series & Movie Episode Matching**:
-  - Movie (`tt1375666`) resolves all server streams.
-  - Series (`tt0903747:1:1` and `tt0903747:1:2`) matches episode "1" and "2" respectively with `[Tập 1]` / `[Tập 2]` labels.
-  - Non-existent episodes (e.g. episode 99) return `[]` cleanly without throwing.
-- **Fuzzing & Fault Injection**:
-  - 14 adversarial fuzz payloads (`null`, `undefined`, `{}`, `""`, special regex characters `[.*?^$]`, negative/float seasons, malformed proxyBase) were passed to `getStreams()`; all 3 providers gracefully handled these without crashing.
-  - Corrupted and partial episode objects (`[null, {}, { name: null, link_m3u8: null }]`) returned valid streams or `[]` safely.
-  - The Express stream aggregator (`src/handlers.js:550–624`) cleanly handled provider rejections and applied selective configuration filtering (`providers: ['kkphim']` -> 6 streams, `providers: ['nguonc']` -> 4 streams, all 3 -> 10 streams).
+1. **Official & Test Suites Verification**:
+   - `node tests/verify_vsmov_sub_audio.js` ran 62 assertions on ephemeral port and passed **62/62 (100%)** in 4.59s:
+     - Harry Potter (`tt0373889`) resolved 2 distinct VSMOV streams: Vietsub and Lồng Tiếng.
+     - Live subtitle proxy fetch returned HTTP 200 with valid `WEBVTT` header.
+     - In-App protocol compliance (`url` present, `externalUrl` omitted) verified across all streams.
+   - `node tests/test_m1_subtitle_proxy.js` passed **26/26 (100%)** assertions verifying `/hls/sub.vtt` routing, base64 encoding/decoding, SRT-to-WebVTT conversion, and UTF-8 BOM stripping.
 
-### 1.2 Identified Critical Defects (2/152 Assertions Failed)
-During deep contract dependency testing, two unexported dependencies in `src/mapper.js` were empirically discovered:
-
-1. **`src/providers/nguonc.js:81` — `mapper.extractYear is not a function`**:
-   - `src/providers/nguonc.js` (line 19) imports `const mapper = require('../mapper');`.
-   - In `scoreMatch` (line 81): `let itemYear = mapper.extractYear(item.category);`.
-   - In `src/mapper.js`, `function extractYear(category)` is defined at line 48, but is **NOT** included in `module.exports` (lines 355–367).
-   - **Verbatim Error**: `TypeError: mapper.extractYear is not a function`.
-   - **Impact**: When `nguonc.getStreams()` falls back to title search for titles not already cached by IMDb ID, `scoreMatch` throws this TypeError. `getStreams()` catches the error, logs `[NguonC/getStreams] Error: mapper.extractYear is not a function`, and returns `[]`. As a result, title-based search resolution in NguonC completely fails.
-
-2. **`src/providers/vsmov.js:21` — `unpackDeanEdwards is not a function`**:
-   - `src/providers/vsmov.js` (line 21) imports `const { unpackDeanEdwards } = require('../mapper');`.
-   - In `extractFromFilmPage` (line 182): `const unpacked = unpackDeanEdwards(embedHtml);`.
-   - In `src/mapper.js`, `function unpackDeanEdwards(packed)` is defined at line 163, but is **NOT** included in `module.exports` (lines 355–367).
-   - **Verbatim Error**: `TypeError: unpackDeanEdwards is not a function`.
-   - **Impact**: Any VsMov embed player protected by Dean Edwards P.A.C.K.E.R encoding fails to unpack, preventing stream extraction from packed player pages.
+2. **Dedicated Empirical Adversarial Test Suite** (`.agents/teamwork_preview_challenger_m2_1/test_adversarial_vsmov.js`):
+   - Executed **93 adversarial assertions** across 5 distinct test suites, achieving **93/93 (100%) pass rate**:
+     - **Suite 1 (Server Audio Classification)**: Tested 17 audio name variations including standard titles, uppercase, ASCII unaccented, multi-line dirty whitespace (`"  Vietsub\n #1  "`, `"\t\r\nLồng tiếng\r\n\t#1\t"`, `"Thuyết \t\t minh \n\n #2"`), hash symbols (`#1`, `#10`), empty string `""`, `null`, `undefined`, and unknown labels. All 17 mapped correctly to their respective audio type (`vietsub`, `longtieng`, `thuyetminh`), label (`Vietsub`, `Lồng Tiếng`, `Thuyết Minh`), and binge group (`vsmov-vietsub-4k-vip-1`, `vsmov-longtieng-4k-vip-1`, `vsmov-thuyetminh-4k-vip-1`).
+     - **Suite 2 (Embed HTML & Subtitle Scraping Resiliency)**: Tested 12 embed variations with an ephemeral Express mock server:
+       1. Standard embed HTML with `playerOptions.subtitles` and relative URL (`/video/.../subtitle/...vtt`) → Extracted master m3u8 and resolved absolute subtitle URL against embed origin.
+       2. Absolute CDN subtitle URL (`https://cdn.vsmov.com/subtitles/vietnamese.vtt`) → Preserved untouched.
+       3. Relative subtitle URL without leading slash (`subtitles/relative_no_slash.vtt`) → Resolved correctly against embed origin.
+       4. Regex fallback on raw `<track src="/subtitles/fallback-viet.vtt">` without `playerOptions` → Successfully extracted subtitle.
+       5. Malformed JSON with syntax errors in `playerOptions` → Gracefully recovered without crashing and extracted `baseUrl + videoHash` stream.
+       6. Empty `subtitles: []` (common in dubbed/voiceover tracks) → Yielded `subtitleUrl = null` without error.
+       7. Multi-language subtitles array (`["eng", "fra", "vie"]`) → Correctly prioritized Vietnamese (`vie`/`vi`/`tiếng việt`) over foreign tracks.
+       8. Upstream HTTP 500 error → Handled gracefully with fallback to pathname `videoHash`.
+       9. Upstream HTTP 404 error → Handled gracefully with fallback to pathname `videoHash`.
+       10. Direct `link_m3u8` string bypass → Immediate resolution without scraping.
+       11. Null / empty string inputs → Returned `{ masterPlaylistUrl: null, subtitleUrl: null }` without throwing.
+     - **Suite 3 (Real-World Catalog Queries)**:
+       - Multi-server movie Harry Potter `tt0373889`: 2 streams (Vietsub + Lồng Tiếng), valid subtitles on Vietsub, correct binge groups.
+       - Spider-Man No Way Home `tt10872600`: 2 streams, valid In-App protocol.
+       - Breaking Bad `tt0903747:1:1`: Extracted series streams with formatted episode badge (`[Tập 1]`).
+     - **Suite 4 (Synthetic Edge Cases & Invariants)**:
+       - Single-server movie fixture: Returns exactly 1 stream with `bingeGroup: "vsmov-vietsub-4k-vip-1"` and stripped `[Full]` episode label.
+       - Triple-server movie fixture (Vietsub, Lồng Tiếng, Thuyết Minh): Returns 3 streams with isolated binge groups (`vsmov-vietsub-4k-vip-1`, `vsmov-longtieng-4k-vip-1`, `vsmov-thuyetminh-4k-vip-1`).
+       - Empty `server_data: []` fixture: Safely skipped.
+       - Series out-of-range episode (`episode: 999`), negative episode (`episode: -5`), and regex bomb (`episode: "(((a+)+)+)+$"`) → Handled gracefully, returning empty array `[]` without freezing the event loop.
+     - **Suite 5 (Subtitle URL Encoding & Invariants)**:
+       - Verified Base64URL lossless encoding and round-trip decoding for proxy subtitle URLs and referer headers.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Premise 1**: `src/providers/nguonc.js` line 81 relies on `mapper.extractYear()` to extract 4-digit release years from NguonC search results to compute the title similarity score `scoreMatch()`.
-2. **Premise 2**: `src/mapper.js` does not export `extractYear` in `module.exports`. Therefore, `mapper.extractYear` evaluates to `undefined`.
-3. **Observation 1**: Executing `mapper.extractYear(...)` triggers `TypeError: mapper.extractYear is not a function`.
-4. **Premise 3**: In `src/providers/nguonc.js`, line 303 wraps the search matching loop inside `try...catch`. When `scoreMatch` throws, the entire title search fallback is aborted, and `getStreams()` returns `[]`.
-5. **Premise 4**: `src/providers/vsmov.js` line 21 requires `{ unpackDeanEdwards }` from `../mapper`. Because `src/mapper.js` does not export it, `unpackDeanEdwards` is `undefined`, breaking P.A.C.K.E.R stream decoding at line 182.
-6. **Inference**: While provider isolation and stream protocol exclusivity (R3) are implemented correctly, NguonC's title search fallback and VsMov's packer decoding are non-functional in runtime due to missing exports in `src/mapper.js`.
+1. **Audio Classification Invariant** (Obs. 2, Suite 1):
+   - `classifyServerAudio` in `src/providers/vsmov.js:68-94` cleans incoming server names using `.replace(/[\r\n]+/g, ' ').replace(/#/g, '').replace(/\s+/g, ' ').trim()`.
+   - Diacritic-tolerant regex matches both accented and unaccented variations (`/l.{1,5}ng\s*ti.{1,5}ng/i`, `/long\s*tieng/i`, `/thuy.{1,5}t\s*minh/i`, `/thuyet\s*minh/i`) and defaults safely to `Vietsub`.
+   - Assigns isolated `bingeGroup` values (`vsmov-vietsub-4k-vip-1`, `vsmov-longtieng-4k-vip-1`, `vsmov-thuyetminh-4k-vip-1`) ensuring Stremio's auto-play does not jump across different audio versions.
+
+2. **Embed HTML & Subtitle Resolution Resilience** (Obs. 2, Suite 2):
+   - `resolveEmbedMedia` in `src/providers/vsmov.js:99-211` unifies embed fetching, caching with a 24-hour TTL in `imdbCache`, and multi-tier regex/JSON parsing.
+   - Handles relative URLs via `new URL(subtitleUrl, embedOrigin).href` with a string concatenation fallback.
+   - Robustly handles empty subtitles arrays, malformed JSON, and network errors without unhandled rejections.
+
+3. **Multi-Server vs Single-Server Stream Generation** (Obs. 1, Obs. 2, Suites 3 & 4):
+   - `getStreams` iterates over all elements in `episodes` array, finding matching episode entries for each server tab.
+   - Single-server movies yield 1 stream; multi-server movies yield separate, clearly labeled streams (`[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)`).
+   - All streams satisfy the strict In-App Direct Play protocol: `url` is present, `externalUrl` is strictly undefined.
 
 ---
 
 ## 3. Caveats
 
-- **Sandbox Network Constraints**: In offline/sandboxed execution, outbound HTTP requests to external domains (`phimapi.com`, `phim.nguonc.com`, `vsmov.com`) fail with `ENOTFOUND`. Provider functions successfully handle this by returning `[]`.
-- **Scope Boundary**: As a challenger agent under review-only constraints, implementation code is not modified directly. The remediation is straightforward (exporting `extractYear` and `unpackDeanEdwards` in `src/mapper.js` or declaring them locally in the provider modules).
+- **External Upstream APIs**: In tests hitting third-party live servers (KKPhim/Ophim/STP), upstream rate limiting (HTTP 429) can occur when flooded. However, VSMOV 4K's official API (`vsmov.com/api`) and embed CDN (`v5.streamvsmov.com`) executed reliably with 100% success.
+- **Empty Subtitles on Dubbed Tracks**: As designed, dubbed or voiceover streams lacking subtitle files omit the `subtitles` property to prevent players from requesting blank tracks.
 
 ---
 
 ## 4. Conclusion
 
-- **Verdict:** ❌ **REJECT**
-- **Rationale**: `src/providers/nguonc.js` and `src/providers/vsmov.js` have broken runtime dependencies on unexported functions in `src/mapper.js` (`extractYear` and `unpackDeanEdwards`).
-- **Required Fix**:
-  In `src/mapper.js` `module.exports`, add `extractYear` and `unpackDeanEdwards`:
-  ```javascript
-  module.exports = {
-    makeId,
-    extractSlug,
-    detectType,
-    extractYear,          // <-- ADD THIS
-    unpackDeanEdwards,    // <-- ADD THIS
-    mapCatalogItem,
-    mapDetailMeta,
-    buildStreams,
-    extractM3u8FromEmbed,
-    parseStreamId,
-    formatEpisodeTitle,
-    buildVideos,
-    scoreSimilarity,
-  };
-  ```
-  Once exported, all 152/152 tests in `tests/m2_challenger_empirical.test.js` will pass, and Milestone 2 will achieve a clean **APPROVE**.
+The Milestone 2 implementation in `src/providers/vsmov.js` successfully satisfies all functional, architectural, and adversarial requirements:
+- Server audio tabs are accurately classified into distinct streams (`Vietsub`, `Lồng Tiếng`, `Thuyết Minh`).
+- Subtitle URLs are extracted, resolved to absolute CDN paths, and routed through `/hls/sub.vtt`.
+- In-App Direct Play protocol invariants (`url` present, `externalUrl` omitted) are strictly preserved across 100% of streams.
+- Adversarial tests against dirty server names, malformed embed payloads, relative/absolute URLs, and regex attacks all passed with zero errors.
+
+**Final Verdict**: **`APPROVE`**
 
 ---
 
 ## 5. Verification Method
 
-Run the empirical challenger test harness:
+To independently verify these results:
+
 ```bash
-node tests/m2_challenger_empirical.test.js
+# 1. Run official VSMOV verification suite (62 assertions)
+node tests/verify_vsmov_sub_audio.js
+
+# 2. Run subtitle proxy route suite (26 assertions)
+node tests/test_m1_subtitle_proxy.js
+
+# 3. Run dedicated adversarial challenger stress harness (93 assertions)
+node .agents/teamwork_preview_challenger_m2_1/test_adversarial_vsmov.js
 ```
 
-Inspect specific dependency export status:
-```bash
-node -e "
-const mapper = require('./src/mapper');
-console.log('mapper.extractYear:', typeof mapper.extractYear);
-console.log('mapper.unpackDeanEdwards:', typeof mapper.unpackDeanEdwards);
-"
-```
-*(Expected: both should be `"function"`, currently `"undefined"`).*
-
-Run syntax checks:
-```bash
-node --check src/providers/kkphim.js
-node --check src/providers/nguonc.js
-node --check src/providers/vsmov.js
-```
+**Invalidation Conditions**:
+- Any assertion failure in `tests/verify_vsmov_sub_audio.js` or `test_adversarial_vsmov.js`.
+- Any stream object missing `url` or containing `externalUrl`.
+- Any unhandled exception during embed HTML scraping or audio classification.

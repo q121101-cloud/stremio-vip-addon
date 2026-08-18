@@ -1,16 +1,17 @@
-## Milestone 2 Challenger 1 Dispatch
-Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
-Agent Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1
-Target Files: `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js`
-Original Request: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+## 2026-08-18T01:47:24Z
 
-Task:
-1. Write and run empirical stress tests against the 3 providers.
-2. Test cases:
-   - Live/mock queries for movie (`tt1375666` Inception) and series (`tt0903747:1:1`).
-   - Strict Stremio stream protocol assertions:
-     - HLS Proxy has `url` and NO `externalUrl`.
-     - Embed Player has `externalUrl` and NO `url`.
-     - Standardized title format check.
-   - Fault injection: Mock provider throwing error or timing out >5s -> verify provider returns `[]` without crashing.
-3. Provide empirical verdict in handoff.md: **APPROVE** or **REJECT**.
+You are teamwork_preview_challenger_m2_1.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1
+Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+
+As an adversarial challenger, test Milestone 2 changes in `src/providers/vsmov.js`:
+- Create an empirical stress/edge-case script in your working directory.
+- Test adversarial cases:
+  - Single-server movies vs multi-server movies (e.g. Harry Potter tt0373889, Spider-Man, Anime/Series).
+  - Embed HTML without `playerOptions`, malformed script tags, or empty subtitles array.
+  - Unusual server names with whitespace, unicode variations, tabs/newlines.
+  - Subtitle URL resolution when relative path vs absolute CDN URL.
+- Conclude with a clear verdict: `APPROVE` or `REJECT`.
+
+Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1/handoff.md` and send a message to parent.

@@ -1,50 +1,53 @@
-# BRIEFING — 2026-08-17T03:26:00Z
+# BRIEFING — 2026-08-18T01:41:45Z
 
 ## Mission
-Adversarial review of Milestone 1 work product: `src/lib/cinemeta.js`, `src/lib/cache.js`, and `src/api.js`.
+Conduct independent quality and adversarial review of Milestone 1 (Subtitle Proxy & Aggregator Pass-through) implementation.
 
 ## 🔒 My Identity
-- Archetype: reviewer & critic
+- Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m1_2
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: M1 (Cinemeta Resolver & LRU Cache)
+- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
+- Milestone: Milestone 1 Review
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Adversarially stress test Cinemeta resolver, error handling (404/500/invalid JSON), ID sanitization (`tt...:s:e`), year parsing, cache bounds, memory safety
-- Verify against PROJECT.md and ORIGINAL_REQUEST.md interface contracts
-- Produce evidence-based verdict: APPROVE or REQUEST_CHANGES
+- Actively verify integrity (no hardcoding, fake passes, or shortcuts)
+- Issue clear verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Updated: 2026-08-17T03:26:00Z
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
+- Updated: 2026-08-18T01:41:00Z
 
 ## Review Scope
-- **Files to review**: `src/lib/cinemeta.js`, `src/lib/cache.js`, `src/api.js`
-- **Interface contracts**: `PROJECT.md` §1 (Cinemeta Resolver Contract) & §2/3
-- **Review criteria**: Correctness, 404/500 resilience, series IMDb IDs, year parsing, memory safety, cache bounds, integrity.
+- **Files to review**: `src/routes/hls.js`, `src/handlers.js`, `tests/test_m1_subtitle_proxy.js`
+- **Interface contracts**: `PROJECT.md § Interface Contracts`, `ORIGINAL_REQUEST.md § Requirements`
+- **Review criteria**: correctness, style, interface conformance, adversarial robustness, zero integrity violations
 
 ## Review Checklist
-- **Items reviewed**: `src/lib/cinemeta.js`, `src/lib/cache.js`, `src/api.js`, `PROJECT.md`, `ORIGINAL_REQUEST.md`, `teamwork_preview_worker_m1/handoff.md`
+- **Items reviewed**: `src/routes/hls.js`, `src/handlers.js`, `tests/test_m1_subtitle_proxy.js`, `PROJECT.md`, `ORIGINAL_REQUEST.md`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims independently verified.
+- **Unverified claims**: None (all claims verified via independent command execution and adversarial testing)
 
 ## Attack Surface
-- **Hypotheses tested**: 
-  - Cache size unbounded / memory leaks → PASSED (bounded strictly to 5,000 entries with LRU eviction and 5m unref prune)
-  - 404 negative cache poisoning vs transient 500 error retry → PASSED (404 is cached with 1h TTL; 500/timeouts are not negatively cached)
-  - Complex IMDb IDs (`tt0903747:1:1`, `tt1375666`, invalid IDs) → PASSED (stripped cleanly, invalid IDs rejected early)
-  - Release year range strings (`2008–2013`, `2020-`, `2010`) → PASSED (4-digit start year parsed as integer, full string preserved in releaseInfo)
-  - Case sensitivity on uppercase `TT...` or `'Series'` → LOW RISK EDGE CASE (Documented in handoff report)
-- **Vulnerabilities found**: 2 minor edge cases (case sensitivity on uppercase `TT` IDs and capital `Series` type)
-- **Untested angles**: Provider-side consumption belongs to Milestone 2
+- **Hypotheses tested**:
+  - SRT with Windows CRLF and classic Mac CR line endings -> PASSED
+  - Subtitle with UTF-8 BOM (`\uFEFF`) -> PASSED
+  - Vietnamese diacritics and Unicode characters -> PASSED
+  - Standard Base64 and Base64URL query parameters -> PASSED
+  - 400 Bad Request on missing subtitle URL parameter -> PASSED
+  - Upstream 404/502 error forwarding -> PASSED
+  - Route aliases `/hls/m3u8-proxy`, `/hls/ts-proxy`, `/hls/sub` -> PASSED
+  - Aggregator In-App stream protocol compliance (`url` present, `externalUrl` removed) -> PASSED
+- **Vulnerabilities found**: None
+- **Untested angles**: None within M1 scope
 
 ## Key Decisions Made
-- Milestone 1 is verified robust and complete. Issued verdict: **APPROVE**.
+- Confirmed full compliance with `PROJECT.md` and `ORIGINAL_REQUEST.md`.
+- Issued verdict: `APPROVE`.
 
 ## Artifact Index
-- `.agents/teamwork_preview_reviewer_m1_2/BRIEFING.md` — persistent situational memory
-- `.agents/teamwork_preview_reviewer_m1_2/progress.md` — heartbeat and progress tracking
-- `.agents/teamwork_preview_reviewer_m1_2/handoff.md` — formal review and challenge handoff report
+- `handoff.md` — Final 5-Component Review Handoff Report
+- `progress.md` — Liveness heartbeat and execution log
+- `DISPATCH.md` — Initial task dispatch record

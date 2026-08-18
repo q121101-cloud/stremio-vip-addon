@@ -1,41 +1,40 @@
-# BRIEFING — 2026-08-17T03:19:10Z
+# BRIEFING — 2026-08-18T01:37:00Z
 
 ## Mission
-Investigate codebase architecture, entry points, package.json, dependencies, Cinemeta resolver and caching, and R1 requirements.
+Investigate VSMOV provider architecture in `src/providers/vsmov.js` and related files regarding server tab separation (Vietsub, Lồng tiếng, Thuyết minh), VIP naming conventions, subtitle proxying, and In-App protocol compliance.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: survey, investigation
+- Archetype: Teamwork explorer
+- Roles: survey, investigation, synthesis
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1
-- Original parent: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Milestone: survey
+- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
+- Milestone: VSMOV Provider Architecture Investigation
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code in src/
-- Follow Handoff Protocol (5 sections in handoff.md)
-- Only write within .agents/teamwork_preview_explorer_survey_1/
+- Read-only investigation — do NOT implement
+- Analyze server groups/tabs structure in VSMOV responses
+- Analyze exact stream naming and title formatting
+- Analyze subtitle routing to /hls/sub.vtt
+- Ensure In-App protocol compliance (url present, externalUrl omitted)
 
 ## Current Parent
-- Conversation ID: 681a8264-75a0-4d5c-84e1-8e78b180494b
-- Updated: 2026-08-17T03:19:10Z
+- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
+- Updated: 2026-08-18T01:37:00Z
 
 ## Investigation State
-- **Explored paths**:
-  - `src/index.js`, `src/handlers.js`, `src/api.js`, `src/config.js`, `src/manifest.js`, `src/mapper.js`
-  - `src/lib/cache.js`, `src/providers/kkphim.js`, `src/providers/nguonc.js`, `src/providers/vsmov.js`
-  - `src/routes/hls.js`, `src/routes/manifest.js`
-  - `package.json`, `package-lock.json`, `e2e_test.js`, `verify_matrix.js`, `test_all.js`
+- **Explored paths**: `src/providers/vsmov.js`, `src/routes/hls.js`, `src/handlers.js`, `src/manifest.js`, `src/config.js`, `tests/fixtures.js`, `tests/e2e.test.js`, live VSMOV API and player embed endpoints (`vsmov.com/api`, `streamvsmov.com`).
 - **Key findings**:
-  - `src/lib/cinemeta.js` is missing and must be created.
-  - Existing Cinemeta logic in `src/api.js` only caches for 1 hour on `node-cache` and only returns `name`/`year`.
-  - `src/handlers.js` passes only `title` to providers, omitting `year`, `genres`, and `aliases`.
-  - Built-in `LRUCache` in `src/lib/cache.js` can be extended with a 24h `cinemetaCache`.
-- **Unexplored areas**: None for survey scope.
+  1. VSMOV returns an `episodes` array containing audio tabs with unnormalized `server_name` (e.g. `"Vietsub\r\n #1"`, `"Lồng tiếng #1"`).
+  2. Subtitles are located in embed HTML's `playerOptions.subtitles` array and need resolution to absolute URLs.
+  3. `src/handlers.js` line 944 currently drops `subtitles` unless `sanitized.subtitles = item.subtitles` is added.
+  4. Stream titles must precisely follow the required Vietsub, Lồng Tiếng, and Thuyết Minh 4K format with `name: "VIP Movies 🎬"`.
+  5. `GET /hls/sub.vtt` endpoint with Referer spoofing and SRT-to-VTT converter is required in `src/routes/hls.js`.
+- **Unexplored areas**: None for this survey milestone.
 
 ## Key Decisions Made
-- Outlined precise contract and specifications for `src/lib/cinemeta.js` and payload enrichment in `handoff.md`.
+- Fully documented 4-part architectural analysis in `analysis.md` and synthesized into 5-component `handoff.md`.
 
 ## Artifact Index
-- `handoff.md` — Survey Explorer 1 comprehensive findings and contracts
-- `progress.md` — Step completion log
-- `DISPATCH.md` — Task prompt tracking
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/analysis.md` — Detailed analysis
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/handoff.md` — 5-component handoff report
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/progress.md` — Progress heartbeat

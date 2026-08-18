@@ -1,82 +1,73 @@
-# BRIEFING — 2026-08-18T00:55:00Z
+# BRIEFING — 2026-08-18T01:51:35Z
 
 ## Mission
-Complete overhaul and production-ready release of Stremio VIP Movies Addon Engine v1.5.0 with 7-provider swarm, 22 K20 standard catalogs, fail-safe stream aggregator, full routing coverage, real video segment playback test, and git release.
+Orchestrate Hotfix v1.5.1 for Stremio VIP Movies Addon (Milestone 3: Version Bump & UI Branding, Milestone 4: E2E Verification & Git Deploy).
 
 ## 🔒 My Identity
 - Archetype: orchestrator
 - Roles: orchestrator, user_liaison, human_reporter, successor
-- Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/
+- Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1
 - Original parent: parent
-- Original parent conversation ID: aadb1daa-4525-42f3-9567-33b640c8f69c
+- Original parent conversation ID: 9750ee0c-2850-4adf-a065-7b2060d45c2a
 
 ## 🔒 My Workflow
-- **Pattern**: Project Pattern (Dual Track: Implementation Track + E2E Testing Track)
+- **Pattern**: Project Pattern
 - **Scope document**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-1. **Decompose**: Survey codebase with 3 parallel Explorers, extract feature inventory, create milestones M1-M5 + E2E Test Suite.
+1. **Decompose**: Survey codebase and requirements, decompose into milestones (R1, R2, R3, R4) and parallel tracks (Implementation & E2E Testing).
 2. **Dispatch & Execute**:
-   - Track 1 (Implementation): M1 (Utils & Providers), M2 (Handlers & Routing/Manifest/Config), M3 (UI & Versioning & Git Release)
-   - Track 2 (E2E Testing): E2E Test Suite (tests/verify_playback.js + E2E Catalog/Search/Routing verification)
-   - Final Milestone: Pass 100% E2E tests + Adversarial verification + Forensic Audit
-3. **On failure**:
-   - Retry: nudge stuck agent or re-send task
-   - Replace: spawn fresh agent with partial progress
-   - Skip: proceed without (only if non-critical)
-   - Redistribute: split stuck agent's remaining work
-   - Redesign: re-partition decomposition
-4. **Succession**: Self-succeed at 16 spawns.
+   - **Direct (iteration loop)**: Explorer -> Worker -> Reviewer -> Challenger -> Auditor gate.
+3. **On failure**: Retry -> Replace -> Skip -> Redistribute -> Redesign.
+4. **Succession**: Threshold 16 spawns, write handoff.md, spawn successor.
 - **Work items**:
-  1. Survey & Feature Inventory [in-progress]
-  2. M1 Provider Standardization & Conflict Resolution [pending]
-  3. M2 Fail-Safe Aggregator & 404 Routing Elimination & 22 Catalogs [pending]
-  4. M3 E2E Test Suite & Real Segment Playback Verification [pending]
-  5. M4 UI Preservation, Versioning & Git Release [pending]
-  6. Final Milestone E2E + Forensic Audit Gate [pending]
-- **Current phase**: 0 (Survey)
-- **Current focus**: Survey codebase and requirements with 3 Explorers
+  1. Survey & Architecture Mapping [done]
+  2. E2E Testing Suite Creation (M-E2E) [done]
+  3. Subtitle Proxy Endpoint & Aggregator Pass-through (M1) [done]
+  4. VSMOV Multi-Server Audio Separation & Subtitles (M2) [done]
+  5. Version Bump & UI Branding (M3) [in-progress]
+  6. E2E Verification & Git Deploy (M4) [pending]
+- **Current phase**: 3 (Executing Milestone 3 & Milestone 4)
+- **Current focus**: Milestone 3: Version Bump & UI Branding
 
 ## 🔒 Key Constraints
-- DISPATCH-ONLY orchestrator: NEVER write/modify source code or run build/test commands directly.
-- All code changes must be executed by teamwork_preview_worker.
-- Independent verification by teamwork_preview_reviewer, teamwork_preview_challenger, and teamwork_preview_auditor.
-- Forensic Auditor verdict is a BINARY VETO.
+- DISPATCH-ONLY: Do not write code or run build/test commands directly.
+- Delegate all technical work and investigations to subagents.
 - Never reuse a subagent after it has delivered its handoff.
-- Pass 100% real playback test (HTTP 200, binary payload > 50KB for .ts segment) and 0 404s.
+- Pass ORIGINAL_REQUEST.md path verbatim in every subagent dispatch.
+- Strict AND gate: Worker build passed + all Reviewers APPROVE + all Challengers verify + Auditor CLEAN.
 
 ## Current Parent
-- Conversation ID: aadb1daa-4525-42f3-9567-33b640c8f69c
-- Updated: 2026-08-18T00:55:00Z
+- Conversation ID: 9750ee0c-2850-4adf-a065-7b2060d45c2a
+- Updated: 2026-08-18T01:51:35Z
 
 ## Key Decisions Made
-- Use Project Pattern with 3 Survey Explorers.
+- Survey, M-E2E, M1, and M2 completed and gate passed in Generation 1.
+- Generation 2 taking over for M3 (version bump & branding) and M4 (final E2E verification, audit & git deployment).
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
-| explorer_survey_1 | teamwork_preview_explorer | Survey providers & utils | completed | a67cdbc1-b960-4cb1-a189-133d056de1fe |
-| explorer_survey_2 | teamwork_preview_explorer | Survey routing & catalogs & aggregator | completed | d234e4be-b9b8-4a71-8043-1cbabeccfe64 |
-| explorer_survey_3 | teamwork_preview_explorer | Survey testing, proxy & UI/versioning | completed | 7bcf17ed-fa3c-4453-8c48-a2bfed90d313 |
-| worker_m1 | teamwork_preview_worker | Milestone 1 Provider Refactor | completed | a912ae1d-e50e-42a4-a632-0e37533adc98 |
-| worker_m4 | teamwork_preview_worker | Milestone 4 UI, Versioning & Git Release | completed | 7dbddc57-18fc-469a-ab9b-f0b87e835957 |
-| reviewer_1 | teamwork_preview_reviewer | Provider & Aggregator Review | in-progress | d1fea864-c9b6-478a-82b3-6ecd2299cd8a |
-| reviewer_2 | teamwork_preview_reviewer | Routing & Catalog Review | in-progress | 9c8765c5-028a-4155-b199-63e65b7a29a1 |
-| challenger_1 | teamwork_preview_challenger | Routing & Catalog Stress Test | in-progress | 5b2d99e2-3f18-4eab-907e-a89289617231 |
-| challenger_2 | teamwork_preview_challenger | Real Video Playback Stress Test | in-progress | 71b6e101-3449-42b4-a806-cad2a7a45fb6 |
-| auditor_1 | teamwork_preview_auditor | Forensic Integrity Audit | in-progress | 5eb70b19-f31a-4602-b1e5-e9457e57630b |
+| explorer_m3_1 | teamwork_preview_explorer | M3 version & UI investigation | completed | 752e0404-62c0-48f1-930f-4591c5c2b43c |
+| explorer_m3_2 | teamwork_preview_explorer | M3 repo-wide version check | completed | df8fb491-2648-44c4-a464-32f6c5574cfe |
+| explorer_m3_3 | teamwork_preview_explorer | M3 diff & syntax check plan | completed | 481438af-7a98-4667-a520-d7c173286495 |
+| worker_m3_1 | teamwork_preview_worker | M3 Version bump & UI branding implementation | in-progress | 57f778b2-154f-4050-be11-25b07e2a70a2 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 10 / 16
-- Pending subagents: d1fea864-c9b6-478a-82b3-6ecd2299cd8a, 9c8765c5-028a-4155-b199-63e65b7a29a1, 5b2d99e2-3f18-4eab-907e-a89289617231, 71b6e101-3449-42b4-a806-cad2a7a45fb6, 5eb70b19-f31a-4602-b1e5-e9457e57630b
-- Predecessor: none
+- Spawn count: 4 / 16
+- Pending subagents: 57f778b2-154f-4050-be11-25b07e2a70a2
+- Predecessor: gen1
 - Successor: not yet spawned
 
 ## Active Timers
-- Heartbeat cron: not started
+- Heartbeat cron: starting
 - Safety timer: none
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md — Authoritative User Request
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/DISPATCH.md — Task assignment
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/progress.md — Liveness & progress tracking
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md — Global architecture, milestones & inventory
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Original User Request
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/DISPATCH.md — Dispatch log
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/progress.md — Liveness & Progress
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/handoff.md — Soft Handoff from Gen 1
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md — Global Project Scope & Contracts
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_INFRA.md — E2E Testing Infrastructure
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_READY.md — E2E Test Suite Ready Report
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/GATE_STATUS.md — Gate Verdicts

@@ -1,55 +1,66 @@
-# BRIEFING — 2026-08-18T01:15:00Z
+# BRIEFING — 2026-08-18T09:35:30+07:00
 
 ## Mission
-Adversarial and objective review of Stremio VIP Movies Addon Engine v1.5.0, covering HLS proxy routing, stream aggregation resilience, provider standardization, 22 standard catalogs, and E2E playback verification.
+Review Hotfix v1.5.1 for stremio-nguonc-addon (VSMOV multi-stream separation, subtitle proxy, KKPhim series episode resolution, HLS TS segment playback integrity, version bump consistency, test suites execution, and adversarial review).
 
 ## 🔒 My Identity
-- Archetype: reviewer
+- Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2
-- Original parent: fba97c8d-11f8-4b91-a84e-0732134f065c
-- Milestone: Engine v1.5.0 Review & Verification
+- Original parent: bd1246e0-6215-4530-925a-ca6d5fbeb2fe
+- Milestone: hotfix_v1.5.1
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Evidence-based analysis with reproducible testing
-- Integrity verification: check for facade implementations, hardcoded mocks, shortcuts
-- Adversarial challenge: stress-test edge cases, error resilience, timeouts, concurrency
+- Check for integrity violations (hardcoded tests, dummy implementations, shortcuts, fabricated logs)
+- Adversarial challenge: stress-test assumptions, find failure modes, propose counter-examples
+- Output handoff report at /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/handoff.md
 
 ## Current Parent
-- Conversation ID: fba97c8d-11f8-4b91-a84e-0732134f065c
-- Updated: 2026-08-18T01:15:00Z
+- Conversation ID: bd1246e0-6215-4530-925a-ca6d5fbeb2fe
+- Updated: 2026-08-18T09:35:30+07:00
 
 ## Review Scope
-- **Files reviewed**: `src/routes/hls.js`, `src/handlers.js`, `src/index.js`, `src/manifest.js`, `src/config.js`, `src/lib/utils.js`, `src/providers/*.js`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`
-- **Review criteria**: Correctness, completeness, anti-403 domain headers, HLS rewriting, Range requests/206 partial content, error resilience, concurrency, 22 catalogs.
+- **Files to review**:
+  - `src/providers/vsmov.js`
+  - `src/providers/kkphim.js`
+  - `src/providers/ophim.js`
+  - `src/providers/nguonc.js`
+  - `src/handlers.js`
+  - `src/manifest.js`
+  - `src/routes/hls.js`
+  - `package.json`
+  - `tests/*`
+- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
+- **Review criteria**: Correctness, integrity, regression resilience, error handling, performance & edge cases
 
 ## Review Checklist
-- **Items reviewed**: `src/routes/hls.js`, `src/handlers.js`, `src/index.js`, `src/manifest.js`, `src/config.js`, `src/lib/utils.js`, `src/providers/*.js`
+- **Items reviewed**:
+  - VSMOV multi-stream separation (`classifyServerAudio`, `resolveEmbedMedia`, binge groups, subtitles injection)
+  - Subtitle proxy `/hls/sub.vtt` (BOM stripping, CRLF normalization, SRT->WebVTT conversion, CORS `*`, error handling)
+  - KKPhim 404 episode matching (`matchEpisodeItem`, container normalization, Base64URL and referer preservation)
+  - Playback verification (real `.ts` chunk download > 50KB, MPEG-TS sync byte 0x47, HTTP Range 206)
+  - Version bump consistency (`package.json`, `src/manifest.js`, `src/handlers.js`, `/health`, Cyber-Glassmorphism footer)
+  - Integrity check: Zero hardcoded mock results in production code, authentic network calls to live CDNs
 - **Verdict**: APPROVE
-- **Unverified claims**: None (all empirically verified through automated test executions)
+- **Unverified claims**: None
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. HLS proxy anti-403 headers and domain lookup for 8 providers + dynamic referer
-  2. M3U8 sub-manifest, key, map, rendition, preload hint rewriting
-  3. HTTP Range 206 partial content and seeking support
-  4. Stream aggregator timeout and error isolation (Promise.allSettled)
-  5. Invalid IDs, malformed extra parameters, empty search queries
-  6. In-app stream object invariant (strict url, zero externalUrl)
-  7. High-concurrency load and rate limiting resilience
-  8. Code integrity audit (zero hardcoded mock shortcuts)
-- **Vulnerabilities found**: None that compromise system stability. Rate limits on external APIs (429) are gracefully swallowed and never crash the process.
-- **Untested angles**: All core requirements thoroughly stress-tested.
+  - Tested classification of various Vietnamese audio strings (Vietsub, Lồng Tiếng, Thuyết Minh, empty, null, symbols)
+  - Tested KKPhim episode matchers with padding variants (01, 001), prefixes ("Tập 1", "Episode 1"), slug patterns ("tap-1", "ep-01"), suffix matches, and non-numeric inputs
+  - Tested `/hls/sub.vtt` with UTF-8 BOM, CRLF, pure WebVTT, upstream 500, missing query parameters
+  - Tested stream aggregator deduplication to confirm distinct VSMOV audio streams are not falsely merged
+  - Tested TS segment packet boundary sync byte 0x47 verification and Range 206 byte offsets
+- **Vulnerabilities found**: None in the reviewed hotfix changes.
+- **Untested angles**: Live external CDN outages are subject to upstream network availability, handled via timeouts and fallbacks.
 
 ## Key Decisions Made
-- Confirmed full compliance with ORIGINAL_REQUEST.md (R1-R5) and Stremio Stream Protocol.
+- Confirmed full compliance with all acceptance criteria for Hotfix v1.5.1.
 - Issued verdict: APPROVE.
 
 ## Artifact Index
-- `.agents/reviewer_2/DISPATCH.md` — Initial dispatch
-- `.agents/reviewer_2/BRIEFING.md` — Agent briefing & memory
-- `.agents/reviewer_2/progress.md` — Progress tracker
-- `.agents/reviewer_2/handoff.md` — Final review report
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/handoff.md` — Final review and challenge report
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/progress.md` — Progress tracker
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/reviewer_2/adversarial_audit.js` — Empirical audit script

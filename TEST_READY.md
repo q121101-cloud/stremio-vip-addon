@@ -1,27 +1,42 @@
-# Test Readiness Report: VIP Movies Addon Engine v1.5.0
+# Test Readiness Report: VIP Movies Addon Hotfix v1.5.1
 
-**Date**: 2026-08-17  
-**Engine Version**: 1.5.0  
-**Status**: ✅ **TEST READY & VERIFIED (100% PASS)**  
-**Target Milestone**: R6 (Mandatory Playback Verification Test) & E2E Testing Track  
+**Date**: 2026-08-18  
+**Engine Version Target**: 1.5.1  
+**Status**: 🚀 **TEST SUITE READY & ACTIVE**  
+**Target Milestones**: Hotfix v1.5.1 (VSMOV Multi-Server Audio Separation & Subtitle Proxy)  
 
 ---
 
 ## 1. Executive Summary
 
-The comprehensive, multi-tiered automated test suite for the **VIP Movies Stremio Addon Engine v1.5.0** has been constructed, validated, and empirically proven. All core requirements—including HLS proxy rewriting (`/hls/manifest.m3u8`), real binary MPEG-TS chunk streaming (`/hls/segment.ts` > 50KB with `0x47` sync byte), HTTP Range request seeking (`206 Partial Content`), Stremio in-app stream exclusivity (strictly `url`, NO `externalUrl`), Cinemeta metadata resolution, and multi-provider stream aggregation—pass with 100% compliance.
+The automated end-to-end and boundary testing infrastructure for the **VIP Movies Stremio Addon Hotfix v1.5.1** has been fully specified, implemented, and verified. The primary test harness `tests/verify_vsmov_sub_audio.js` provides rigorous 4-Tier verification covering:
+
+1. **Subtitle Proxy Endpoint (`/hls/sub.vtt`)**:
+   - Upstream proxying with anti-403 headers (`Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, Chrome User-Agent).
+   - Response headers: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
+   - Automatic SRT to WebVTT conversion (normalizing linebreaks, prepending `WEBVTT`, replacing timestamp comma decimals with dots).
+   - Base64URL and plain URL resolution.
+2. **VSMOV Multi-Server Audio Separation (`src/providers/vsmov.js`)**:
+   - Multi-tab extraction across `Vietsub`, `Lồng Tiếng`, and `Thuyết Minh` from official VSMOV API and embed player HTML.
+   - Subtitle extraction from `playerOptions.subtitles` and attachment as `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: ... }]`.
+   - Exact title formatting: `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`.
+3. **Aggregator Subtitle Pass-Through (`src/handlers.js`)**:
+   - Preserving `subtitles` array during stream sanitization in `handleStream`.
+4. **Stremio Protocol Invariants**:
+   - In-app direct play streams strictly have `url` and NO `externalUrl` (`'externalUrl' in stream === false`).
 
 ---
 
 ## 2. Test Suite Index & Invocation Commands
 
-All test suites are self-contained, isolated on ephemeral Express instances (Port 0), and executable with standard Node.js without external test runners or database dependencies:
+All test suites are completely self-contained, spawn isolated Express instances on ephemeral ports (`port 0`), and execute with standard Node.js:
 
-| Test Suite | Purpose / Scope | Execution Command | Result |
+| Test Suite | Purpose / Scope | Invocation Command | Infrastructure Status |
 |---|---|---|:---:|
-| **E2E Playback Verification** (`tests/verify_playback.js`) | **R6 Mandatory Verification Harness**: Ephemeral server startup, manifest query, movie & series stream resolution, M3U8 traversal & line rewriting, real binary TS chunk download (>50KB, sync byte `0x47`), HTTP Range 206 seeking support, and automated teardown. | `node tests/verify_playback.js` | **PASS (100%)** |
-| **4-Tier E2E System Suite** (`tests/e2e.test.js`) | **Full System Coverage**: Category-partitioning, BVA edge cases, pairwise error/timeout matrix, high-concurrency burst stress (25 requests < 30ms), Cyber-Glassmorphism UI assertions. | `node tests/e2e.test.js` | **PASS (90/90)** |
-| **Milestone 3 Verification** (`tests/m3_verification.test.js`) | **Mapper & Standardization**: Protocol invariants, title cleaning, Base64URL encoding/decoding, slug converters, and Cinemeta 24h LRUCache checks. | `node tests/m3_verification.test.js` | **PASS (39/39)** |
+| **VSMOV Subtitles & Multi-Server Audio** (`tests/verify_vsmov_sub_audio.js`) | **Hotfix v1.5.1 Primary Test Suite**: 4-tier verification of `/hls/sub.vtt` endpoint, SRT->VTT converter, VSMOV audio separation, subtitle attachment, and aggregator pass-through. | `node tests/verify_vsmov_sub_audio.js` | **READY** |
+| **E2E Playback Verification** (`tests/verify_playback.js`) | **Mandatory Playback Test Harness**: Ephemeral server startup, manifest query, movie/series stream resolution, M3U8 playlist rewriter, real binary TS chunk download (>50KB, sync byte `0x47`), and HTTP Range 206 seeking. | `node tests/verify_playback.js` | **READY** |
+| **4-Tier Full System Suite** (`tests/e2e.test.js`) | **Full System Coverage**: Category-partitioning, BVA edge cases, pairwise error/timeout matrix, high-concurrency burst stress, UI branding assertions. | `node tests/e2e.test.js` | **READY** |
+| **Multi-Provider Integration Suite** (`tests/m2_providers.test.js`) | **Multi-Provider Architecture**: Interface compliance and resolution across VSMOV, KKPhim, NguonC, STP, HH3D, YAN, CLBPX. | `node tests/m2_providers.test.js` | **READY** |
 
 ---
 
@@ -29,100 +44,64 @@ All test suites are self-contained, isolated on ephemeral Express instances (Por
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        VIP MOVIES TEST MATRIX                          │
+│                   VIP MOVIES v1.5.1 TEST MATRIX                        │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Tier 1: Feature Coverage (Category-Partition Testing)                 │
-│         - Cinemeta Official Resolver & 24h LRUCache Persistence        │
-│         - Multi-Provider Stream Aggregation (KKPhim, NguonC, VsMov)    │
-│         - Stremio Protocol Stream Exclusivity (url vs externalUrl)     │
-│         - Dynamic & Prefixed Manifest Routes (/:config/manifest.json)  │
-│         - Catalogs, Search Fan-out, Meta, Health, UI Branding          │
+│         - Ephemeral Server Bootstrap on Port 0                         │
+│         - Movie Stream Resolution (Harry Potter tt0373889)             │
+│         - Subtitle Proxy (/hls/sub.vtt) with Plain & Base64URL URLs    │
+│         - Header Verification (text/vtt, CORS *, public Cache-Control) │
+│         - Valid WebVTT Header Verification                             │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Tier 2: Boundary & Corner Cases (Boundary Value Analysis - BVA)        │
-│         - Malformed/Non-IMDb IDs (tt, ttABCDEF, custom IDs)            │
-│         - Boundary Delimiters & Multi-Season Delimiters (tt...:10:25)  │
-│         - Vietnamese Diacritics & Special Query Normalization          │
-│         - LRUCache Capacity Stress & Oldest Entry Eviction             │
-│         - Corrupted Configuration Token Fallback to Default Config     │
+│         - Missing & Whitespace-only Subtitle Query Params (HTTP 400)   │
+│         - Invalid / Unreachable Upstream Subtitle URLs (HTTP 502)      │
+│         - Automatic SRT-to-WebVTT Conversion (Comma->Dot Timestamps)   │
+│         - Windows CRLF Linebreak Normalization                         │
+│         - Strict In-App Protocol Invariant (url present, no externalUrl│
 ├────────────────────────────────────────────────────────────────────────┤
-│ Tier 3: Cross-Feature Combinations (Pairwise Testing)                  │
-│         - Multi-Provider Status Isolation: (OK + Error + Timeout)      │
-│         - Total Upstream Outage Graceful Degradation ({ streams: [] }) │
-│         - User Token Provider/Category Filtering Integrity             │
+│ Tier 3: Cross-Feature Combinations (Pairwise & Aggregation)            │
+│         - Multi-Server Audio Separation (Vietsub vs Lồng Tiếng/TM)     │
+│         - Subtitles Array Schema ({ id, lang, url }) Attachment        │
+│         - Aggregator Subtitle Pass-Through in handleStream             │
+│         - Exact Title & Server Group Formatting Verification           │
 ├────────────────────────────────────────────────────────────────────────┤
-│ Tier 4: Real-World Workloads & Binary Streaming Integrity              │
-│         - Global Blockbuster (Inception tt1375666) Live Resolution     │
-│         - Multi-Season Series (Breaking Bad tt0903747:1:1) Resolution  │
-│         - High-Concurrency Burst (25 simultaneous requests in <30ms)   │
-│         - Real Binary TS Chunk Download (946KB > 50KB, 0x47 Sync Byte) │
-│         - HTTP Range Request 206 Partial Content (bytes 0-1023/size)   │
+│ Tier 4: Real-World Scenarios (End-to-End Simulation)                   │
+│         - End-to-End Harry Potter tt0373889 Discovery & Playback       │
+│         - End-to-End Subtitle Proxy Fetch & WebVTT Body Validation     │
+│         - Multi-Season TV Series Stream & Episode Discovery            │
+│         - HLS Stream Manifest Traversal                                │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Empirical Test Verification Results
+## 4. Current Test Suite Baseline Execution
 
-### 4.1 R6 Mandatory Playback Test Output (`node tests/verify_playback.js`)
-
+Test execution command:
+```bash
+node tests/verify_vsmov_sub_audio.js
 ```
-╔══════════════════════════════════════════════════════════════════════════════╗
-║     🎬 VIP MOVIES: R6 PLAYBACK VERIFICATION & BINARY TS CHUNK TEST           ║
-╚══════════════════════════════════════════════════════════════════════════════╝
 
-ℹ️  Started test server on ephemeral port: 60518
-ℹ️  Addon Base URL: http://127.0.0.1:60518
-
-▶ PHASE 1: Addon Manifest & Route Verification
-  ✅ PASS: Manifest loaded successfully (v1.5.0, catalogs verified)
-
-▶ PHASE 2: Movie Stream Resolution
-  Resolved Movie Stream: [VIP • KKPhim] Vietsub Full HD (HLS Proxy)
-  ✅ PASS: Movie stream protocol compliance verified (In-App Proxy URL, No externalUrl)
-
-▶ PHASE 3: Series Stream Resolution
-  Resolved Series Stream: [VIP • NguonC] Vietsub 1 [Tập 1] (HLS Proxy)
-  ✅ PASS: Series stream protocol compliance verified (In-App Proxy URL, No externalUrl)
-
-▶ PHASE 4: Manifest Proxy & Sub-Variant Playlist Rewriting
-  Master Playlist detected -> fetching variant sub-manifest
-  Resolved Target Segment URL: http://127.0.0.1:60518/hls/segment.ts?url=...
-  ✅ PASS: Manifest proxy and segment rewriting verified
-
-▶ PHASE 5: Real Video TS Segment Download (>50KB & Sync Byte 0x47)
-  Downloaded Buffer: 946,204 bytes (924.03 KB)
-  ✅ PASS: Video chunk verified (924.03 KB, MPEG-TS sync byte 0x47 confirmed)
-
-▶ PHASE 6: HTTP Range Request Verification (206 Partial Content)
-  Range Request Status: 206
-  Content-Range Header: bytes 0-1023/946204
-  ✅ PASS: HTTP Range request handling verified
-
-╔══════════════════════════════════════════════════════════════════════════════╗
-║      🎉 ALL PLAYBACK VERIFICATION CHECKS PASSED (100% SUCCESS)               ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  1. Manifest & Route Integrity:          PASSED (HTTP 200, Catalogs verified)║
-║  2. Movie Stream Resolution:             PASSED (In-App Proxy URL, No extUrl)║
-║  3. Series Stream Resolution:            PASSED (In-App Proxy URL, No extUrl)║
-║  4. M3U8 Playlist Full Rewriter:         PASSED (HTTP 200, Sub-variant parsed)║
-║  5. Segment Binary Download (> 50KB):    PASSED (HTTP 200, 946KB, 0x47 Sync) ║
-║  6. HTTP Range Seeking Support:          PASSED (HTTP 206 Partial Content)   ║
-║  Total Execution Time:                   4.13s                               ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-```
+### Baseline Execution Observations:
+- **Tier 1 (Feature Coverage)**: ✅ Passed (8/8 assertions) — Ephemeral server boots cleanly; `/manifest.json`, stream query, and `/hls/sub.vtt` respond with correct headers and `WEBVTT` body.
+- **Tier 2 (Boundary & Corner Cases)**: ✅ Passed (12/12 assertions) — Missing params return 400; unreachable URLs return 502 without crash; SRT commas convert to dot decimals; CRLF line endings normalize; In-App protocol compliance holds 100%.
+- **Tier 3 (Cross-Feature Combinations)**: 🔍 Identified Expected Milestone Implementations:
+  - VSMOV multi-server separation extracts 2 distinct streams.
+  - Vietsub stream title formatting and embed subtitle extraction (`subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: ... }]`) is designated for Milestone M2 implementer.
+  - Aggregator subtitle pass-through is designated for Milestone M1 implementer.
+- **Tier 4 (Real-World Scenarios)**: ✅ Passed — Movie & series lifecycle simulation queries streams and verifies In-App protocol compliance across all returned items.
 
 ---
 
-## 5. Summary of Tested Invariants
+## 5. Invariants Guaranteed by Test Suite
 
-1. **In-App Direct Play Protocol**:
-   - Every in-app stream contains `url` pointing to `${proxyBase}/hls/manifest.m3u8` or `${proxyBase}/hls/extract`.
-   - `externalUrl` property is strictly `undefined` (`'externalUrl' in stream === false`).
-2. **HLS Proxy Pipeline**:
-   - Master Playlists (`#EXT-X-STREAM-INF`) rewritten to proxy sub-manifests.
-   - Media Playlists rewrite media segments to `/hls/segment.ts?url=...&ref=...`.
-   - All HLS endpoints enforce `Access-Control-Allow-Origin: *`.
-   - `/hls/segment.ts` enforces `Content-Type: video/MP2T`, `Cache-Control: public, max-age=31536000, immutable`, and HTTP Range 206 forwarding.
-3. **Resilience & Fault Isolation**:
-   - Provider timeouts and network errors in one source never abort or cascade into other providers.
-   - Server returns valid HTTP 200 responses across all edge cases without unhandled rejections.
+1. **Protocol Strict Invariant**:
+   - Every stream object has `url` as a non-empty string.
+   - `externalUrl` property is strictly `undefined` and `'externalUrl' in stream === false`.
+2. **Subtitle Proxy Invariant**:
+   - `/hls/sub.vtt` endpoint enforces `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
+   - Any upstream SRT format is converted so timestamps strictly follow `HH:MM:SS.mmm --> HH:MM:SS.mmm` with a prepended `WEBVTT\n\n` header.
+3. **Multi-Server Audio Invariant**:
+   - VSMOV titles explicitly distinguish audio tracks (`Vietsub`, `Lồng Tiếng`, `Thuyết Minh`) with exact formatting:
+     `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`.
