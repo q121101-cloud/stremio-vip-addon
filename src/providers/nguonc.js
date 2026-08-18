@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/nguonc.js
+ *  VIP Movies Addon — src/providers/nguonc.js (Engine v1.6.0)
  *  NguonC Provider Module (100% Official Endpoints: phim.nguonc.com/api)
  *
  *  Features:

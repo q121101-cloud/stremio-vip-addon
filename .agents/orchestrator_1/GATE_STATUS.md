@@ -1,9 +1,9 @@
 # GATE STATUS
 
-## Gate — Milestone 1 (Subtitle Proxy & Aggregator Pass-through)
+## Milestone 1: Provider Upgrades & HLS Routing — Iteration 1
 | Agent | Role | Verdict | Source |
-|-------|------|---------|--------|
-| worker_m1_1 | teamwork_preview_worker | DONE (27/27 tests pass) | handoff.md |
+|---|---|---|---|
+| worker_m1 | teamwork_preview_worker | DONE (build & tests passed) | handoff.md |
 | reviewer_m1_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
 | reviewer_m1_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
 | challenger_m1_1 | teamwork_preview_challenger | APPROVE | handoff.md |
@@ -14,10 +14,10 @@ Gate Result: **PASS**
 
 ---
 
-## Gate — Milestone 2 (VSMOV Multi-Server Separation & Subtitles)
+## Milestone 2: E2E Verification & Zero-Regression Guard — Iteration 1
 | Agent | Role | Verdict | Source |
-|-------|------|---------|--------|
-| worker_m2_1 | teamwork_preview_worker | DONE (62/62 tests pass) | handoff.md |
+|---|---|---|---|
+| worker_m2 | teamwork_preview_worker | DONE (26/26 PASS, regressions 0) | handoff.md |
 | reviewer_m2_1 | teamwork_preview_reviewer | APPROVE | handoff.md |
 | reviewer_m2_2 | teamwork_preview_reviewer | APPROVE | handoff.md |
 | challenger_m2_1 | teamwork_preview_challenger | APPROVE | handoff.md |

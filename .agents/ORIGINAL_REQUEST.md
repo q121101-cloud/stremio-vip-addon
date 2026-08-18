@@ -1,45 +1,102 @@
 # Original User Request
 
-## Initial Request — 2026-08-18T03:33:42Z
+## 2026-08-18T04:36:35Z
 
-Hotfix v1.5.2 cho Stremio VIP Movies Addon: Bổ sung nạp phụ đề WebVTT/SRT từ VSMOV 4K trực tiếp vào stream object Stremio và master M3U8; đồng thời xây dựng cơ chế tìm kiếm thông minh đa tầng (Smart Search Fallback) chống lỗi 404 do lệch slug phìm cho KKPhim.
+Nâng cấp Engine v1.6.0 cho Stremio VIP Movies Addon: Kiểm toán và sửa chữa toàn diện 3 provider đã tồn tại (STP, CLBPX, YAN) với domain chính xác theo đặc tả mới, xác minh khả năng trích xuất luồng phát trực tiếp, và triển khai bộ kiểm thử E2E đầy đủ cho cả 3 nguồn.
 
 Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 Integrity mode: development
 
+> **Bối cảnh quan trọng**: 3 provider `stp.js`, `clbpx.js`, `yan.js` **đã tồn tại** trong `src/providers/` nhưng dùng domain cũ không còn hoạt động:
+> - `stp.js`: dùng `suutamphim.org` → cần đổi sang `sieutamphim.pro`
+> - `clbpx.js`: dùng `clbphimxua.com` → cần đổi sang `clbphimxua.info`
+> - `yan.js`: dùng `yanhh3d.org` → cần đổi sang `yanhh3d.pw`
+>
+> Nhiệm vụ là **cập nhật domain, khám phá API thực tế, sửa logic bóc tách stream** cho đúng với cấu trúc response của từng domain mới.
+
+---
+
 ## Requirements
 
-### R1. VSMOV WebVTT Subtitle Injection (`src/providers/vsmov.js`, `src/routes/hls.js`)
-- Trích xuất link phụ đề tiếng Việt từ dữ liệu tập phìm VSMOV (dạng `.vtt` hoặc `.srt`).
-- Proxy phụ đề qua endpoint `/hls/sub.vtt` với headers: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`. Nếu nguồn là SRT, tự động convert sang WebVTT chuẩn.
-- Gắn mảng `subtitles: [{ id: "vi_vsmov", lang: "vie", url: proxySubUrl, title: "Tiếng Việt (VSMOV VIP)" }]` vào stream object trả về cho Stremio.
-- Chèn tag `#EXT-X-MEDIA:TYPE=SUBTITLES` vào đầu Master M3U8 khi rewrite để ExoPlayer/VLC/Nuvio tự động nhận diện phụ đề.
+### R1. Cập nhật domain và kiểm tra API thực tế cho 3 provider
 
-### R2. KKPhim Smart Search Fallback (`src/providers/kkphim.js`)
-- Xây dựng cơ chế tra cứu đa tầng chống lỗi 404:
-  - **Tầng 1**: Tra cứu trực tiếp theo IMDb ID.
-  - **Tầng 2**: Nếu thất bại, tìm kiếm theo tên phìm từ Cinemeta (`/v1/api/tim-kiem?keyword=...`), chấm điểm bằng `scoreMatch`, lấy slug khớp cao nhất.
-  - **Tầng 3**: Nếu tất cả thất bại, trả về mảng rỗng `[]` an toàn — không crash, không gửi stream 404.
-- Thuật toán khớp số tập linh hoạt cho phìm bộ: `"1"`, `"01"`, `"Tập 1"`, `tap-1`, `tap-01`.
+Đọc kỹ code hiện tại của từng file, sau đó:
 
-### R3. E2E Verification (`tests/verify_hotfix_vsmov_kkphim.js`)
-- Kiểm thử tự động 3 ca thực tế:
-  1. **Avengers 3** (`tt5095030`): VSMOV có mảng `subtitles` hợp lệ; `/hls/sub.vtt` trả về HTTP 200 + nội dung WebVTT. KKPhim tự fallback search và trả về stream M3U8 hợp lệ (không 404).
-  2. **Phìm bộ KKPhim** (Tập 1): Khớp chính xác link M3U8 của Tập 1 via `/hls/manifest.m3u8` HTTP 200.
-  3. **Tải phân đoạn `.ts`** thực tế: HTTP 200/206, payload > 50KB, MPEG-TS sync byte `0x47`.
-- Tự động vòng lặp sửa lỗi cho đến khi 100% PASS.
+**STP** (`src/providers/stp.js`):
+- Cập nhật `REFERER_HEADER` → `https://sieutamphim.pro/`
+- Cập nhật `Origin` → `https://sieutamphim.pro`
+- Thực hiện HTTP GET thực tế tới `https://sieutamphim.pro/` để xác định cấu trúc trang (API JSON hoặc HTML SSR), rồi cập nhật endpoint tìm kiếm và cấu trúc parse phù hợp.
+- Stream label chuẩn: `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`
 
-### R4. Versioning & GitHub Deployment
-- Cập nhật `version: "1.5.2"` trong `package.json` và `src/manifest.js`.
-- Commit và push:
-  `git add . && git commit -m "Hotfix v1.5.2: Injected VSMOV 4K WebVTT Subtitles into HLS/Stremio & Added KKPhim Smart-Search Fallback against 404" && git push origin main`
+**CLBPX** (`src/providers/clbpx.js`):
+- Cập nhật `REFERER_HEADER` → `https://clbphimxua.info/`
+- Cập nhật `Origin` → `https://clbphimxua.info`
+- Thực hiện HTTP GET thực tế tới `https://clbphimxua.info/` để xác định cấu trúc, rồi cập nhật logic parse.
+- Stream label chuẩn: `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`
+
+**YAN** (`src/providers/yan.js`):
+- Cập nhật `REFERER_HEADER` → `https://yanhh3d.pw/`
+- Cập nhật `Origin` → `https://yanhh3d.pw`
+- Thực hiện HTTP GET thực tế tới `https://yanhh3d.pw/` để xác định cấu trúc, rồi cập nhật logic parse.
+- Stream label chuẩn: `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`
+
+**Bất biến cứng cho cả 3 provider**:
+- Tuyệt đối không dùng `externalUrl` — chỉ dùng `url` (HLS Proxy)
+- Import `scoreMatch` từ `src/lib/utils.js`, không tái khai báo
+- **Chiến lược trích xuất stream đa tầng**: Thử API JSON → nếu không có thì scrape HTML (`axios` + regex/cheerio để tìm link `.m3u8`) → nếu vẫn thất bại thì `getStreams` trả về `[]` an toàn (không crash)
+
+### R2. Cập nhật HLS Proxy Referer routing cho 3 domain mới
+
+Trong `src/routes/hls.js`, bổ sung/cập nhật entries trong `SOURCE_REFERERS` để các domain mới được nhận diện đúng Referer khi proxy TS segment:
+- `sieutamphim.pro` → `Referer: https://sieutamphim.pro/`
+- `clbphimxua.info` → `Referer: https://clbphimxua.info/`
+- `yanhh3d.pw` → `Referer: https://yanhh3d.pw/`
+
+### R3. E2E Verification (`tests/verify_new_providers.js`)
+
+Tạo bộ kiểm thử tự động cho 3 provider mới:
+1. Server khởi động không lỗi, tất cả routes đăng ký thành công.
+2. Endpoint `/hls/manifest.m3u8` với URL thực từ mỗi provider — HTTP 200 + body bắt đầu `#EXTM3U`.
+3. Stream aggregator (`/default/stream/movie/<imdbId>.json`) không crash, trả về HTTP 200 (dù streams có thể rỗng nếu provider không có phim đó).
+4. Nếu bất kỳ provider nào trả về stream thực: tải `.ts` segment qua `/hls/segment.ts` — HTTP 200/206, size > 10KB, sync byte `0x47`.
+5. Tự vòng lặp debug-sửa-chạy lại cho đến khi 100% PASS.
+
+**Đảm bảo zero regression**: Sau khi sửa, chạy lại:
+- `node tests/verify_playback.js` → phải 7/7 PASS
+- `node tests/verify_hotfix_vsmov_kkphim.js` → phải 27/27 PASS
+
+### R4. Version Bump & GitHub Deploy
+
+Cập nhật `version: "1.6.0"` trong `package.json`, `src/manifest.js`, và footer trong `src/handlers.js`:
+`VIP Movies Addon v1.6.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`
+
+Deploy:
+```bash
+git remote set-url origin https://<GITHUB_TOKEN>@github.com/q121101-cloud/stremio-vip-addon.git
+git add . && git commit -m "Engine v1.6.0: Updated STP/CLBPX/YAN domains + HLS Proxy routing + E2E tests + Zero-Regression Guard"
+git push origin main
+git remote set-url origin https://github.com/q121101-cloud/stremio-vip-addon.git
+```
+
+---
 
 ## Acceptance Criteria
 
-- [ ] VSMOV stream object chứa mảng `subtitles` hợp lệ với `lang: "vie"` và URL proxy.
-- [ ] `GET /hls/sub.vtt?url=...` trả về HTTP 200, `Content-Type: text/vtt`, `Access-Control-Allow-Origin: *`, nội dung bắt đầu bằng `WEBVTT`.
-- [ ] KKPhim `tt5095030` (Avengers 3) trả về stream M3U8 hợp lệ (HTTP 200, không 404) sau khi qua Smart Search Fallback.
-- [ ] KKPhim phìm bộ Tập 1 khớp đúng M3U8 (HTTP 200, `#EXTM3U` header confirmed).
-- [ ] Tải phân đoạn `.ts` thực tế > 50KB, MPEG-TS sync byte `0x47` xác nhận.
-- [ ] `node --check src/index.js` pass, `tests/verify_playback.js` 7/7 phases pass.
-- [ ] `git push origin main` thành công, version `1.5.2` đồng bộ.
+### Syntax & Runtime
+- [ ] `node --check src/index.js` không có lỗi
+- [ ] Server khởi động thành công (không crash)
+- [ ] 3 provider files không tái khai báo `scoreMatch` hay hàm nào đã có trong `src/lib/utils.js`
+
+### HLS Proxy
+- [ ] `SOURCE_REFERERS` trong `hls.js` có entries cho `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`
+
+### E2E Test
+- [ ] `node tests/verify_new_providers.js` exit code 0 (100% PASS)
+- [ ] `node tests/verify_playback.js` vẫn 7/7 PASS (zero regression)
+- [ ] `node tests/verify_hotfix_vsmov_kkphim.js` vẫn 27/27 PASS (zero regression)
+
+### Deploy
+- [ ] `package.json` version `1.6.0`
+- [ ] `src/manifest.js` version `1.6.0`
+- [ ] Footer `handlers.js` có chữ `v1.6.0`
+- [ ] `git push origin main` thành công

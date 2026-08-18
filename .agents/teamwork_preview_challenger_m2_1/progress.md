@@ -1,19 +1,16 @@
-# Progress Tracking — teamwork_preview_challenger_m2_1
+# Progress — Challenger M2
 
-**Last visited**: 2026-08-18T01:50:00Z
-**Current Status**: Empirical stress testing complete with 100% pass rate across 93 adversarial assertions. Verdict: APPROVE.
+Last visited: 2026-08-18T12:00:00+07:00
 
-## Checklist
-- [x] Create DISPATCH.md and BRIEFING.md
-- [x] Implement `test_adversarial_vsmov.js` empirical test harness in workspace folder
-- [x] Run full project test suite (`tests/verify_vsmov_sub_audio.js`, `tests/test_m1_subtitle_proxy.js`)
-- [x] Run custom adversarial stress harness across all target edge cases:
-  - [x] Single-server movies vs multi-server movies (Harry Potter tt0373889, Spider-Man, Anime/Series)
-  - [x] Embed HTML without playerOptions, malformed script tags, empty subtitles array, regex fallbacks
-  - [x] Unusual server names with whitespace, unicode variations, tabs/newlines, corrupted text
-  - [x] Subtitle URL resolution (relative path vs absolute CDN URL vs root-relative)
-  - [x] Multi-language subtitle prioritization (Vietnamese over English/French)
-  - [x] Strict zero-externalUrl invariant & proper bingeGroup isolation
-- [x] Analyze results, identify any vulnerabilities or confirm robustness (0 failures across 93 assertions)
-- [x] Update BRIEFING.md and write comprehensive `handoff.md`
-- [x] Send coordination message to parent
+## Status
+All empirical challenges, sequential determinism runs, assertion sensitivity stress tests, and regression suites completed with 100% PASS. Handoff report ready with verdict `APPROVE`.
+
+## Steps
+- [x] 1. Read required context files (`ORIGINAL_REQUEST.md`, `PROJECT.md`, `teamwork_preview_worker_m2/handoff.md`).
+- [x] 2. Inspect `tests/verify_new_providers.js` and existing test suites.
+- [x] 3. Run regression suites (`tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, `src/test.js`).
+- [x] 4. Empirically verify `tests/verify_new_providers.js`:
+  - Run multiple iterations sequentially to test determinism and check for socket/port leak issues.
+  - Stress-test assertion rigor (negative tests: invalid streams, corrupt/missing TS sync byte 0x47, bad status codes).
+- [x] 5. Formulate findings and write `handoff.md` with verdict (`APPROVE`).
+- [ ] 6. Send message to parent.

@@ -1,64 +1,49 @@
-# BRIEFING — 2026-08-18T11:19:00+07:00
+# BRIEFING — 2026-08-18T04:52:30Z
 
 ## Mission
-Review and stress-test the complete implementation of Hotfix v1.5.2 for Stremio VIP Movies Addon.
+Review Milestone 1: Provider Upgrades (STP, CLBPX, YAN) & HLS Proxy Routing for correctness, completeness, robustness, and invariants.
 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m1_1
-- Original parent: 0a580561-bdd3-4e10-9471-a5f9975ae400
-- Milestone: m1
+- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Milestone: Milestone 1: Provider Upgrades (STP, CLBPX, YAN) & HLS Proxy Routing
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Actively check for integrity violations (hardcoded results, dummy facades, shortcuts, fake verifications)
-- Verify claims with direct observations and independent command runs
-- Issue clear verdict: APPROVE or REQUEST_CHANGES
+- Check for integrity violations (hardcoded test results, facade implementations, bypassed tasks, fabricated logs)
+- Check strict invariants: only `url`, no `externalUrl`, `scoreMatch` imported from `src/lib/utils.js`
 
 ## Current Parent
-- Conversation ID: 0a580561-bdd3-4e10-9471-a5f9975ae400
-- Updated: 2026-08-18T11:19:00+07:00
+- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Updated: 2026-08-18T04:52:30Z
 
 ## Review Scope
-- **Files to review**:
-  - `src/providers/vsmov.js`
-  - `src/routes/hls.js`
-  - `src/providers/kkphim.js`
-  - `tests/verify_hotfix_vsmov_kkphim.js`
-  - `package.json`, `src/manifest.js`
-  - `tests/verify_playback.js`
-- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`, `PROJECT.md`
-- **Review criteria**: Correctness, Completeness, Quality, Edge cases, Adversarial robustness, Integrity
-
-## Key Decisions Made
-- Confirmed full compliance with Requirements R1, R2, R3, and R4.
-- Zero integrity violations detected (no dummy facades, no hardcoded results in core logic).
-- Ran all verification and empirical stress test suites (27/27 hotfix E2E pass, 7/7 playback phases pass, 50/50 unit integration pass, 64/64 challenger empirical pass).
-- Verdict: APPROVE.
-
-## Artifact Index
-- handoff.md — Complete review & adversarial audit report
+- **Files to review**: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`
+- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
+- **Review criteria**: Correctness, completeness, robustness, stream label format, HLS routing, strict invariants, test execution
 
 ## Review Checklist
-- **Items reviewed**:
-  - `src/providers/vsmov.js`: VSMOV WebVTT/SRT subtitle extraction, relative URL resolution, proxy URL generation, subtitles array injection, and `&sub=` parameter passing.
-  - `src/routes/hls.js`: `/hls/sub.vtt` and `/hls/sub` endpoints, CORS, cache headers, WebVTT conversion, timestamp comma-to-dot normalization, UTF-8 BOM removal, master playlist `#EXT-X-MEDIA:TYPE=SUBTITLES` injection and `#EXT-X-STREAM-INF` rewrite.
-  - `src/providers/kkphim.js`: 3-tier lookup (IMDb -> Cinemeta title/aliases search with `scoreMatch` -> safe `[]`), `matchEpisodeItem` multi-format matching.
-  - `tests/verify_hotfix_vsmov_kkphim.js`: 27/27 assertions verified across 5 phases.
-  - `package.json` & `src/manifest.js`: Version 1.5.2 verified.
+- **Items reviewed**: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`, `tests/test_m1_invariants.js`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims empirically tested.
+- **Unverified claims**: None (all claims verified via independent code inspection and test execution)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Subtitle proxy with empty url -> HTTP 400.
-  - Subtitle proxy with data:vtt / data:srt -> Auto-converted, valid headers.
-  - Subtitle proxy with BOM / CRLF -> Stripped and normalized.
-  - M3U8 Master vs Media Playlist subtitle injection -> Subtitles only injected into Master M3U8.
-  - KKPhim 404 resilience -> Safe fallback to search and safe `[]` return on non-existent titles (`tt9999999999`).
-  - Episode format matrix -> Matched exact, padded, "Tập N", "tap-N", suffix, regex.
-  - Video TS segment download -> >50KB, sync byte 0x47, HTTP 206 range requests.
-- **Vulnerabilities found**: None.
-- **Untested angles**: None.
+  - Malformed inputs, missing params, negative seasons/episodes handled gracefully -> PASS
+  - XOR 0x2a decryption in STP -> PASS
+  - Regex and pattern collision in HLS routing (`yanhh3d` vs `hh3d`) -> PASS
+  - Integrity violation check -> NO VIOLATIONS FOUND
+- **Vulnerabilities found**: None
+- **Untested angles**: None within M1 scope
+
+## Key Decisions Made
+- Confirmed zero integrity violations and 100% adherence to all M1 specifications.
+- Issued formal APPROVE verdict for Milestone 1.
+
+## Artifact Index
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m1_1/BRIEFING.md — persistent working memory
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m1_1/progress.md — liveness heartbeat
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m1_1/handoff.md — final handoff report

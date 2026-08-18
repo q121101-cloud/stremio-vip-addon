@@ -1,14 +1,20 @@
-## 2026-08-18T01:34:59Z
-You are teamwork_preview_explorer_survey_3.
+## 2026-08-18T04:37:59Z
+You are Explorer 3 for the survey phase of Stremio VIP Movies Addon Engine v1.6.0.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+You MUST read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md before starting.
 
-Please read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md.
-Investigate the overall codebase architecture, testing infrastructure, versioning, UI branding, and git deployment readiness.
-Specifically analyze:
-1. Existing test files in `tests/` and test runner setup (package.json scripts, how tests are structured and executed).
-2. Requirements for `tests/verify_vsmov_sub_audio.js` (E2E test starting ephemeral server, querying Harry Potter tt0373889 and series, validating >=2 distinct stream options, testing `/hls/sub.vtt`, checking 100% assertions).
-3. Versioning in `package.json`, `src/manifest.js`, and `src/handlers.js` (updating to v1.5.1, preserving Cyber-Glassmorphism UI brand signature `VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`).
-4. Git repo status and deployment command requirements (`git add . && git commit -m "..." && git push origin main`).
+Scope & Task:
+1. Examine `src/routes/hls.js`:
+   - Check `SOURCE_REFERERS` mapping and where referer headers are injected for proxied TS segments.
+   - Verify what entries need to be added for `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw`.
+2. Examine test suites:
+   - `tests/verify_playback.js` (must maintain 7/7 pass)
+   - `tests/verify_hotfix_vsmov_kkphim.js` (must maintain 27/27 pass)
+   - Requirements for `tests/verify_new_providers.js`: server startup, /hls/manifest.m3u8 check, /default/stream/movie/<imdbId>.json check, and segment download (200/206, size > 10KB, sync byte 0x47).
+3. Examine version bump locations:
+   - `package.json`
+   - `src/manifest.js`
+   - `src/handlers.js` (footer string format: `VIP Movies Addon v1.6.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>`)
+4. Produce a detailed investigation report at `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/handoff.md`.
 
-Write your detailed findings to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_3/analysis.md` and a summary `handoff.md`. Send a completion message back to parent when done.
+Send a completion message back to parent when done.

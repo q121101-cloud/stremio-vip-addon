@@ -1,63 +1,55 @@
-# Project: Stremio VIP Movies Addon — Hotfix v1.5.1
+# Project: Stremio VIP Movies Addon Engine v1.6.0 Upgrade
 
 ## Architecture
-- **Framework**: Express.js server providing Stremio Addon Protocol v2 endpoints (`/manifest.json`, `/catalog/...`, `/meta/...`, `/stream/...`, `/health`, `/configure`).
-- **Proxy Engine**: Dedicated HLS streaming router (`/hls/manifest.m3u8`, `/hls/sub-manifest.m3u8`, `/hls/segment.ts`, `/hls/sub.vtt`) handling upstream header injection (Origin/Referer anti-hotlinking), CORS headers (`*`), URI rewriting, and subtitle translation/proxying.
-- **Provider Architecture**:
-  - `src/providers/vsmov.js`: VIP 1 Provider extracting multi-server audio variants (Vietsub, Lồng Tiếng, Thuyết Minh) and embed player subtitles.
-  - `src/providers/kkphim.js`: VIP 2 Provider resolving movie and series episodes with flexible episode matchers and CDN referer injection.
-  - `src/providers/ophim.js`, `src/providers/nguonc.js`: VIP 3 & VIP 4 Providers.
+- **Framework & Engine**: Express.js Stremio v2 Addon Engine with integrated HLS Proxy rewriter.
+- **Providers Directory**: `src/providers/` (`stp.js`, `clbpx.js`, `yan.js`, `vsmov.js`, `kkphim.js`, `nguonc.js`, `hh3d.js`).
+- **HLS Proxy Router**: `src/routes/hls.js` handling manifest rewriting (`/manifest.m3u8`), segment streaming with Range 206 (`/segment.ts`), AES key resolution (`/key`), and subtitle proxy (`/sub.vtt`).
+- **Handlers & Manifest**: `src/handlers.js`, `src/manifest.js`, `src/index.js`.
+- **E2E Test Suites**: `tests/verify_new_providers.js`, `tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, `src/test.js`.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | VSMOV Multi-Server Audio Separation | Separate server groups into Vietsub, Lồng Tiếng, Thuyết Minh streams with distinct titles | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | Subtitle Extraction & Injection | Extract WebVTT/SRT from VSMOV embed player and attach `subtitles` array to stream object | M1 | ORIGINAL_REQUEST §R1 |
-| 3 | Subtitle Proxy Endpoint | `GET /hls/sub.vtt` route returning WebVTT format, CORS `*`, stripping BOM, converting SRT | M1 | ORIGINAL_REQUEST §R1 |
-| 4 | Strict In-App Protocol | Ensure `url` exists on all streams and `externalUrl` is omitted | M1 | ORIGINAL_REQUEST §R1 |
-| 5 | KKPhim Flexible Episode Matcher | Support `ep.name === String(targetEp)`, zero-padded (`"01"`), Vietnamese label (`"Tập 1"`), slug suffix (`"-1"`) | M2 | ORIGINAL_REQUEST §R2 |
-| 6 | KKPhim Data Container Normalization | Support `server_data`, `episode_data`, `items`, `episodes` arrays | M2 | ORIGINAL_REQUEST §R2 |
-| 7 | KKPhim CDN Referer Preservation | Ensure `https://player.phimapi.com/` referer/origin headers and Base64URL security param preservation | M2 | ORIGINAL_REQUEST §R2 |
-| 8 | E2E Playback Test Suite | Upgrade `tests/verify_playback.js` to 7-phase E2E test verifying VSMOV, KKPhim, Subtitles, TS download | M3 | ORIGINAL_REQUEST §R3 |
-| 9 | Live TS Segment Download & Sync Byte | Download real video chunk > 50KB with HTTP 200/206 and validate MPEG-TS sync byte `0x47` | M3 | ORIGINAL_REQUEST §R3 |
-| 10 | Version Bump to 1.5.1 | Update version to `1.5.1` in `package.json`, `src/manifest.js`, and `src/handlers.js` (Cyber-Glassmorphism footer) | M4 | ORIGINAL_REQUEST §R4 |
-| 11 | GitHub Deployment | Git commit and push to `origin main` | M4 | ORIGINAL_REQUEST §R4 |
+|---|---|---|---|---|
+| 1 | STP Domain & Header Update | Update `src/providers/stp.js` with `sieutamphim.pro` domain, `Referer: https://sieutamphim.pro/`, `Origin: https://sieutamphim.pro` | M1 | Survey 1 |
+| 2 | STP Multi-Tier Extraction | WP-JSON search + XOR `0x2a` decoding with HTML / mirror fallback and safe `[]` | M1 | Survey 1 |
+| 3 | STP Stream Labeling | Exact brand format `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro` | M1 | Survey 1 |
+| 4 | CLBPX Domain & Header Update | Update `src/providers/clbpx.js` with `clbphimxua.info`, `Referer: https://clbphimxua.info/`, `Origin: https://clbphimxua.info` | M1 | Survey 2 |
+| 5 | CLBPX Multi-Tier Extraction | Classic TVB/Wuxia Ophim endpoints + HTML search fallback and safe `[]` | M1 | Survey 2 |
+| 6 | CLBPX Stream Labeling | Exact brand format `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info` | M1 | Survey 2 |
+| 7 | YAN Domain & Header Update | Update `src/providers/yan.js` with `yanhh3d.pw`, `Referer: https://yanhh3d.pw/`, `Origin: https://yanhh3d.pw` | M1 | Survey 2 |
+| 8 | YAN Multi-Tier Extraction | Direct live scraping (`data-obf.pU` / `master.m3u8`) + Ophim JSON fallback and safe `[]` | M1 | Survey 2 |
+| 9 | YAN Stream Labeling | Exact brand format `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw` | M1 | Survey 2 |
+| 10 | HLS Proxy Referer Routing | Update `SOURCE_REFERERS` in `src/routes/hls.js` for `sieutamphim.pro`, `clbphimxua.info`, and `yanhh3d.pw` | M1 | Survey 3 |
+| 11 | Provider Invariants Enforcement | Zero `externalUrl`, only `url` (HLS Proxy), import `scoreMatch` from `src/lib/utils.js` | M1 | Survey 1, 2 |
+| 12 | E2E Test Suite Creation | Create `tests/verify_new_providers.js` covering server lifecycle, health, manifest, streams, proxy rewriting, segment sync byte `0x47` | M2 | Survey 3 |
+| 13 | Zero-Regression Verification | Verify 7/7 on `verify_playback.js` and 27/27 on `verify_hotfix_vsmov_kkphim.js` | M2 | Survey 3 |
+| 14 | Version Bump v1.6.0 | Bump version to `1.6.0` in `package.json`, `src/manifest.js`, `src/handlers.js`, `src/index.js`, `src/config.js`, `src/routes/hls.js` | M3 | Survey 3 |
+| 15 | Git Deployment | Commit and push to GitHub repository with token per instructions | M3 | User Request |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| 1 | M1: VSMOV Audio Separation & Subtitle Proxy | `src/providers/vsmov.js`, `src/routes/hls.js` | none | DONE |
-| 2 | M2: KKPhim 404 Episode Matching Fix | `src/providers/kkphim.js` | none | DONE |
-| 3 | M3: E2E Playback & Binary Verification | `tests/verify_playback.js` | M1, M2 | DONE |
-| 4 | M4: Versioning & GitHub Deployment | `package.json`, `src/manifest.js`, `src/handlers.js`, Git | M1, M2, M3 | IN_PROGRESS |
+|---|---|---|---|---|
+| M1 | Provider Upgrades & HLS Routing | Features 1-11: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js` | none | DONE |
+| M2 | E2E Verification & Zero Regression | Features 12-13: `tests/verify_new_providers.js`, running full regression suites | M1 | DONE |
+| M3 | Version Bump & Git Deploy | Features 14-15: Version string updates, Git commit & push | M2 | IN_PROGRESS |
 
 ## Interface Contracts
-### VSMOV Stream Object Contract
-```javascript
-{
-  name: 'VIP Movies 🎬',
-  title: '[VIP 1 • VSMOV] <AudioLabel> 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP <AudioLabel> • vsmov.com',
-  url: '<proxyBase>/hls/manifest.m3u8?url=<b64Url>&ref=<b64Ref>',
-  behaviorHints: { notWebReady: false, notSupported: false, bingeGroup: 'vsmov-<audioTag>-4k-vip-1' },
-  subtitles: [ { id: 'vi_vsmov', lang: 'vie', url: '<proxyBase>/hls/sub.vtt?url=<b64Sub>&ref=<b64Ref>' } ]
-}
-```
+### Provider Contract (`stp`, `clbpx`, `yan` -> `src/handlers.js`)
+- Must export: `{ id: string, label: string, search(keyword, page), getDetail(slug), getCatalog(type, page, extra), getStreams(payload) }`
+- `getStreams(payload)` input: `{ type, id, season, episode, proxyBase }`
+- `getStreams(payload)` output: `Array<{ name: 'VIP Movies 🎬', title: string, url: string, behaviorHints: object }>`
+- Invariants: `externalUrl` MUST NOT be set or present. `url` must point to `${proxyBase}/hls/manifest.m3u8?...`.
 
-### Subtitle Proxy Route Contract
-- **Endpoint**: `GET /hls/sub.vtt`
-- **Query Params**: `url`, `b64`, `sub`, `ref`, `referer` (plaintext or Base64URL)
-- **Response Headers**: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`
-- **Transformation**: Strip BOM, convert SRT timestamps (`00:00:01,000` -> `00:00:01.000`), ensure `WEBVTT\n\n` header.
-
-### KKPhim Episode Matcher Contract
-```javascript
-matchEpisodeItem(ep, targetEpStr, targetEpNum) -> boolean
-```
-Must match exact string, pad2 (`"01"`), pad3 (`"001"`), `"Tập 1"`, `"Tập 01"`, `"tap-1"`, `"episode-1"`, slug suffix `"-1"`, regex match `targetEpNum`.
+### HLS Proxy Contract (`src/routes/hls.js` ↔ Providers & Clients)
+- Manifest URL: `/hls/manifest.m3u8?url=<base64url>&ref=<base64url>` -> returns HTTP 200 `#EXTM3U` with rewritten segment URLs.
+- Segment URL: `/hls/segment.ts?url=<base64url>&ref=<base64url>` -> returns HTTP 200/206 video/MP2T binary with MPEG-TS sync byte `0x47`.
 
 ## Code Layout
-- `src/providers/vsmov.js`: VSMOV provider implementation (owned exclusively by M1 Worker)
-- `src/routes/hls.js`: HLS and Subtitle proxy route (owned exclusively by M1 Worker)
-- `src/providers/kkphim.js`: KKPhim provider implementation (owned exclusively by M2 Worker)
-- `tests/verify_playback.js`: E2E verification test suite (owned exclusively by M3 Worker)
-- `package.json`, `src/manifest.js`, `src/handlers.js`: Versioning files (owned exclusively by M4 Worker)
+- `src/providers/stp.js`: STP Provider (sieutamphim.pro)
+- `src/providers/clbpx.js`: CLBPX Provider (clbphimxua.info)
+- `src/providers/yan.js`: YAN Provider (yanhh3d.pw)
+- `src/routes/hls.js`: HLS Proxy Router & Referer Routing
+- `src/lib/utils.js`: Shared matching and normalization utilities
+- `src/handlers.js`: Addon request routing & HTML UI
+- `src/manifest.js`: Stremio addon manifest descriptor
+- `tests/verify_new_providers.js`: E2E verification test suite for M1-M3

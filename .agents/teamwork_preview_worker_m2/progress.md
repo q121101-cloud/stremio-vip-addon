@@ -1,10 +1,15 @@
-# Progress — Milestone 2 Worker
+# Progress — Milestone 2
 
-Last visited: 2026-08-17T03:24:35Z
+Last visited: 2026-08-18T11:57:00+07:00
 
-- [x] Initialized BRIEFING.md and reviewed requirements
-- [x] Implement KKPhim enhancements in `src/providers/kkphim.js` (5s timeout, Cinemeta title & year matching, all servers, R3 stream formatting)
-- [x] Implement NguonC enhancements in `src/providers/nguonc.js` (5s timeout, Cinemeta title & year matching, Vietsub & Thuyet Minh servers, R3 stream formatting)
-- [x] Implement VsMov enhancements in `src/providers/vsmov.js` (5s timeout, multi-gateway scraper, 1080p master.m3u8 stream extraction, R3 stream formatting, error isolation)
-- [x] Syntax check & empirical unit verification (`node --check`, offline error isolation, R3 stream protocol verification)
-- [x] Generate Handoff Report and notify orchestrator
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] Reviewed requirements from ORIGINAL_REQUEST.md, PROJECT.md, and M1 handoff.md
+- [x] Inspected existing codebase and existing tests
+- [x] Implemented `tests/verify_new_providers.js` covering all 6 phases + robustness
+- [x] Ran and verified all 4 test suites (100% PASS with exit code 0):
+  - `node tests/verify_new_providers.js`: 26/26 PASS
+  - `node tests/verify_playback.js`: 7/7 PASS
+  - `node tests/verify_hotfix_vsmov_kkphim.js`: 27/27 PASS
+  - `node src/test.js`: 50/50 PASS
+- [x] Syntax checked all modified/core files (`node --check` 0 errors)
+- [x] Finalize handoff.md and report to parent

@@ -1,14 +1,16 @@
-## 2026-08-18T01:47:24Z
-You are teamwork_preview_challenger_m2_2.
+## 2026-08-18T04:57:05Z
+You are Challenger 2 for Milestone 2: E2E Verification Test Suite & Zero-Regression Guard.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_2
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
 
-As an adversarial challenger, test Milestone 2 changes independently:
-- Create an empirical script to test:
-  - High concurrency queries to `vsmov.getStreams` and cache behavior.
-  - Full end-to-end stream query and proxy subtitle fetch: fetch stream object -> extract subtitle URL -> fetch subtitle proxy endpoint -> verify valid WebVTT body.
-  - Stream protocol invariant verification: zero occurrences of `externalUrl` in all returned stream objects across multiple titles.
-- Conclude with a clear verdict: `APPROVE` or `REJECT`.
+You MUST read:
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2/handoff.md
 
-Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_2/handoff.md` and send a message to parent.
+Tasks:
+1. Empirically challenge the new test suite `tests/verify_new_providers.js`:
+   - Test server resilience, Range 206 chunk boundary validation, and aggregator error handling.
+   - Run `node tests/verify_new_providers.js` and all regression suites.
+2. Write handoff report with explicit verdict (`APPROVE` or `REQUEST_CHANGES`) to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_2/handoff.md`.
+
+Send completion message to parent when done.

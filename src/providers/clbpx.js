@@ -2,14 +2,15 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/clbpx.js (Engine v1.5.0)
+ *  VIP Movies Addon — src/providers/clbpx.js (Engine v1.6.0)
  *  CLBPX Specialized Provider: Classic Wuxia, Kim Dung & TVB Hong Kong
- *  Domain Sources: clbphimxua.com / clbpx
+ *  Domain Sources: clbphimxua.info / clbpx
  *
  *  Features:
  *  - Standard interface: { id, label, getCatalog, getStreams, search, getDetail }
  *  - Specializes in Kim Dung Wuxia, TVB Hong Kong, Classic Movies & Series
  *  - 5-second axios timeout for fault isolation & zero blocking
+ *  - Multi-tier stream extraction: Ophim JSON API + HTML search fallback + safe []
  *  - Strict zero externalUrl invariant (url only, HLS proxy)
  *  - Graceful degradation: all errors return [] safely
  * ============================================================
@@ -22,7 +23,7 @@ const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, sco
 
 const PROVIDER_ID    = 'clbpx';
 const PROVIDER_LABEL = 'CLBPX • Phim Xưa & TVB';
-const REFERER_HEADER = 'https://clbphimxua.com/';
+const REFERER_HEADER = 'https://clbphimxua.info/';
 const CLBPX_UA       = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 const http = axios.create({
@@ -31,7 +32,7 @@ const http = axios.create({
     'User-Agent': CLBPX_UA,
     Accept: 'application/json, text/html, */*',
     Referer: REFERER_HEADER,
-    Origin: 'https://clbphimxua.com',
+    Origin: 'https://clbphimxua.info',
   },
 });
 
@@ -51,32 +52,71 @@ function formatEpisodeLabel(epName) {
 }
 
 /**
- * Search Classic Wuxia & TVB series
+ * Search Classic Wuxia & TVB series (Tier 1: Ophim JSON -> Tier 2: HTML scrape)
  */
 async function search(keyword, page = 1) {
   const clean = safeKeyword(keyword);
   const p = safePage(page);
   if (!clean) return [];
 
+  // Tier 1: Ophim JSON API
   try {
     const res = await http.get('https://phimapi.com/v1/api/tim-kiem', {
       params: { keyword: clean, limit: 12, page: p },
     });
     const items = res.data?.data?.items || [];
-    return items.map((it) => ({
-      name: it.name,
-      origin_name: it.origin_name,
-      slug: it.slug,
-      year: it.year,
-      type: it.type || 'series',
-      poster: it.poster_url ? (it.poster_url.startsWith('http') ? it.poster_url : `https://phimimg.com/${it.poster_url}`) : null,
-      quality: it.quality,
-      lang: it.lang,
-    }));
+    if (items.length > 0) {
+      return items.map((it) => ({
+        name: it.name,
+        origin_name: it.origin_name,
+        slug: it.slug,
+        year: it.year,
+        type: it.type || 'series',
+        poster: it.poster_url ? (it.poster_url.startsWith('http') ? it.poster_url : `https://phimimg.com/${it.poster_url}`) : null,
+        quality: it.quality,
+        lang: it.lang,
+      }));
+    }
   } catch (err) {
-    console.warn(`[CLBPX/search] "${clean}":`, err.message);
-    return [];
+    console.warn(`[CLBPX/search-json] "${clean}":`, err.message);
   }
+
+  // Tier 2: HTML Search fallback on clbphimxua.info
+  try {
+    const htmlRes = await http.get(`https://clbphimxua.info/`, {
+      params: { s: clean },
+      timeout: 4000,
+    });
+    const html = String(htmlRes.data || '');
+    const itemMatches = [...html.matchAll(/<a\s+class="halim-thumb"\s+href="https:\/\/clbphimxua\.info\/([^"]+)"\s+title="([^"]+)"/gi)];
+    const fallbackItems = [];
+    const seenSlugs = new Set();
+
+    for (const match of itemMatches) {
+      const slug = match[1].replace(/\/$/, '').trim();
+      const title = match[2].trim();
+      if (!slug || seenSlugs.has(slug)) continue;
+      seenSlugs.add(slug);
+      fallbackItems.push({
+        name: title,
+        origin_name: title,
+        slug: slug,
+        year: null,
+        type: 'series',
+        poster: null,
+        quality: 'HD',
+        lang: 'Lồng Tiếng',
+      });
+    }
+
+    if (fallbackItems.length > 0) {
+      return fallbackItems.slice(0, 12);
+    }
+  } catch (err) {
+    console.warn(`[CLBPX/search-html] "${clean}":`, err.message);
+  }
+
+  return [];
 }
 
 /**
@@ -258,7 +298,6 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
       const server = episodes[sIdx];
       const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
-      const cleanServerName = rawServerName.replace(/[\r\n#]+/g, ' ').replace(/\s+/g, ' ').trim() || `Server ${sIdx + 1}`;
       const serverData = server.server_data || [];
       if (!serverData.length) continue;
 
@@ -300,20 +339,17 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       if (!targetEp || !targetEp.link_m3u8) continue;
 
       const epLabel = formatEpisodeLabel(targetEp.name);
-      const isLT = /l.{1,5}ng ti.{1,5}ng/i.test(rawServerName);
       const isTM = /thuy.{1,5}t minh/i.test(rawServerName);
-      let titleHeader = isLT
-        ? `[VIP • CLBPX] Lồng Tiếng TVB / Kim Dung${epLabel} (HLS Proxy)`
-        : (isTM
-            ? `[VIP • CLBPX] Thuyết Minh Full HD${epLabel} (HLS Proxy)`
-            : `[VIP • CLBPX] Lồng Tiếng TVB${epLabel} (HLS Proxy)`);
+      const titleHeader = isTM
+        ? `[VIP 5 • CLBPX] Thuyết Minh Cổ Điển${epLabel} (HLS Proxy)`
+        : `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển${epLabel} (HLS Proxy)`;
 
       const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${b64Ref}`;
 
       // STRICT INVARIANT: url only, NO externalUrl
       streams.push({
         name: 'VIP Movies 🎬',
-        title: `${titleHeader}\n⚡ Server CLBPX • Kiếm Hiệp Kim Dung & TVB Kinh Điển`,
+        title: `${titleHeader}\n⚡ Server CLBPX • clbphimxua.info`,
         url: streamUrl,
         behaviorHints: {
           notSupported: false,

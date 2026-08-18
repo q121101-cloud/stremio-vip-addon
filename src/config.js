@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Stremio Addon - src/config.js  (v1.5.2)
+ *  VIP Movies Stremio Addon - src/config.js  (v1.6.0)
  *  Config Engine: encode/decode user configuration
  *  Dùng Base64URL để an toàn khi nhúng vào URL path segment
  * ============================================================

@@ -1,62 +1,73 @@
-# BRIEFING — 2026-08-18T04:20:00Z
+# BRIEFING — 2026-08-18T04:53:20Z
 
 ## Mission
-Perform a Forensic Integrity Audit on Hotfix v1.5.2 across `src/providers/vsmov.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `src/index.js`, and `tests/verify_hotfix_vsmov_kkphim.js`.
+Conduct forensic integrity audit of Milestone 1 work product (STP, CLBPX, YAN providers and HLS proxy routing) to detect any integrity violations, hardcoded responses, facade implementations, or unauthorized backdoors.
 
 ## 🔒 My Identity
 - Archetype: forensic_auditor
 - Roles: critic, specialist, auditor
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_auditor_m1_1
-- Original parent: 0a580561-bdd3-4e10-9471-a5f9975ae400
-- Target: Hotfix v1.5.2 (VSMOV 4K WebVTT Subtitles + KKPhim Smart Search Fallback)
+- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Target: Milestone 1: Provider Upgrades (STP, CLBPX, YAN) & HLS Proxy Routing
 
 ## 🔒 Key Constraints
 - Audit-only — do NOT modify implementation code
 - Trust NOTHING — verify everything independently
-- Follow 2-phase investigation architecture (Phase 1: Mode-Agnostic, Phase 2: Mode-Specific)
-- Verify claims empirically with raw tool output and independent execution
-- Read ORIGINAL_REQUEST.md directly for ground truth integrity constraints
+- Check for hardcoded test inputs/outputs or fake responses
+- Check for dummy/facade implementations
+- Verify genuine network requests, parsing logic, XOR decoding, and extraction algorithms
+- Verify that `scoreMatch` is genuinely imported from `src/lib/utils.js` and not mocked
+- Verify that no `externalUrl` backdoor exists
+- Binary verdict: CLEAN or INTEGRITY VIOLATION
 
 ## Current Parent
-- Conversation ID: 0a580561-bdd3-4e10-9471-a5f9975ae400
-- Updated: 2026-08-18T04:20:00Z
+- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Updated: 2026-08-18T04:53:20Z
 
 ## Audit Scope
-- **Work product**: Hotfix v1.5.2 code changes in `src/providers/vsmov.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `src/index.js`, `src/handlers.js`, `src/manifest.js`, `package.json`, and `tests/verify_hotfix_vsmov_kkphim.js`
-- **Profile loaded**: General Project (Integrity Forensics)
+- **Work product**: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`, `src/lib/utils.js`
+- **Profile loaded**: General Project (Development Mode per ORIGINAL_REQUEST.md)
 - **Audit type**: forensic integrity check
-
-## Attack Surface
-- **Hypotheses tested**:
-  - Hardcoded test-specific conditionals (e.g. `if (id === 'tt5095030') return fakeStream`). -> REJECTED (Zero hardcoded conditionals).
-  - Mocked stream URLs or facade implementations pretending to be live streams. -> REJECTED (Genuinely fetches upstream streams from VSMOV and KKPhim).
-  - Subtitle proxy facade (/hls/sub.vtt). -> REJECTED (Genuinely fetches SRT/VTT, strips BOM, normalizes CRLF, converts comma timestamps to dots, prepends WEBVTT, sets CORS & Content-Type).
-  - Fake master M3U8 tag injection. -> REJECTED (Genuinely parses M3U8 variants and injects `#EXT-X-MEDIA:TYPE=SUBTITLES` with `SUBTITLES="subs"` tag).
-  - Fake TS segment delivery. -> REJECTED (Genuinely proxies MPEG-TS binary segments >50KB with sync byte `0x47` and Range 206 support).
-- **Vulnerabilities found**: None.
-- **Untested angles**: None.
-
-## Loaded Skills
-- None specified by orchestrator
 
 ## Audit Progress
 - **Phase**: reporting
 - **Checks completed**:
-  - Read ORIGINAL_REQUEST.md directly (Development Mode)
-  - Phase 1 Source Code Forensic Static Analysis (`grep_search`, syntax check)
-  - Phase 1 Behavioral & Independent Execution Verification (`tests/verify_hotfix_vsmov_kkphim.js`, `forensic_check.js`)
-  - Concurrency and adversarial stress testing (50 concurrent requests, corrupted data, BOM, CRLF, Range 206)
-  - Phase 2 Mode-Specific Flagging against Development Mode rules
+  - Read ORIGINAL_REQUEST.md, PROJECT.md, worker handoff.md
+  - Static code inspection of stp.js, clbpx.js, yan.js, hls.js
+  - Verification of canonical `scoreMatch` import and zero duplicate declarations
+  - Verification of strict zero `externalUrl` invariant across all providers
+  - Verification of XOR 0x2a mathematical reversibility and edge cases
+  - Verification of HTML and WP-JSON multiline parsing logic in STP
+  - Verification of live scraping and regex extractors in YAN & CLBPX
+  - Verification of HLS `SOURCE_REFERERS` table and regex precedence ordering
+  - Execution of syntax checks (`node --check`) — 0 errors
+  - Execution of `tests/test_m1_invariants.js` — 100% PASS
+  - Execution of `tests/verify_playback.js` & `tests/verify_hotfix_vsmov_kkphim.js` — 100% PASS
+  - Execution of `src/test.js` — 50/50 PASS
+  - Execution of independent audit verifier (`audit_verifier.js`) — 100% PASS
 - **Checks remaining**:
-  - Write handoff.md
-  - Send message to parent
-- **Findings so far**: CLEAN — 0 integrity violations detected across all checks.
+  - Handoff report writing
+  - Parent notification
+- **Findings so far**: CLEAN — No integrity violations, facades, backdoors, or hardcoded mocks detected.
+
+## Attack Surface
+- **Hypotheses tested**:
+  1. Did STP use mock XOR decode or fake streams? -> Rejected. Genuine XOR 0x2a character-wise bitwise loop implemented and verified against known vectors.
+  2. Is `scoreMatch` mocked or re-declared? -> Rejected. Canonical import from `../lib/utils` verified across all 3 providers.
+  3. Does an `externalUrl` backdoor exist? -> Rejected. All stream objects emit `url` only pointing to `/hls/manifest.m3u8`; zero `externalUrl` property present.
+  4. Does `hh3d` regex shadow `yanhh3d` in `hls.js`? -> Rejected. `yanhh3d` is placed before `hh3d` in `SOURCE_REFERERS`, correctly matching `https://yanhh3d.pw/`.
+- **Vulnerabilities found**: None.
+- **Untested angles**: Upstream provider server downtime during production is mitigated by multi-tier fallbacks and 5s timeout bounds.
+
+## Loaded Skills
+- None required
 
 ## Key Decisions Made
-- Verified Hotfix v1.5.2 implementation is 100% genuine and fully meets all requirements R1-R4.
+- Confirmed verdict: CLEAN. Full empirical verification completed.
 
 ## Artifact Index
-- `.agents/teamwork_preview_auditor_m1_1/DISPATCH.md` — Dispatch record
-- `.agents/teamwork_preview_auditor_m1_1/progress.md` — Progress tracker
-- `.agents/teamwork_preview_auditor_m1_1/forensic_check.js` — Independent forensic audit test suite
-- `.agents/teamwork_preview_auditor_m1_1/handoff.md` — Final forensic audit report
+- DISPATCH.md — Dispatch prompt
+- BRIEFING.md — Persistent memory
+- progress.md — Audit progress log
+- audit_verifier.js — Independent empirical verification test script
+- handoff.md — Final forensic audit handoff report

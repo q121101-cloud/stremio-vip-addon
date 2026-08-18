@@ -1,33 +1,32 @@
-# BRIEFING — 2026-08-17T09:04:45Z
+# BRIEFING — 2026-08-18T04:36:35Z
 
 ## Mission
-Coordinate and monitor execution of KKPhim in-app HLS playback optimization and E2E playback verification test suite.
+Upgrade Engine to v1.6.0 for Stremio VIP Movies Addon: audit & fix STP, CLBPX, YAN providers, HLS Proxy routing, E2E tests, zero regression, and deploy.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel_1
-- Orchestrator: orchestrator_2 (136861b5-8dea-4750-bca0-abf6c3ca0270)
-- Victory Auditor: f53a8e1c-9330-4224-bf02-ef0c2f083621
+- Orchestrator: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Victory Auditor: to be spawned on victory claim
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Route: General -> teamwork_preview_orchestrator
+- Never write code directly
 
 ## User Context
-- **Last user request**: Optimize in-app HLS playback for KKPhim provider with anti-403 CDN headers and build E2E stream test & self-debug loop.
+- **Last user request**: Upgrade Engine v1.6.0 (STP, CLBPX, YAN domains, HLS Proxy routing, E2E tests, zero-regression guard, and deploy)
 - **Pending clarifications**: none
-- **Delivered results**: 100% verified in-app KKPhim HLS playback with anti-403 proxy headers and passing E2E test suite.
+- **Delivered results**: none
 
 ## Project Status
-- **Phase**: complete
+- **Phase**: in progress
+- **Route**: General (teamwork_preview_orchestrator)
 
 ## Victory Audit Status
-- **Triggered**: yes
-- **Verdict**: VICTORY CONFIRMED
+- **Triggered**: no
+- **Verdict**: pending
 - **Retry count**: 0
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Original user request specification
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_2/handoff.md — Orchestrator handoff
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/victory_auditor_sentinel_1/handoff.md — Victory audit report
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Original User Request

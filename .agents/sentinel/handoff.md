@@ -1,33 +1,40 @@
-# Handoff Report — Sentinel Final Delivery (Taste-Skill UI Overhaul)
+# Sentinel Handoff Report — Hotfix v1.5.2
 
 ## Observation
-- Taste-Skill Anti-Slop UI Overhaul requested:
-  - Integration of Taste-Skill Anti-Slop UI architecture (OLED True Black `#0b0d13`, deep slate surfaces, 3-orb ambient aurora drift in `#6366f1`, `#ec4899`, `#06b6d4`, multi-layered backdrop blur `28px - 32px`, 1px borders `rgba(255,255,255,0.08)`).
-  - Interactive multi-provider & category configurator (7 clusters: VSMOV 4K, KKPhim, NguonC, STP Âu Mỹ, Hoạt Hình 3D, YanHH3D, CLB Phim Xưa; 22 categories) with spring-physics micro-switches (`cubic-bezier(0.34, 1.56, 0.64, 1)`).
-  - Floating action dock with shimmer hover effect, live sync counter (`Đang kích hoạt: X nguồn · Y danh mục`), 1-click Stremio App/Web deep links, and dynamic manifest link card with clipboard copy toast.
-  - Server-side and client-side `/:config` token hydration and round-tripping.
-  - Verification across responsive viewports (375px mobile to 4K widescreen) and backend streaming routes (`/manifest.json`, `/catalog/...`, `/stream/...`, `/hls/...`).
-  - Version uniform at `1.5.1` and git commit: `UI Overhaul: Transformed Configurator with Taste-Skill Anti-Slop Design Standards`.
-- Swarm orchestration executed all milestones with zero errors.
-- Independent Victory Auditor (`teamwork_preview_victory_auditor`) conducted a blocking 3-phase audit and issued `VERDICT: VICTORY CONFIRMED`.
+All requirements for Hotfix v1.5.2 on Stremio VIP Movies Addon (`stremio-nguonc-addon`) have been fully executed, verified, and audited:
+1. **VSMOV WebVTT/SRT Subtitles (R1)**:
+   - Link subtitle extracted from VSMOV episode data.
+   - Subtitle proxy endpoint `/hls/sub.vtt` implemented with SRT-to-WebVTT on-the-fly conversion and CORS/Cache headers (`Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`).
+   - Stremio stream object populated with `subtitles: [{ id: "vi_vsmov", lang: "vie", url: proxySubUrl, title: "Tiếng Việt (VSMOV VIP)" }]`.
+   - Master M3U8 rewrite injected with `#EXT-X-MEDIA:TYPE=SUBTITLES` for player auto-selection (ExoPlayer/VLC/Nuvio).
+2. **KKPhim Smart Search Fallback (R2)**:
+   - 3-tier resolution architecture implemented: Tier 1 (direct IMDb ID lookup), Tier 2 (Cinemeta async title search via `/v1/api/tim-kiem?keyword=...` with `scoreMatch` fuzzy ranking), Tier 3 (safe empty array `[]` fallback).
+   - Episode normalization handles `"1"`, `"01"`, `"Tập 1"`, `tap-1`, `tap-01`.
+3. **E2E Verification Suite (R3)**:
+   - `tests/verify_hotfix_vsmov_kkphim.js` verifies Avengers 3 (`tt5095030`), KKPhim Series Episode 1 M3U8 resolution, and TS segment byte range download (>50KB, sync byte `0x47`).
+4. **Versioning & Deployment (R4)**:
+   - Version synchronized to `1.5.2` in `package.json` and `src/manifest.js`.
+   - Git commit: `Hotfix v1.5.2: Injected VSMOV 4K WebVTT Subtitles into HLS/Stremio & Added KKPhim Smart-Search Fallback against 404` pushed to `origin/main`.
 
 ## Logic Chain
-1. User request recorded to `.agents/ORIGINAL_REQUEST.md`.
-2. Routed to `teamwork_preview_orchestrator` at `.agents/orchestrator_taste_ui`.
-3. Orchestration team executed 4 milestones:
-   - M1: Taste UI Overhaul & Hydration (`src/handlers.js`)
-   - M2: E2E Playback, Subtitle & Visual Verification (`tests/verify_taste_ui.js`, `tests/verify_playback.js`, etc.)
-   - M3: Forensic Integrity Audit & Adversarial Stress Tests
-   - M4: Versioning (1.5.1) & Git Commit (`13c51392fd2c69866b91de7b72c29bcc414048d1`)
-4. Independent Victory Auditor verified all test suites (43/43 UI tests, 7/7 playback phases with 7.45 MB real TS segment, 62/62 VSMOV sub/audio tests, 30/30 challenger tests, 50/50 npm test suite), zero cheats/mocks, and clean git state.
-5. All background tasks and subagents terminated cleanly.
+- Initial routing evaluated request as General SWE task -> dispatched `teamwork_preview_orchestrator`.
+- Orchestrator directed specialized workers through survey, test creation, implementation, and adversarial challenge rounds.
+- Upon Orchestrator victory claim, Sentinel dispatched independent `teamwork_preview_victory_auditor` to audit timeline, implementation integrity, and execute independent verification commands.
+- Victory Auditor returned `VICTORY CONFIRMED` (100% test pass rate across unit, empirical, adversarial, and playback suites).
+- Crons and subagent processes terminated cleanly.
 
 ## Caveats
-- Upstream third-party servers (`vsmov.com`, `phimapi.com`, etc.) are live external endpoints.
-- Git commit `13c5139` is created locally on branch `main`; can be pushed to remote origin via `git push origin main`.
+- Upstream VSMOV and KKPhim APIs are external third-party services. If upstream APIs alter their schema or rate-limit IP addresses, the fallback logic protects the addon from crashing by returning empty stream arrays rather than 404/500 errors.
 
 ## Conclusion
-- VIP Movies Stremio Addon Taste-Skill UI Overhaul is 100% complete and independently verified.
+Hotfix v1.5.2 is complete, fully tested, audited with zero cheating/facade findings, and pushed to `main`.
 
 ## Verification Method
-- Independent Victory Auditor live execution of `tests/verify_taste_ui.js`, `tests/verify_playback.js`, `tests/verify_vsmov_sub_audio.js`, adversarial tests, and static anti-slop inspection — All passed with zero errors.
+- Independent Victory Auditor test run:
+  - `node --check src/index.js` (PASS)
+  - `node tests/verify_hotfix_vsmov_kkphim.js` (PASS - 27/27 assertions)
+  - `node tests/verify_playback.js` (PASS - 7/7 phases)
+  - `node tests/challenger_hotfix_v152_adversarial.test.js` (PASS - 72/72)
+  - `node tests/challenger_hotfix_v152_empirical.test.js` (PASS - 64/64)
+  - `npm test` (PASS - 50/50)
+  - Git remote verification: commit pushed to `origin/main`.

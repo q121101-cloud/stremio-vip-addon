@@ -1,25 +1,33 @@
-## Milestone 1 Worker Dispatch: Cinemeta Resolver & LRU Cache
-Working Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon
-Agent Directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1
-Exclusive Write Ownership: `src/lib/cinemeta.js`, `src/lib/cache.js`, `src/api.js`
+## 2026-08-18T04:47:53Z
 
-References:
+You are the Worker for Milestone 1: Provider Upgrades (STP, CLBPX, YAN) & HLS Proxy Routing.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1
+
+You MUST read the following files before making changes:
 - /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
 - /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/handoff.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_m1_1/handoff.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_m1_2/handoff.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_m1_3/handoff.md
 
-Task:
-1. Implement `src/lib/cinemeta.js`:
-   - Resolve IMDb IDs (`tt...` or `tt...:season:ep`) via official Cinemeta API (`https://v3-cinemeta.strem.io/meta/${type}/${imdbId.split(':')[0]}.json`).
-   - Extract canonical title (`meta.name`), release year (`meta.year` parsed as 4-digit number), `releaseInfo`, `genres`, and `aliases`.
-   - Use 5-second axios timeout.
-   - Cache Cinemeta metadata in `cinemetaCache` with 24h TTL.
-2. Update `src/lib/cache.js`:
-   - Instantiate and export `cinemetaCache = new LRUCache(5000, 86400)`.
-3. Update `src/api.js`:
-   - Connect or delegate `resolveCinemeta` to `src/lib/cinemeta.js`.
-4. Verify code with `node --check src/lib/cinemeta.js`, `node --check src/lib/cache.js`, `node --check src/api.js`, and unit probe test.
-5. Write detailed handoff report in your agent directory.
+You own exclusively:
+- `src/providers/stp.js`
+- `src/providers/clbpx.js`
+- `src/providers/yan.js`
+- `src/routes/hls.js`
 
-MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+Tasks:
+1. Implement all updates to `src/providers/stp.js` per M1_1 handoff (domain: `https://sieutamphim.pro`, referer headers, label `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`, multi-tier extraction with XOR 0x2a decode and safe fallback, strict invariants: only `url`, no `externalUrl`, `scoreMatch` imported from `src/lib/utils.js`).
+2. Implement all updates to `src/providers/clbpx.js` per M1_2 handoff (domain: `https://clbphimxua.info`, referer headers, label `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`, multi-tier extraction + safe fallback, strict invariants: only `url`, no `externalUrl`, `scoreMatch` imported from `src/lib/utils.js`).
+3. Implement all updates to `src/providers/yan.js` per M1_2 handoff (domain: `https://yanhh3d.pw`, referer headers, label `[VIP 6 • YAN] 4K/FHD Donghua 3D (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`, multi-tier extraction with live scraping `data-obf.pU`/`master.m3u8` + Ophim fallback + safe `[]`, strict invariants: only `url`, no `externalUrl`, `scoreMatch` imported from `src/lib/utils.js`).
+4. Implement all updates to `src/routes/hls.js` per M1_3 handoff (add `SOURCE_REFERERS` entries for `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`/`fbcdn.cloud`/`defifa.com` ensuring order priority before `hh3d`).
+5. Run build/syntax check and test verification commands:
+   - `node --check src/index.js`
+   - `node --check src/providers/stp.js`
+   - `node --check src/providers/clbpx.js`
+   - `node --check src/providers/yan.js`
+   - `node --check src/routes/hls.js`
+   - `node tests/verify_playback.js` (must PASS 7/7)
+   - `node tests/verify_hotfix_vsmov_kkphim.js` (must PASS 27/27)
+   - `node src/test.js`
+6. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1/handoff.md`.

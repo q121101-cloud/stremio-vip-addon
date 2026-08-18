@@ -1,54 +1,47 @@
-# BRIEFING — 2026-08-18T04:20:00Z
+# BRIEFING — 2026-08-18T11:54:00+07:00
 
 ## Mission
-Conduct empirical adversarial verification and stress testing of Hotfix v1.5.2 (VSMOV subtitles, WebVTT proxy, KKPhim 3-Tier fallback, HLS subtitle injection, segment streaming).
+Adversarial empirical testing & verification of Milestone 1 (Provider Upgrades for STP, CLBPX, YAN & HLS Proxy Routing in Stremio VIP Movies Addon Engine v1.6.0).
 
 ## 🔒 My Identity
 - Archetype: challenger
 - Roles: critic, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1
-- Original parent: 0a580561-bdd3-4e10-9471-a5f9975ae400
-- Milestone: Hotfix v1.5.2 verification
+- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Milestone: M1: Provider Upgrades (STP, CLBPX, YAN) & HLS Proxy Routing
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only & test runner — do NOT modify production implementation code
-- Must execute tests and write reproduction scripts to empirically verify all claims
-- Verify edge cases directly via test harnesses
+- Review-only — do NOT modify implementation code.
+- Empirically verify everything: run generators, oracles, regression tests, and stress test harnesses.
+- Do NOT trust worker claims without empirical reproduction.
 
 ## Current Parent
-- Conversation ID: 0a580561-bdd3-4e10-9471-a5f9975ae400
-- Updated: 2026-08-18T04:20:00Z
+- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Updated: 2026-08-18T11:54:00+07:00
 
 ## Review Scope
-- **Files to review**: `src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/routes/hls.js`, `src/manifest.js`, `package.json`, `tests/verify_hotfix_vsmov_kkphim.js`, `tests/challenger_hotfix_v152_adversarial.test.js`
-- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
-- **Review criteria**: Correctness, edge cases, error resilience, subtitle formatting, proxy conformance, 3-Tier KKPhim fallback
+- **Files reviewed**: `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`
+- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
+- **Review criteria**: Correctness, edge cases, special characters, empty queries, non-existent titles, series vs movie handling, stream structure invariants (`name === 'VIP Movies 🎬'`, `url` proxy prefix, `externalUrl === undefined`, title branding), HLS `getRefererHeaders()` collision testing, regression suites.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Subtitle proxy `/hls/sub.vtt`: empty url (400), whitespace (400), malformed string (502 error handled), data URI WebVTT (200), UTF-8 BOM stripping (200), SRT CRLF normalization (200), SRT comma to dot timestamps (200), proxy headers (Content-Type: text/vtt, CORS: *, Cache-Control: max-age=86400).
-  - KKPhim 3-Tier fallback: Tier 1 direct IMDb (`tt5095030`, `tt0111161`), Tier 2 Cinemeta + search fallback (`tt1375666`, `tt0468569`, `tt1877830`, `tt0903747:1:1`), Tier 3 safe empty array (`tt0000000000`).
-  - Episode matching algorithm: `"1"`, `"01"`, `"001"`, `"Tập 1"`, `"Tập 01"`, `"tap-1"`, `"episode-1"`, `"ep-01"` all verified.
-  - VSMOV stream subtitles: `subtitles[0]` contains `id: "vi_vsmov"`, `lang: "vie"`, `title: "Tiếng Việt (VSMOV VIP)"` and valid proxy URL; master M3U8 has `#EXT-X-MEDIA:TYPE=SUBTITLES` injected and `SUBTITLES="subs"` in `#EXT-X-STREAM-INF`.
-  - Zero externalUrl invariant: 100% compliant across all streams.
-- **Vulnerabilities / Edge Observations found**:
-  - `?url=ICAg` (Base64 encoded whitespace): Returns 502 (handled safely without crash) because decoded whitespace is not re-trimmed prior to axios dispatch; whereas plain `?url=%20%20%20` returns 400.
-  - Episode query `episode: "tap-01"`: `parseInt("tap-01", 10)` yields NaN because of leading non-digits, which requires exact slug match rather than numeric extraction when slug is `"tap-1"`. Standard Stremio calls pass numeric strings `"1"` or `"01"` which are 100% supported.
-- **Untested angles**: None within Hotfix v1.5.2 scope.
+  1. HLS Referer collision between YAN (`yanhh3d.pw`, `fbcdn.cloud`, `defifa.com`) and HH3D (`hh3d.tv`) -> RESOLVED & VERIFIED (Zero collision, correct ordering).
+  2. Stream invariant violation (leaked `externalUrl` or wrong stream `name`) -> VERIFIED (100% compliant across all providers).
+  3. Obfuscation decoding breakdown on STP (XOR 0x2a) -> VERIFIED (Correctly decodes `.m3u8`/embed links).
+  4. Server crash on empty queries, malformed slugs, non-existent IMDb IDs, negative episodes -> VERIFIED (Zero crash, graceful degradation to `[]`).
+  5. Regression in existing providers (VSMOV, KKPhim, NguonC, Subtitle proxy, Range 206) -> VERIFIED (100% pass across all regression test suites).
+- **Vulnerabilities found**: None in production code.
+- **Untested angles**: All major edge cases and stress vectors empirically exercised.
 
 ## Loaded Skills
-- None explicitly loaded
+- None.
 
 ## Key Decisions Made
-- Executed official verification test suite `tests/verify_hotfix_vsmov_kkphim.js` (27/27 pass)
-- Executed playback suite `tests/verify_playback.js` (7/7 phases pass)
-- Executed VSMOV sub/audio suite `tests/verify_vsmov_sub_audio.js` (62/62 pass)
-- Created and executed comprehensive adversarial test suite `tests/challenger_hotfix_v152_adversarial.test.js` (72/72 pass)
+- Verdict: **APPROVE**. All M1 requirements, provider upgrades, HLS proxy routing, and zero-regression criteria are empirically validated and pass 100%.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_m1_1/DISPATCH.md` — original dispatch message
-- `.agents/teamwork_preview_challenger_m1_1/BRIEFING.md` — persistent memory
-- `.agents/teamwork_preview_challenger_m1_1/progress.md` — liveness heartbeat
-- `.agents/teamwork_preview_challenger_m1_1/handoff.md` — final verification report
-- `tests/challenger_hotfix_v152_adversarial.test.js` — comprehensive empirical stress test suite
+- `tests/challenger_m1_1_empirical_adversarial.js` — Empirical adversarial test harness (44 test cases)
+- `handoff.md` — Final Challenger handoff with explicit verdict (`APPROVE`)
+- `progress.md` — Liveness & progress tracking

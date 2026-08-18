@@ -1,187 +1,124 @@
-# Milestone 2 Independent Review & Adversarial Challenge Report
+# Reviewer 2 Handoff Report: Milestone 2 — E2E Verification Test Suite & Zero-Regression Guard
 
-**Reviewer & Adversarial Critic**: `teamwork_preview_reviewer_m2_2`  
-**Verdict**: **APPROVE**  
-**Milestone**: Milestone 2 — VSMOV Multi-Server Audio Separation & Subtitle Extraction  
-**Target Files**: `src/providers/vsmov.js`, `src/handlers.js`, `src/routes/hls.js`, `tests/verify_vsmov_sub_audio.js`, `tests/m2_providers.test.js`
+**Role**: Reviewer 2 & Adversarial Critic (`teamwork_preview_reviewer_m2_2`)  
+**Timestamp**: 2026-08-18T04:58:30Z  
+**Verdict**: `APPROVE`  
+**Target Milestone**: Milestone 2 (E2E Verification & Zero-Regression Guard)
 
 ---
 
 ## 1. Observation
 
-1. **Syntax & Static Analysis**:
-   - Executed `node --check src/providers/vsmov.js && node --check src/index.js && node --check src/handlers.js && node --check src/routes/hls.js`.
-   - Result: Exit code 0, 0 syntax errors.
+### 1.1 Direct Inspection of `tests/verify_new_providers.js`
+- **File Location**: `tests/verify_new_providers.js` (511 lines).
+- **Execution Architecture & Anti-Flakiness Controls**:
+  1. **Phase 1: Ephemeral Port Isolation**:
+     - Uses `app.listen(0, '127.0.0.1')` (lines 93-96) to prevent port conflicts across test runs.
+     - Registers `/hls`, `/`, and handlers onto an isolated Express instance.
+     - Implements deterministic teardown via `finally { server.close(); }` (lines 498-501) preventing dangling socket listeners.
+  2. **Phase 2: Provider Contract & Invariant Enforcement**:
+     - Verifies `scoreMatch` function export from `src/lib/utils.js` (line 139).
+     - Tests STP (`src/providers/stp.js`): XOR `0x2a` decoding helper `decodeXor0x2a` (`'B^^ZY'` -> `'https'`), multiline `episodeGroup` HTML parsing, `getCatalog`, `search`, and `getStreams`.
+     - Tests CLBPX (`src/providers/clbpx.js`): `getCatalog`, `search`, and `getStreams`.
+     - Tests YAN (`src/providers/yan.js`): `getCatalog`, `search`, and `getStreams`.
+     - Enforces strict invariant checks on all stream results: `name === 'VIP Movies 🎬'`, `externalUrl === undefined`, `!('externalUrl' in st)`, `st.url.includes('/hls/manifest.m3u8')`, and exact brand headers/footers (`[VIP 4 • STP] ... \n⚡ Server STP • sieutamphim.pro`, `[VIP 5 • CLBPX] ... \n⚡ Server CLBPX • clbphimxua.info`, `[VIP 6 • YAN] ... \n⚡ Server YAN • yanhh3d.pw`).
+  3. **Phase 3: Manifest Proxy & Referer Routing**:
+     - Validates HTTP 400 rejection when `/hls/manifest.m3u8` is requested without `url` parameter (lines 296-298).
+     - Verifies live/proxied master manifest rewriting for all 3 target domains (`sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`).
+     - Verifies HTTP 200, Content-Type `application/vnd.apple.mpegurl`, `#EXTM3U` header, and rewrite of child variant / segment URIs to `${baseUrl}/hls/...`.
+  4. **Phase 4: Stream Aggregator Safety & Zero Crash**:
+     - Tests Movie aggregation (`/default/stream/movie/tt0373889.json`) -> HTTP 200, 7 high-speed streams.
+     - Tests Series aggregation (`/default/stream/series/tt0903747:1:1.json`) -> HTTP 200, 4 high-speed streams.
+     - Tests Un-prefixed route (`/stream/movie/tt0373889.json`) -> HTTP 200.
+     - Confirms zero crashes when third-party provider endpoints return 404 or empty results.
+  5. **Phase 5: Real TS Segment Binary Inspection**:
+     - Downloads real MPEG-TS segment chunk via `/hls/segment.ts?url=...&ref=...`.
+     - Verifies byte size > 10,000 bytes (downloaded 1,915,156 bytes = 1870.27 KB).
+     - Verifies MPEG-TS synchronization byte `0x47` at offset 0 and packet boundary 188 (`buffer[0] === 0x47` and `buffer[188] === 0x47`).
+     - Verifies `Access-Control-Allow-Origin: *` CORS header.
+  6. **Phase 6: HTTP Range 206 Seeking Support**:
+     - Sends `Range: bytes=0-1023` to `/hls/segment.ts`.
+     - Validates HTTP 206 status, `Content-Range: bytes 0-1023/1915156`, and exact length of 1024 bytes.
 
-2. **Test Suite Verification**:
-   - `node tests/verify_vsmov_sub_audio.js`:
-     - Result: 62/62 assertions passed (100% pass, Execution time: 3.85s).
-     - Validated all 4 tiers:
-       - Tier 1: Feature Coverage (Manifest, Harry Potter `tt0373889` stream resolution, subtitle proxy plain & base64url endpoints).
-       - Tier 2: Boundary & Corner Cases (HTTP 400 on missing/whitespace params, HTTP 502 on upstream unreachable/500 errors, automatic SRT-to-WebVTT conversion with dot timestamp decimals and CRLF handling, strict In-App stream invariants).
-       - Tier 3: Cross-Feature Combinations (VSMOV returns >= 2 distinct server streams with Vietsub + Lồng Tiếng/Thuyết Minh, attached `subtitles` array with id `vi_vsmov`, lang `vie`, proxy route `/hls/sub.vtt`, `handleStream` subtitle pass-through, exact title format `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`).
-       - Tier 4: Real-World Scenarios (End-to-end client playback simulation for movie and series).
-   - `npm test` (`node src/test.js`):
-     - Result: 50/50 passed (100% pass, Exit code 0).
-   - `node tests/m2_providers.test.js`:
-     - Result: 53/53 passed across all 9 provider suites (100% pass, Exit code 0).
-   - `tests/test_adversarial_m2.js` (Independent stress tests):
-     - Result: Passed all adversarial checks for `classifyServerAudio`, cache hit bypass, subtitle fallback handling, and zero-`externalUrl` guarantees.
+### 1.2 Integrity Violation Check
+- **No Hardcoded/Facade Logic**: Reviewed `tests/verify_new_providers.js`, `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`. No dummy facades, no hardcoded synthetic test passes, no shortcuts bypassing core logic.
+- **Genuine Network & Binary Execution**: Real HTTP requests, real parsing, real MPEG-TS byte inspection confirmed.
 
-3. **Integrity & Authenticity Inspection**:
-   - Ripgrep search across `src/` for hardcoded IMDb IDs (e.g. `tt0373889`) or mock payloads returned 0 results.
-   - All logic performs live requests against the official VSMOV API (`https://vsmov.com/api`) and embed endpoints (`*.streamvsmov.com`).
-   - Zero facade or dummy mock logic detected.
+### 1.3 Empirical Execution Results
+All verification commands were executed and recorded verbatim:
 
-4. **Code Structure Analysis (`src/providers/vsmov.js`)**:
-   - `classifyServerAudio(serverName)` (lines 68–94):
-     - Normalizes server names, replacing newlines/hashes/extra whitespace.
-     - Detects Lồng Tiếng via `/l.{1,5}ng\s*ti.{1,5}ng/i` and `/long\s*tieng/i`.
-     - Detects Thuyết Minh via `/thuy.{1,5}t\s*minh/i` and `/thuyet\s*minh/i`.
-     - Defaults to Vietsub.
-     - Returns `{ type, label, bingeGroup }`.
-   - `resolveEmbedMedia(linkEmbed, linkM3u8)` (lines 99–211):
-     - Has 3000ms timeout for non-blocking execution.
-     - Implements 24h LRU caching in `imdbCache` (`vsmov:embed:${linkEmbed}`).
-     - Extracts master playlist URL via `baseUrl + videoHash` or regex pattern.
-     - Parses `playerOptions.subtitles` array JSON prioritizing Vietnamese (`vie`, `vi`, `tiếng việt`), with regex fallback for direct `.vtt`/`.srt` files.
-     - Resolves relative subtitle paths against `embedOrigin` (`new URL(subUrl, embedOrigin).href`).
-   - `getStreams(payload)` (lines 398–602):
-     - Iterates through each server group in `episodes` array.
-     - Preserves all distinct audio server streams without collapsing.
-     - Formats exact stream titles and `bingeGroup`.
-     - Encodes subtitle URL and referer in Base64URL, routing via `${proxyBase}/hls/sub.vtt?url=${b64Sub}&ref=${b64Ref}`.
-     - Enforces In-App protocol: includes `url`, omits `externalUrl`.
+1. **`node tests/verify_new_providers.js`**:
+   - Status: **Exit Code 0**
+   - Output: `Total Checks Passed: 26/26 (100%)` in 8.66s.
+2. **`node tests/verify_playback.js`**:
+   - Status: **Exit Code 0**
+   - Output: `ALL HOTFIX v1.5.2 VERIFICATION CHECKS PASSED (100% SUCCESS) - 7/7 PASS` in 5.10s.
+3. **`node tests/verify_hotfix_vsmov_kkphim.js`**:
+   - Status: **Exit Code 0**
+   - Output: `Passed: 27, Failed: 0 - ALL 27 assertions PASSED` in 3.4s.
+4. **`node src/test.js`**:
+   - Status: **Exit Code 0**
+   - Output: `Kết quả: 50 passed, 0 failed - Tất cả tests đều PASS!` in 2.1s.
+5. **`node --check` Syntax Sweep**:
+   - Checked `tests/verify_new_providers.js`, `tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, `src/test.js`, `src/index.js`, `src/routes/hls.js`, `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`.
+   - Result: **0 syntax errors, 100% clean**.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Audio Track Separation**:
-   - Prior to Milestone 2, VSMOV collapsed episodes into a single stream titled `Master 4K Ultra HD` regardless of audio track.
-   - The worker modified `getStreams` to iterate across all entries in `movieData.episodes`, mapping each server to `classifyServerAudio(rawServerName)`.
-   - As observed in test logs for Harry Potter `tt0373889`, two distinct streams are generated:
-     - `[VIP 1 • VSMOV] Vietsub 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Vietsub • vsmov.com` (bingeGroup: `vsmov-vietsub-4k-vip-1`)
-     - `[VIP 1 • VSMOV] Lồng Tiếng 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Lồng Tiếng • vsmov.com` (bingeGroup: `vsmov-longtieng-4k-vip-1`)
-   - Deduplication key `target:${targetUrl}` in `src/handlers.js` preserves both streams because each audio track has a unique master M3U8 URL.
-
-2. **Embed Subtitle Extraction & Fallback**:
-   - `resolveEmbedMedia` scrapes the embed HTML with a strict 3000ms timeout and catches errors cleanly, preventing slow embed endpoints from blocking stream resolution.
-   - Subtitle paths like `/video/.../subtitle/vie_...vtt` are converted to absolute URLs (`https://v5.streamvsmov.com/video/.../subtitle/vie_...vtt`).
-   - If subtitles are absent (e.g. for dubbed streams where `subtitles: []`), `subtitleUrl` evaluates to `null` and `streamObj.subtitles` is omitted, avoiding empty or broken subtitle tracks on the client.
-
-3. **Contract & Protocol Conformance**:
-   - `PROJECT.md § Interface Contracts` requires:
-     - Stream object: `{ name: "VIP Movies 🎬", title: "[VIP 1 • VSMOV] ...", url: "...", subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: '...' }], behaviorHints: { bingeGroup: '...' } }`.
-     - Strict zero `externalUrl`.
-   - Inspection of `src/providers/vsmov.js:571-595` and runtime verification confirms 100% contract compliance.
-
-4. **Fault Isolation & Performance**:
-   - Parallel provider execution in `handleStream` with `withTimeout(..., 4000)` and `Promise.allSettled` guarantees total resilience against upstream failures.
-   - Cache keys in `imdbCache` ensure fast sub-millisecond repeated lookups.
+1. **Requirement R3 & Milestone 2 Scope**:
+   - Mandates creation of an automated E2E test suite (`tests/verify_new_providers.js`) that validates server startup on an ephemeral port, health/manifest endpoints, direct provider extraction with exact brand labels and strict invariants (zero `externalUrl`, only `url` HLS proxy, `scoreMatch` import), manifest rewriting for `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`, stream aggregator resilience on movies and series, TS segment binary payload > 10KB with `0x47` sync byte, and HTTP 206 range seeking.
+2. **Zero-Regression Mandate**:
+   - Mandates that existing verification test suites (`tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, `src/test.js`) continue to pass 100% with zero regressions.
+3. **Evidence Validation**:
+   - `tests/verify_new_providers.js` executes all 6 phases and passes 26/26 assertions.
+   - `verify_playback.js` passes 7/7 assertions.
+   - `verify_hotfix_vsmov_kkphim.js` passes 27/27 assertions.
+   - `src/test.js` passes 50/50 assertions.
+   - No integrity violations, mocking tricks, or flakiness detected.
+4. **Conclusion**:
+   - Milestone 2 is completely verified and fulfills all acceptance criteria with zero regressions.
 
 ---
 
 ## 3. Caveats
 
-- **Upstream Rate Limits on Specialized Providers**:
-  - In `tests/m2_providers.test.js`, running many rapid consecutive test suites against third-party public APIs (KKPhim, STP, HH3D, YAN, CLBPX) can occasionally return HTTP 429. When spaced normally or served from cache, all 53/53 tests pass.
-  - VSMOV provider itself is robustly cached and immune to external provider rate limits.
-- **Dubbed/Voiceover Subtitles**:
-  - For streams where upstream does not offer subtitle files (e.g., Lồng Tiếng / Thuyết Minh), the `subtitles` array is intentionally omitted from the stream object. This is correct behavior per Stremio specification.
+- **Live Upstream Network Variance**: Live upstream websites (e.g. `yanhh3d.pw`, `sieutamphim.pro`) may occasionally return 404/500 for individual titles or be geo-blocked. The provider code handles these safely by degrading to fallback tiers or empty arrays `[]` without crashing the Express server. The test suite includes public Mux test streams to ensure end-to-end binary proxying is reliably verified regardless of transient upstream throttling.
+- **No Unexplored Dependencies**: All routing, providers, and test harnesses were directly inspected and tested.
 
 ---
 
 ## 4. Conclusion
 
-The Milestone 2 implementation for VSMOV Multi-Server Audio Separation & Subtitle Extraction meets all functional, non-functional, and contract requirements defined in `PROJECT.md` and `ORIGINAL_REQUEST.md`. No integrity violations, regressions, or contract discrepancies were detected.
+**Verdict**: `APPROVE`
 
-**Final Verdict**: **APPROVE**. Milestone 2 is ready to proceed to Milestone 3 (Version Bumping & UI Branding).
+Milestone 2 (E2E Verification Test Suite & Zero-Regression Guard) is robust, complete, and thoroughly verified.
+- `tests/verify_new_providers.js` passes 26/26 assertions.
+- Full regression suite passes with 100% success across all 110 test assertions (26 + 7 + 27 + 50).
+- Zero syntax errors across all source and test files.
+- Ready to proceed to Milestone 3 (Version Bump & Git Deployment).
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce the verification results:
+To independently verify this evaluation:
 
 ```bash
-# 1. Syntax check
-node --check src/providers/vsmov.js
+# 1. Run new provider verification suite
+node tests/verify_new_providers.js
+
+# 2. Run all regression suites
+node tests/verify_playback.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node src/test.js
+
+# 3. Perform complete syntax check
+node --check tests/verify_new_providers.js
 node --check src/index.js
-node --check src/handlers.js
 node --check src/routes/hls.js
-
-# 2. Comprehensive 4-Tier VSMOV Subtitle & Audio Verification Suite
-node tests/verify_vsmov_sub_audio.js
-
-# 3. Addon Core Integration Tests
-npm test
-
-# 4. Multi-Provider Architecture Test Suite
-node tests/m2_providers.test.js
-```
-
-**Invalidation Conditions**:
-- Any assertion in `tests/verify_vsmov_sub_audio.js` fails.
-- Fewer than 2 distinct VSMOV audio streams are returned for Harry Potter `tt0373889`.
-- Any stream object contains `externalUrl` or lacks `url`.
-- Subtitle URL fails to return HTTP 200 with valid `WEBVTT` header.
-
----
-
-## 6. Review Summary Report
-
-```markdown
-## Review Summary
-
-**Verdict**: APPROVE
-
-## Findings
-None. All components function as specified with zero defects.
-
-## Verified Claims
-- Multi-server audio separation (Vietsub, Lồng Tiếng, Thuyết Minh) → verified via `tests/verify_vsmov_sub_audio.js` (Tier 3) → PASS
-- Subtitle extraction and proxy routing (/hls/sub.vtt) → verified via `tests/verify_vsmov_sub_audio.js` (Tier 1 & Tier 4) → PASS
-- In-App Direct Play protocol compliance (url present, externalUrl omitted) → verified via Tier 2 assertion loops → PASS
-- Aggregator subtitle pass-through in handleStream → verified via Tier 3 aggregation checks → PASS
-- 3000ms embed timeout & LRU cache integration → verified via code inspection and adversarial test → PASS
-
-## Coverage Gaps
-None. All provider integration paths, edge cases, and error handlers were thoroughly tested.
-
-## Unverified Items
-None.
-```
-
----
-
-## 7. Adversarial Challenge Report
-
-```markdown
-## Challenge Summary
-
-**Overall risk assessment**: LOW
-
-## Challenges
-
-### [Low] Challenge 1: Embed Player Timeout & Network Hanging
-- Assumption challenged: VSMOV embed player CDN (`*.streamvsmov.com`) will always respond quickly.
-- Attack scenario: Slow or unresponsive CDN causing Stremio stream query to hang.
-- Blast radius: Request latency increase for the end user.
-- Mitigation: `src/providers/vsmov.js` sets a strict 3000ms axios timeout on embed scraping and falls back to regex pathname parsing (`/stream/${videoHash}/master.m3u8`), while `handleStream` enforces a 4000ms provider-level timeout via `Promise.race`.
-
-### [Low] Challenge 2: Diacritics and Whitespace in Server Names
-- Assumption challenged: Upstream VSMOV API maintains consistent naming for audio server tabs.
-- Attack scenario: Server tabs contain irregular casing, newlines, or diacritics variants (e.g. `Vietsub\n #1`, `LỒNG TIẾNG`).
-- Blast radius: Audio tab misclassified as default Vietsub.
-- Mitigation: `classifyServerAudio` cleans newlines and hashes and uses flexible diacritic regex (`/l.{1,5}ng\s*ti.{1,5}ng/i` and `/thuy.{1,5}t\s*minh/i`), tested across 12 adversarial test cases.
-
-## Stress Test Results
-- classifyServerAudio diacritic variations → Expected proper classification → Actual: 12/12 PASS
-- Subtitle absent in embed response → Expected clean omission of subtitles array → Actual: PASS
-- Cache short-circuiting on repeated embed queries → Expected instant cache return → Actual: PASS
-- Invalid movie IDs / empty inputs → Expected empty streams array without throwing → Actual: PASS
-
-## Unchallenged Areas
-None.
+node --check src/providers/stp.js
+node --check src/providers/clbpx.js
+node --check src/providers/yan.js
 ```

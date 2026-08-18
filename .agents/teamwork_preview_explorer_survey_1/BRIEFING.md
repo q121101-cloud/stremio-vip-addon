@@ -1,40 +1,38 @@
-# BRIEFING — 2026-08-18T01:37:00Z
+# BRIEFING — 2026-08-18T04:42:00Z
 
 ## Mission
-Investigate VSMOV provider architecture in `src/providers/vsmov.js` and related files regarding server tab separation (Vietsub, Lồng tiếng, Thuyết minh), VIP naming conventions, subtitle proxying, and In-App protocol compliance.
+Survey and investigate STP provider (`src/providers/stp.js`, `src/lib/utils.js`) and live site `https://sieutamphim.pro/` for Stremio VIP Movies Addon Engine v1.6.0.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
+- Archetype: explorer
 - Roles: survey, investigation, synthesis
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1
-- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
-- Milestone: VSMOV Provider Architecture Investigation
+- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Milestone: Engine v1.6.0 Survey Phase
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Analyze server groups/tabs structure in VSMOV responses
-- Analyze exact stream naming and title formatting
-- Analyze subtitle routing to /hls/sub.vtt
-- Ensure In-App protocol compliance (url present, externalUrl omitted)
+- Read-only investigation — do NOT implement changes in codebase (write only report/artifacts in working dir).
+- Investigate STP provider, live endpoint behavior, headers, slug search/matching, stream extraction, multi-tier fallback, and `utils.js` export/usage.
 
 ## Current Parent
-- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
-- Updated: 2026-08-18T01:37:00Z
+- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Updated: 2026-08-18T04:42:00Z
 
 ## Investigation State
-- **Explored paths**: `src/providers/vsmov.js`, `src/routes/hls.js`, `src/handlers.js`, `src/manifest.js`, `src/config.js`, `tests/fixtures.js`, `tests/e2e.test.js`, live VSMOV API and player embed endpoints (`vsmov.com/api`, `streamvsmov.com`).
+- **Explored paths**:
+  - `src/providers/stp.js`, `src/lib/utils.js`, `src/routes/hls.js`, `src/handlers.js`, `src/providers/vsmov.js`, `src/providers/kkphim.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/providers/hh3d.js`
+  - Live site `https://sieutamphim.pro/` endpoints: root, `/wp-json/wp/v2/posts`, `/wp-json/wp/v2/categories`, `/wp-json/wp/v2/tags`, `embed.html`, post HTML SSR.
 - **Key findings**:
-  1. VSMOV returns an `episodes` array containing audio tabs with unnormalized `server_name` (e.g. `"Vietsub\r\n #1"`, `"Lồng tiếng #1"`).
-  2. Subtitles are located in embed HTML's `playerOptions.subtitles` array and need resolution to absolute URLs.
-  3. `src/handlers.js` line 944 currently drops `subtitles` unless `sanitized.subtitles = item.subtitles` is added.
-  4. Stream titles must precisely follow the required Vietsub, Lồng Tiếng, and Thuyết Minh 4K format with `name: "VIP Movies 🎬"`.
-  5. `GET /hls/sub.vtt` endpoint with Referer spoofing and SRT-to-VTT converter is required in `src/routes/hls.js`.
-- **Unexplored areas**: None for this survey milestone.
+  - `sieutamphim.pro` is a WordPress 6.x site with REST API (`/wp-json/wp/v2/posts?search=...` and `?slug=...`).
+  - Episode data stored in `<div class="episodeGroup" data-server="hx" data-episodes='[ {"<enc_url>","<ep_name>"}, ... ]'>`.
+  - Obfuscation key is XOR `0x2a` (42). Embed player uses `https://www.sieutamphim.pro/embed.html?url=...`.
+  - `scoreMatch` in `src/lib/utils.js` is exported cleanly and imported by all providers without re-declaration.
+  - Zero-regression test suites pass 100% (7/7 and 27/27).
+- **Unexplored areas**: None within Explorer 1 scope.
 
 ## Key Decisions Made
-- Fully documented 4-part architectural analysis in `analysis.md` and synthesized into 5-component `handoff.md`.
+- Fully documented the WP-JSON REST endpoints, XOR 42 deobfuscation mechanism, HTML SSR fallback, label format specification, and HLS proxy routing for `sieutamphim.pro`.
 
 ## Artifact Index
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/analysis.md` — Detailed analysis
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/handoff.md` — 5-component handoff report
-- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_explorer_survey_1/progress.md` — Progress heartbeat
+- `.agents/teamwork_preview_explorer_survey_1/handoff.md` — Final 5-component handoff report
+- `.agents/teamwork_preview_explorer_survey_1/progress.md` — Progress tracker and heartbeat

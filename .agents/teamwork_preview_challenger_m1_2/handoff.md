@@ -1,66 +1,137 @@
-# Challenger Empirical Verification Handoff Report — Hotfix v1.5.2
+# Milestone 1 Challenger 2 Empirical Verification Report
+
+**Author**: Challenger 2 (`teamwork_preview_challenger_m1_2`)  
+**Timestamp**: 2026-08-18T04:53:30Z  
+**Verdict**: **APPROVE**
+
+---
 
 ## 1. Observation
-1. **TS Segment Streaming & MPEG-TS Sync Byte (0x47)**:
-   - Full TS download test via `/hls/segment.ts?url=<mux_ts_b64>&ref=<mux_ref_b64>` returned HTTP 200/206 with payload size `1,915,156 bytes` (1.87 MB > 50 KB requirement).
-   - Byte `[0]` confirmed as `0x47` (MPEG-TS synchronization byte).
-   - 188-byte packet alignment empirically verified across sequential packet offsets (`buf[0] === 0x47`, `buf[188] === 0x47`, `buf[376] === 0x47`, `buf[564] === 0x47`).
-   - Content-Type verified as `video/MP2T` and `Accept-Ranges: bytes`.
 
-2. **HTTP 206 Partial Content Range Requests**:
-   - `Range: bytes=0-187` returned HTTP 206, `Content-Length: 188`, `Content-Range: bytes 0-187/1915156`, payload length 188 bytes, `buf[0] === 0x47`.
-   - `Range: bytes=188-375` returned HTTP 206, `Content-Length: 188`, `Content-Range: bytes 188-375/1915156`, payload length 188 bytes, `buf[0] === 0x47` (2nd TS packet).
-   - Route aliases `/hls/ts`, `/hls/segment`, and `/hls/ts-proxy` verified returning HTTP 206 on Range requests.
+Direct empirical observations from testing and code inspections across all Milestone 1 components:
 
-3. **Master M3U8 Playlist Rewrite & Subtitle Track Injection**:
-   - Master playlist rewrite with `sub` parameter (`/hls/manifest.m3u8?url=...&sub=...`) returned HTTP 200 with `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Tiếng Việt (VSMOV VIP)",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE="vie",URI="<baseUrl>/hls/sub.vtt?url=...&ref=..."`.
-   - All `#EXT-X-STREAM-INF` variant stream lines correctly appended with `,SUBTITLES="subs"`.
-   - All variant playlist URIs rewritten to `<baseUrl>/hls/manifest.m3u8?url=...&ref=...`.
-   - Master playlist without `sub` parameter did NOT inject subtitle tags.
-   - Media playlist (chunklist with `#EXTINF`) did NOT inject subtitle tags, properly isolating playlist types and rewriting segment URLs to `/hls/segment.ts`.
+### 1.1 Provider Codebase Observations
+1. **STP (`src/providers/stp.js`)**:
+   - `BASE_URL`: `'https://sieutamphim.pro'` (line 42).
+   - `REFERER_HEADER`: `'https://sieutamphim.pro/'` (line 43), `Origin`: `'https://sieutamphim.pro'` (line 53).
+   - `decodeXor0x2a(str, key = 0x2a)` (lines 65–72): Successfully decodes standard XOR 0x2a encoded stream URLs (e.g., `"B^^ZY..."` -> `"https://short.ink/_LboFywW3"`), and cleanly handles null, undefined, numbers, and empty strings by returning `''`.
+   - `parsePostContent(html, postTitle)` (lines 107–159): Accurately extracts `name`, `origin_name`, `year`, and parses multiline `episodeGroup` HTML tags with single/double quoted `data-episodes` arrays.
+   - Stream label (line 479–487): Produces `[VIP 4 • STP] ${audio.label}${epLabel} (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`.
+   - `scoreMatch` is imported from `../lib/utils` (line 36) with zero redeclaration.
+   - Strictly `url` only, `externalUrl` is undefined on all stream objects.
 
-4. **Subtitle Proxy Endpoint (`/hls/sub.vtt`)**:
-   - Missing/whitespace `url` returns HTTP 400.
-   - Native WebVTT data URI returned HTTP 200, `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
-   - SRT auto-conversion verified: prepended `WEBVTT` header, comma timestamps converted to dot timestamps (`00:00:01,500` -> `00:00:01.500`), CRLF normalized to LF.
-   - UTF-8 BOM (`\uFEFF`) stripped cleanly.
+2. **CLBPX (`src/providers/clbpx.js`)**:
+   - `REFERER_HEADER`: `'https://clbphimxua.info/'` (line 26), `Origin`: `'https://clbphimxua.info'` (line 35).
+   - `search(keyword, page)` (lines 57–120): Implements multi-tier fallback (Tier 1: Ophim JSON API -> Tier 2: HTML scrape fallback on `clbphimxua.info` -> Tier 3: safe `[]`).
+   - Stream label (line 343–353): Produces `[VIP 5 • CLBPX] Lồng Tiếng Cổ Điển${epLabel} (HLS Proxy)\n⚡ Server CLBPX • clbphimxua.info`.
+   - `scoreMatch` imported from `../lib/utils` (line 22). Zero `externalUrl`.
 
-5. **KKPhim Smart Search Fallback & Stream Aggregator Integration**:
-   - Querying stream for Avengers 3 (`tt5095030`) resolved 5 valid streams without crash.
-   - VSMOV stream included `subtitles` array: `[{ id: "vi_vsmov", lang: "vie", url: "<proxySubUrl>", title: "Tiếng Việt (VSMOV VIP)" }]`.
-   - KKPhim streams found via Smart Search Fallback, returned valid HLS proxy stream URLs (`/hls/manifest.m3u8`), with strict zero `externalUrl` compliance.
-   - Querying non-existent IMDb ID (`tt9999999999`) returned HTTP 200 with `{ streams: [] }` (safe degradation, zero uncaught rejection).
-   - Episode matching algorithm (`matchEpisodeItem`) passed all patterns (`"1"`, `"01"`, `"001"`, `"Tập 1"`, `"Tập 01"`, `"tap-1"`, `"Episode 5"`, slug suffix `"-12"`).
+3. **YAN (`src/providers/yan.js`)**:
+   - `REFERER_HEADER`: `'https://yanhh3d.pw/'` (line 26), `Origin`: `'https://yanhh3d.pw'` (line 35).
+   - `searchYanLive` & `extractYanLiveStreams` (lines 62–137): Live scraping extracts base64 encoded `data-obf.pU` payloads and `master.m3u8` stream URLs from `fbcdn.cloud`/`defifa.com` sources with Ophim JSON API fallback.
+   - Stream label (lines 337–344, 456–463): Produces `[VIP 6 • YAN] 4K/FHD Donghua 3D${epLabel} (HLS Proxy)\n⚡ Server YAN • yanhh3d.pw`.
+   - `scoreMatch` imported from `../lib/utils` (line 22). Zero `externalUrl`.
 
-6. **Version Synchronization**:
-   - `package.json`: `"version": "1.5.2"`
-   - `src/manifest.js`: `BASE_MANIFEST.version = "1.5.2"`
-   - `src/handlers.js`: `VIP Movies Addon v1.5.2 • Designed with Taste by Q121101`
+4. **HLS Proxy Router (`src/routes/hls.js`)**:
+   - `SOURCE_REFERERS` table (lines 27–36):
+     ```javascript
+     const SOURCE_REFERERS = [
+       { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
+       { pattern: /vsmov|streamvsmov|p25\.streamvsmov/i,        referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
+       { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
+       { pattern: /streamc\.|amass2\.top/i,                     referer: 'https://embed15.streamc.xyz/', origin: 'https://embed15.streamc.xyz' },
+       { pattern: /sieutamphim|suutamphim|tvhay/i,              referer: 'https://sieutamphim.pro/',     origin: 'https://sieutamphim.pro' },
+       { pattern: /yanhh3d|yan|fbcdn\.cloud|defifa\.com/i,      referer: 'https://yanhh3d.pw/',          origin: 'https://yanhh3d.pw' },
+       { pattern: /hh3d|hoathinh3d/i,                           referer: 'https://hh3d.tv/',             origin: 'https://hh3d.tv' },
+       { pattern: /clbphimxua|clbpx/i,                          referer: 'https://clbphimxua.info/',     origin: 'https://clbphimxua.info' },
+     ];
+     ```
+   - Ordering places `yanhh3d` before `hh3d`, correctly preventing substring pattern collision.
+
+### 1.2 Test Execution Results
+- **Deep Empirical Challenger Test Suite (`tests/challenger_m1_2_deep_empirical.test.js`)**:
+  - `95/95` assertions passed (**100% PASS**).
+- **Invariant Test Suite (`tests/test_m1_invariants.js`)**:
+  - All unit invariants passed (**100% PASS**).
+- **Regression Suite 1 (`tests/verify_playback.js`)**:
+  - `7/7` phases passed (**100% PASS**).
+- **Regression Suite 2 (`tests/verify_hotfix_vsmov_kkphim.js`)**:
+  - `27/27` assertions passed (**100% PASS**).
+- **Integration Test Suite (`src/test.js`)**:
+  - `50/50` assertions passed (**100% PASS**).
+- **Syntax Check (`node --check`)**:
+  - 0 errors across `src/index.js`, `src/providers/stp.js`, `src/providers/clbpx.js`, `src/providers/yan.js`, `src/routes/hls.js`.
+
+---
 
 ## 2. Logic Chain
-1. *Observation 1 & 2* demonstrate that the HLS segment proxy in `src/routes/hls.js` properly forwards HTTP Range headers to upstream CDNs, streams chunks reliably, maintains MPEG-TS byte alignment (0x47 sync byte every 188 bytes), and satisfies seeking requirements in Stremio/ExoPlayer/VLC.
-2. *Observation 3 & 4* verify that WebVTT subtitle track injection adheres to RFC 8216 (HLS Specification) by linking `#EXT-X-STREAM-INF` to `#EXT-X-MEDIA:TYPE=SUBTITLES` via `GROUP-ID="subs"`, while the subtitle proxy handles character encoding, BOM stripping, timestamp normalization, and CORS compliance.
-3. *Observation 5* proves that KKPhim multi-tier fallback (Tier 1 direct IMDb -> Tier 2 Cinemeta title/alias search + `scoreMatch` -> Tier 3 safe empty array) eliminates 404 stream failures and ensures seamless in-app playback without `externalUrl` leaks.
-4. *Observation 6* confirms full version synchronization across package and manifest definitions.
+
+1. **Premise 1 (Domain Migration & Specification Conformance)**:
+   - STP, CLBPX, and YAN have been upgraded to their live domains (`sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`) and matching `Referer`/`Origin` headers.
+   - Brand labels match the exact required templates with corresponding server descriptions.
+2. **Premise 2 (Stream Extraction Robustness & Fault Isolation)**:
+   - STP correctly decodes XOR `0x2a` stream URLs and multiline post content.
+   - CLBPX gracefully falls back to HTML card parsing when the JSON API is unreachable or yields no results.
+   - YAN successfully extracts live Donghua streams via base64 `data-obf` decoding and `master.m3u8` pattern matching.
+   - Simulated network errors (404, 500, timeouts) across all 3 providers cleanly resolve to `[]` or `null` without unhandled rejections or crashing the stream aggregator.
+3. **Premise 3 (Strict Invariants & Stremio In-App Player Compatibility)**:
+   - All returned streams across STP, CLBPX, and YAN contain valid `url` strings routed through `${proxyBase}/hls/manifest.m3u8` with Base64URL-encoded stream and referer parameters.
+   - `externalUrl` is strictly undefined across 100% of stream outputs.
+   - No utility functions (like `scoreMatch`) are redeclared; they are imported cleanly from `src/lib/utils.js`.
+4. **Premise 4 (HLS Referer Routing & Stream Rewriting)**:
+   - The HLS router table correctly assigns upstream referers for `sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`, `fbcdn.cloud`, and `defifa.com`.
+   - Pattern ordering avoids substring collisions between `yanhh3d` and `hh3d`.
+   - Proxied TS segments verify HTTP 200/206 streaming and valid MPEG-TS sync byte `0x47`.
+5. **Conclusion**:
+   - The implementation satisfies all Milestone 1 requirements with complete regression safety.
+
+---
 
 ## 3. Caveats
-- Upstream external CDNs (phimapi.com, streamvsmov.com, mux.dev) are subject to network latency and occasional 429 rate limiting under aggressive concurrent test bursts. The 5-second axios timeout and multi-tier fallback mechanisms successfully insulate the addon from upstream failures.
+
+- **Upstream Dynamic CDN Expiry**: Upstream streaming links (especially for live YAN Donghua) contain signed expiry timestamps. Because links are dynamically resolved upon user stream request, they remain fresh during playback sessions.
+- **No Other Caveats**: All tests pass deterministically.
+
+---
 
 ## 4. Conclusion
-**Overall Verdict**: **APPROVED & FULLY VERIFIED (100% PASS)**
-All requirements (R1: VSMOV WebVTT Subtitle Injection, R2: KKPhim Smart Search Fallback, R3: E2E Verification with 0x47 TS & HTTP 206 Range, R4: Version 1.5.2 Sync) are empirically confirmed.
+
+**Verdict**: **APPROVE**
+
+Milestone 1 satisfies all functional, architectural, invariant, and regression requirements:
+- Provider upgrades for STP, CLBPX, and YAN are verified.
+- HLS proxy referer routing is accurate and order-safe.
+- Zero `externalUrl` invariant is 100% enforced.
+- Fault tolerance under upstream failure modes is verified.
+- Zero regressions across existing Hotfix v1.5.2 playback and subtitle suites.
+
+---
 
 ## 5. Verification Method
-Execute the complete test suites directly:
+
+To independently reproduce and verify all results:
+
 ```bash
+# 1. Syntax check across all affected targets
 node --check src/index.js
-node tests/challenger_hotfix_v152_empirical.test.js
-node tests/challenger_hotfix_v152_adversarial.test.js
-node tests/verify_hotfix_vsmov_kkphim.js
+node --check src/providers/stp.js
+node --check src/providers/clbpx.js
+node --check src/providers/yan.js
+node --check src/routes/hls.js
+
+# 2. Run Deep Empirical Adversarial Verification Suite
+node tests/challenger_m1_2_deep_empirical.test.js
+
+# 3. Run Milestone 1 Invariants Suite
+node tests/test_m1_invariants.js
+
+# 4. Run Existing Regression Suites
 node tests/verify_playback.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node src/test.js
 ```
-Expected Output:
-- `tests/challenger_hotfix_v152_empirical.test.js`: 64/64 PASS (100%)
-- `tests/challenger_hotfix_v152_adversarial.test.js`: 66/66 PASS (100%)
-- `tests/verify_hotfix_vsmov_kkphim.js`: 23/23 PASS (100%)
-- `tests/verify_playback.js`: 7/7 Phases PASS (100%)
+
+### Invalidation Conditions
+- Any occurrence of `externalUrl` in stream objects returned by STP, CLBPX, or YAN.
+- Any unhandled exception thrown during upstream network 404/500/timeout responses.
+- Any failure in the regression suites (`verify_playback.js`, `verify_hotfix_vsmov_kkphim.js`).

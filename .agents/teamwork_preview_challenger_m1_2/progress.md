@@ -1,21 +1,21 @@
-# Progress — Challenger Agent (Hotfix v1.5.2 Verification)
+# Progress Log — Challenger 2 (Milestone 1)
 
-Last visited: 2026-08-18T04:19:35Z
+**Last visited**: 2026-08-18T04:53:15Z
 
-## Current Status
-- Status: COMPLETED
-- Task: Empirical Challenger Verification of Hotfix v1.5.2
-
-## Execution Summary
-- [x] TS segment streaming, sync byte 0x47, and HTTP 206 range requests verified empirically (188-byte packet alignment checked, single chunk and sub-range byte requests confirmed).
-- [x] Master playlist rewrite verified with `#EXT-X-MEDIA:TYPE=SUBTITLES` injection, `GROUP-ID="subs"`, `LANGUAGE="vie"`, and `SUBTITLES="subs"` appended to `#EXT-X-STREAM-INF`.
-- [x] Media playlist isolation verified (does not inject subtitle tags into chunklist, rewrites TS segment URLs).
-- [x] Subtitle proxy `/hls/sub.vtt` verified with WebVTT, SRT auto-conversion, comma timestamp replacement, UTF-8 BOM stripping, and CORS `*`.
-- [x] KKPhim Smart Search Fallback (Tier 1 -> Tier 2 -> Tier 3) tested with live endpoints (tt5095030, tt0903747:1:1, non-existent tt9999999999).
-- [x] In-app direct playback compliance verified (0 violations of `externalUrl`).
-- [x] Full test suites executed:
-  - `tests/challenger_hotfix_v152_empirical.test.js`: 64/64 PASS
-  - `tests/challenger_hotfix_v152_adversarial.test.js`: 66/66 PASS
-  - `tests/verify_hotfix_vsmov_kkphim.js`: 23/23 PASS
-  - `tests/verify_playback.js`: 7/7 Phases PASS
-  - `node --check src/index.js`: Syntax Clean PASS
+## Completed Milestones
+- [x] Read `ORIGINAL_REQUEST.md`, `PROJECT.md`, and Worker M1 `handoff.md`.
+- [x] Tested STP XOR 0x2a deobfuscation with boundary and corrupted vectors.
+- [x] Tested STP `parsePostContent` with multiline `data-episodes` attributes, single and double quotes, and multiple server tags.
+- [x] Tested CLBPX multi-tier search fallback: Ophim JSON API -> HTML scraper -> safe empty array.
+- [x] Tested YAN live scraper: `searchYanLive` route filtering and `extractYanLiveStreams` base64 `data-obf.pU` / `master.m3u8` extraction.
+- [x] Verified zero `externalUrl` invariant and HLS manifest proxy routing across all 3 providers.
+- [x] Verified HLS Proxy router `SOURCE_REFERERS` table ordering (YAN before HH3D) and Referer/Origin header injection.
+- [x] Verified fault isolation under simulated 404, 500, and timeout network errors.
+- [x] Created and executed comprehensive empirical test suite: `tests/challenger_m1_2_deep_empirical.test.js` (95/95 PASS).
+- [x] Executed regression test suites:
+  - `tests/verify_playback.js` (7/7 PASS)
+  - `tests/verify_hotfix_vsmov_kkphim.js` (27/27 PASS)
+  - `tests/test_m1_invariants.js` (100% PASS)
+  - `src/test.js` (50/50 PASS)
+- [x] Confirmed zero syntax errors across all affected files (`node --check`).
+- [x] Written final handoff report with verdict `APPROVE`.

@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.2)
+ *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.6.0)
  *  VSMOV 4K Provider Module (100% Official API: vsmov.com/api)
  *
  *  Features:

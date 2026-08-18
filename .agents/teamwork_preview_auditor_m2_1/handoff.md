@@ -1,147 +1,87 @@
-# Forensic Audit Report — Milestone 2 (`src/providers/vsmov.js`)
+# Forensic Audit Report: Milestone 2 (E2E Verification Test Suite & Zero-Regression Guard)
 
-**Work Product**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/src/providers/vsmov.js`  
-**Profile**: General Project  
-**Integrity Mode**: Development Mode (per `ORIGINAL_REQUEST.md`)  
+**Work Product**: `tests/verify_new_providers.js` and Full Verification Suite  
+**Profile**: General Project (Integrity Forensics)  
+**Integrity Mode**: Development (per `ORIGINAL_REQUEST.md`)  
+**Auditor**: `teamwork_preview_auditor_m2_1`  
 **Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-Direct observations and tool outputs from forensic inspection of `src/providers/vsmov.js`:
+### 1.1 Source Code Forensic Analysis (`tests/verify_new_providers.js`)
+- **Express Server Lifecycle**:
+  - The suite binds to an ephemeral port via `app.listen(0, '127.0.0.1', ...)` (lines 93–97).
+  - Server shutdown is guaranteed via a `try ... finally { server.close(); }` block (lines 498–501).
+- **Assertion Authenticity**:
+  - Zero instances of `assert(true)` facades or empty mocks.
+  - Standard Node.js `assert` module used throughout (line 38: `const assert = require('assert')`).
+  - Total of 26 rigorous assertions across 6 distinct verification phases.
+- **Provider & Route Verification Coverage**:
+  - **Health & Manifest** (Phase 1, lines 110–129): Validates HTTP 200, `status: 'ok'`, CORS header `Access-Control-Allow-Origin: *`, and catalog array length >= 1.
+  - **STP (`src/providers/stp.js`)** (Phase 2, lines 142–202): Tests XOR `0x2a` decoding helper (`decodeXor0x2a('B^^ZY') === 'https'`), multiline `episodeGroup` HTML parser (`parsePostContent`), `getCatalog('au-my', 1)` (24 items), `search('avatar', 1)` (9 items), and `getStreams()` invariants (brand title `[VIP 4 • STP] ... \n⚡ Server STP • sieutamphim.pro`, zero `externalUrl`, `url` routed through `/hls/manifest.m3u8`).
+  - **CLBPX (`src/providers/clbpx.js`)** (Phase 2, lines 203–244): Tests `getCatalog('hong-kong', 1)` (24 items), `search('thien long bat bo', 1)` (6 items), and `getStreams()` invariants (brand title `[VIP 5 • CLBPX] ... \n⚡ Server CLBPX • clbphimxua.info`, zero `externalUrl`, `url` routed through `/hls/manifest.m3u8`).
+  - **YAN (`src/providers/yan.js`)** (Phase 2, lines 245–286): Tests `getCatalog('hoat-hinh', 1)` (24 items), `search('dau la dai luc', 1)` (13 items), and `getStreams()` invariants (brand title `[VIP 6 • YAN] ... \n⚡ Server YAN • yanhh3d.pw`, zero `externalUrl`, `url` routed through `/hls/manifest.m3u8`).
+  - **Shared Invariants** (Phase 2, lines 138–140): Checks `typeof utils.scoreMatch === 'function'` from `src/lib/utils.js`.
+  - **Manifest Proxy Route & Referer Routing** (Phase 3, lines 290–345): Tests `/hls/manifest.m3u8` parameter validation (HTTP 400 on empty `url`), live manifest proxying with HTTP 200, `#EXTM3U` header validation, and segment rewriting to `/hls/segment.ts` for all 3 target domains (`sieutamphim.pro`, `clbphimxua.info`, `yanhh3d.pw`).
+  - **Stream Aggregator Zero-Crash Safety** (Phase 4, lines 348–387): Tests movie stream aggregation on Harry Potter `tt0373889` (7 streams returned) and series aggregation on Breaking Bad `tt0903747:1:1` (4 streams returned), verifying no crashes and zero `externalUrl`.
+  - **TS Segment Binary & Sync Byte Validation** (Phase 5, lines 390–436): Downloads real TS chunk via `/hls/segment.ts`, validates size > 10,000 bytes (actual payload: 1,915,156 bytes = 1.87 MB), and validates MPEG-TS sync byte `0x47` at offset 0 and packet boundary 188.
+  - **HTTP Range 206 Seeking Support** (Phase 6, lines 439–461): Requests byte range `bytes=0-1023`, asserts HTTP 206 status, `Content-Range` header, and exact length 1024 bytes.
 
-### 1.1 Source Code Implementation Analysis
-- **Server Audio Classification** (`src/providers/vsmov.js`, lines 68–94):
-  ```javascript
-  function classifyServerAudio(serverName) {
-    const name = String(serverName || '')
-      .replace(/[\r\n]+/g, ' ')
-      .replace(/#/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+### 1.2 Workspace Artifact Analysis
+- Checked for pre-populated `.log`, `*result*`, or `*output*` files: Zero found.
+- Checked for hardcoded cheats or bypasses: Zero found.
 
-    if (/l.{1,5}ng\s*ti.{1,5}ng/i.test(name) || /long\s*tieng/i.test(name)) {
-      return {
-        type: 'longtieng',
-        label: 'Lồng Tiếng',
-        bingeGroup: 'vsmov-longtieng-4k-vip-1',
-      };
-    }
-    if (/thuy.{1,5}t\s*minh/i.test(name) || /thuyet\s*minh/i.test(name)) {
-      return {
-        type: 'thuyetminh',
-        label: 'Thuyết Minh',
-        bingeGroup: 'vsmov-thuyetminh-4k-vip-1',
-      };
-    }
-    return {
-      type: 'vietsub',
-      label: 'Vietsub',
-      bingeGroup: 'vsmov-vietsub-4k-vip-1',
-    };
-  }
-  ```
-  *Finding*: Genuine regex matching against raw server tab strings. No hardcoded movie IDs, slugs, or artificial tab lists.
-
-- **Embed Player HTML & Subtitle Scraping** (`src/providers/vsmov.js`, lines 99–211):
-  ```javascript
-  async function resolveEmbedMedia(linkEmbed, linkM3u8) {
-    ...
-    const res = await http.get(linkEmbed, { timeout: 3000 });
-    const html = String(res.data);
-    ...
-    const mSub = html.match(/subtitles\s*:\s*(\[[^\]]*\])/i);
-    if (mSub && mSub[1]) {
-      try {
-        const parsed = JSON.parse(mSub[1]);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const viSub = parsed.find(
-            (s) =>
-              s &&
-              (s.code === 'vie' ||
-                s.code === 'vi' ||
-                s.lang === 'vie' ||
-                s.lang === 'vi' ||
-                (s.name && /vie|tiếng việt|viet/i.test(s.name)))
-          ) || parsed[0];
-
-          if (viSub && viSub.url) {
-            subtitleUrl = String(viSub.url).trim();
-          }
-        }
-      } catch {}
-    }
-  ```
-  *Finding*: Genuine HTTP request to embed player endpoint, real regex extraction of `subtitles: [...]` JSON payload with language fallback and relative-to-absolute URL resolution.
-
-- **Stream Object Construction & Subtitle Proxy Attachment** (`src/providers/vsmov.js`, lines 564–594):
-  ```javascript
-  const b64MasterUrl = encodeBase64(masterPlaylistUrl);
-  const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${b64MasterUrl}&ref=${b64Ref}`;
-  const epLabel = formatEpisodeLabel(targetEp.name);
-
-  const audioInfo = classifyServerAudio(rawServerName);
-
-  // STRICT INVARIANT: url only, STRICTLY NO externalUrl
-  const streamObj = {
-    name: 'VIP Movies 🎬',
-    title: `[VIP 1 • VSMOV] ${audioInfo.label} 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP ${audioInfo.label} • vsmov.com`,
-    url: streamUrl,
-    behaviorHints: {
-      notWebReady: false,
-      notSupported: false,
-      bingeGroup: audioInfo.bingeGroup,
-    },
-  };
-
-  if (subtitleUrl) {
-    const b64Sub = encodeBase64(subtitleUrl);
-    const proxySubUrl = `${proxyBase || ''}/hls/sub.vtt?url=${b64Sub}&ref=${b64Ref}`;
-    streamObj.subtitles = [
-      {
-        id: 'vi_vsmov',
-        lang: 'vie',
-        url: proxySubUrl,
-      },
-    ];
-  }
-  ```
-  *Finding*: Correct base64url encoding, proper subtitle object structure matching Stremio Addon SDK specifications, exact title formatting per R1, and strict In-App stream protocol compliance (`url` present, `externalUrl` completely absent).
-
-### 1.2 Static Forensics & Grep Scans
-- Grep for test-specific constants/IDs (`tt0373889`, `tt1375666`, etc.) in `src/`: 0 matches found.
-- Pre-populated artifacts search (`find . -maxdepth 3 \( -name '*.log' -o -name '*result*' -o -name '*output*' \)`): 0 files found.
-- Syntax verification: `node --check src/index.js && node --check src/providers/vsmov.js && node --check src/routes/hls.js && node --check src/handlers.js` exited with code 0 (clean).
-
-### 1.3 Empirical Execution Results
-- **E2E Verification Suite** (`node tests/verify_vsmov_sub_audio.js`):
-  - Total Assertions: 61, Passed: 61, Failed: 0 (100% PASS).
-  - Validated live VSMOV stream extraction for Harry Potter `tt0373889` yielding 2 distinct streams (`Vietsub` and `Lồng Tiếng`), with valid `/hls/sub.vtt` live proxying returning HTTP 200 and `WEBVTT` header.
-- **Provider Test Suite** (`node tests/m2_providers.test.js`):
-  - Total Assertions: 53, Passed: 53, Failed: 0 (100% PASS).
-- **Challenger Empirical Suite** (`node tests/m2_challenger_empirical.test.js`):
-  - Total Assertions: 129, Passed: 129, Failed: 0 (100% PASS).
-- **Live Scraping Test**:
-  - Live query against `https://vsmov.com/api/phim/harry-potter-va-menh-lenh-phuong-hoang` resolved real server tabs `Vietsub #1` and `Lồng tiếng #1`.
-  - Embed scraper against `https://v5.streamvsmov.com/video/382f09db-83ff-4d89-9be9-797162d4f2e6` returned real live `masterPlaylistUrl` (`https://v5.streamvsmov.com/stream/382f09db-83ff-4d89-9be9-797162d4f2e6/master.m3u8`) and live `subtitleUrl` (`https://v5.streamvsmov.com/video/382f09db-83ff-4d89-9be9-797162d4f2e6/subtitle/vie_1785240078185_txr9be.vtt`).
+### 1.3 Independent Execution Results
+1. **Syntax Check**:
+   ```bash
+   node --check tests/verify_new_providers.js && node --check src/index.js
+   ```
+   *Result*: Exited with code 0 (0 errors).
+2. **New Providers E2E Suite Execution**:
+   ```bash
+   node tests/verify_new_providers.js
+   ```
+   *Result*: Exited with code 0. Total 26/26 checks PASSED in 8.65s.
+3. **Regression Suite 1 (`tests/verify_playback.js`)**:
+   ```bash
+   node tests/verify_playback.js
+   ```
+   *Result*: Exited with code 0. Total 7/7 checks PASSED in 4.94s.
+4. **Regression Suite 2 (`tests/verify_hotfix_vsmov_kkphim.js`)**:
+   ```bash
+   node tests/verify_hotfix_vsmov_kkphim.js
+   ```
+   *Result*: Exited with code 0. Total 27/27 assertions PASSED.
+5. **Regression Suite 3 (`src/test.js`)**:
+   ```bash
+   node src/test.js
+   ```
+   *Result*: Exited with code 0. Total 50/50 tests PASSED.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Premise 1 (Authentic Audio Parsing)**: Observation 1.1 demonstrates that `classifyServerAudio` uses general Vietnamese diacritic and ASCII regexes (`/l.{1,5}ng\s*ti.{1,5}ng/i`, `/thuy.{1,5}t\s*minh/i`) to dynamically classify any server tab name without hardcoding or movie-specific checks.
-2. **Premise 2 (Genuine Embed & Subtitle Scraping)**: Observations 1.1 and 1.3 show that `resolveEmbedMedia` performs genuine HTTP GET requests to the embed player, parses the HTML DOM/JavaScript context to extract real `baseUrl`, `videoHash`, and `playerOptions.subtitles` arrays, and resolves relative paths to absolute URLs.
-3. **Premise 3 (In-App Protocol & Subtitle Formatting)**: Observation 1.1 confirms that `src/providers/vsmov.js` formats stream objects strictly using `url: streamUrl` (omitting `externalUrl`), applies exact title patterns `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`, and attaches valid `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
-4. **Premise 4 (Zero Hardcoding / Cheating)**: Observation 1.2 confirms that no test IDs, mock facades, pre-populated logs, or fake test shortcuts exist in the codebase.
-5. **Deductive Conclusion**: Since all four premises hold true and 100% of empirical test assertions pass against live endpoints and ephemeral servers, the work product is genuine, robust, and completely free of integrity violations.
+1. **Step 1 — Integrity Check on Server Lifecycle**:
+   - `verify_new_providers.js` creates a live Express instance dynamically on port 0, ensuring isolation from any existing background server and eliminating port conflict risks. The `finally` block ensures the server instance terminates regardless of whether the test passes or throws.
+2. **Step 2 — Integrity Check on Assertions & Payloads**:
+   - Every assertion checks actual response fields, status codes, and headers returned over the network socket.
+   - The TS binary test receives raw arraybuffer bytes from `/hls/segment.ts`, verifies `buffer.length > 10000` (1,915,156 bytes verified), and checks `buffer[0] === 0x47` and `buffer[188] === 0x47` for standard MPEG-TS packet alignment.
+   - The HTTP 206 test verifies byte range requests return 1024 bytes and `Content-Range: bytes 0-1023/1915156`.
+3. **Step 3 — Invariant & Constraint Verification**:
+   - Strict invariants required by `ORIGINAL_REQUEST.md` (zero `externalUrl`, only `url`, exact branding labels for STP, CLBPX, and YAN, `scoreMatch` imported from `src/lib/utils.js`) are tested and enforced.
+4. **Step 4 — Zero-Regression Confirmation**:
+   - Running all existing regression suites (`verify_playback.js`, `verify_hotfix_vsmov_kkphim.js`, `src/test.js`) confirmed 100% compatibility with zero regressions introduced.
+5. **Conclusion**:
+   - All criteria for Milestone 2 are met authentically and verified without any integrity violations.
 
 ---
 
 ## 3. Caveats
 
-- Upstream VSMOV embed server URLs may periodically rotate domains (e.g. `v5.streamvsmov.com`, `v14.streamvsmov.com`, `s1.streamvsmov.com`); the implementation dynamically respects `new URL(linkEmbed).origin` and regex baseUrl extraction, which mitigates domain drift.
-- No other caveats.
+- Upstream provider APIs (e.g. `phimapi.com`) may occasionally return HTTP 429 rate limits if hit repeatedly in rapid succession without throttling. The test suites isolate errors gracefully with timeouts and fallbacks.
 
 ---
 
@@ -149,32 +89,24 @@ Direct observations and tool outputs from forensic inspection of `src/providers/
 
 **Verdict**: **`CLEAN`**
 
-The Milestone 2 code changes in `src/providers/vsmov.js` fulfill all requirements of the project specification and user request (§R1). The implementation is authentic, rigorous, fully compliant with In-App streaming protocols, and free of any mocks, facades, or hardcoded cheating.
+The test suite `tests/verify_new_providers.js` is authentic, robust, comprehensive, and strictly adheres to all architectural requirements and invariants specified in `ORIGINAL_REQUEST.md` and `PROJECT.md`. Milestone 2 is officially verified and approved to proceed to Milestone 3 (Version Bump & Git Deploy).
 
 ---
 
 ## 5. Verification Method
 
-To independently verify this forensic audit:
+To independently reproduce the forensic audit results:
 
-1. **Syntax Check**:
-   ```bash
-   node --check src/providers/vsmov.js
-   ```
-2. **Run E2E Multi-Server & Subtitle Verification**:
-   ```bash
-   node tests/verify_vsmov_sub_audio.js
-   ```
-3. **Run Comprehensive M2 Provider Tests**:
-   ```bash
-   node tests/m2_providers.test.js
-   node tests/m2_challenger_empirical.test.js
-   ```
-4. **Empirical Subtitle & Server Tab Test**:
-   ```bash
-   node -e "
-   const vsmov = require('./src/providers/vsmov');
-   vsmov.getStreams({ type: 'movie', title: 'Harry Potter and the Order of the Phoenix', year: 2007, imdbId: 'tt0373889', proxyBase: 'http://localhost:7000' })
-     .then(streams => console.log('VSMOV Streams:', JSON.stringify(streams, null, 2)));
-   "
-   ```
+```bash
+# 1. Syntax Check
+node --check tests/verify_new_providers.js
+node --check src/index.js
+
+# 2. Execute New Providers Verification Test Suite
+node tests/verify_new_providers.js
+
+# 3. Execute Zero-Regression Suites
+node tests/verify_playback.js
+node tests/verify_hotfix_vsmov_kkphim.js
+node src/test.js
+```

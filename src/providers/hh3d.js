@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/hh3d.js (Engine v1.5.0)
+ *  VIP Movies Addon — src/providers/hh3d.js (Engine v1.6.0)
  *  HH3D Specialized Provider: 3D Donghua / Chinese Anime
  *  Domain Sources: hh3d.tv / hoathinh3d
  *

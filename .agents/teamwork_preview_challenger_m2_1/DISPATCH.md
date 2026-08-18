@@ -1,17 +1,20 @@
-## 2026-08-18T01:47:24Z
-
-You are teamwork_preview_challenger_m2_1.
+## 2026-08-18T04:57:05Z
+You are Challenger 1 for Milestone 2: E2E Verification Test Suite & Zero-Regression Guard.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
 
-As an adversarial challenger, test Milestone 2 changes in `src/providers/vsmov.js`:
-- Create an empirical stress/edge-case script in your working directory.
-- Test adversarial cases:
-  - Single-server movies vs multi-server movies (e.g. Harry Potter tt0373889, Spider-Man, Anime/Series).
-  - Embed HTML without `playerOptions`, malformed script tags, or empty subtitles array.
-  - Unusual server names with whitespace, unicode variations, tabs/newlines.
-  - Subtitle URL resolution when relative path vs absolute CDN URL.
-- Conclude with a clear verdict: `APPROVE` or `REJECT`.
+You MUST read:
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2/handoff.md
 
-Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1/handoff.md` and send a message to parent.
+Tasks:
+1. Empirically verify `tests/verify_new_providers.js`:
+   - Run the test suite multiple times in sequence to ensure deterministic pass and no socket leaks or port binding failures.
+   - Validate assertion rigor: verify that invalid streams or missing sync byte 0x47 would actually cause the test to fail.
+2. Execute regression suites:
+   - `node tests/verify_playback.js`
+   - `node tests/verify_hotfix_vsmov_kkphim.js`
+   - `node src/test.js`
+3. Write handoff report with explicit verdict (`APPROVE` or `REQUEST_CHANGES`) to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1/handoff.md`.
+
+Send completion message to parent when done.

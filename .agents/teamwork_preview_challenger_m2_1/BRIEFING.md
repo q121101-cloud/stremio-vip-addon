@@ -1,52 +1,51 @@
-# BRIEFING — 2026-08-18T01:50:00Z
+# BRIEFING — 2026-08-18T05:00:00Z
 
 ## Mission
-Adversarially challenge and empirically stress-test Milestone 2 changes in `src/providers/vsmov.js` covering multi-server separation, embed parsing edge cases, subtitle URL resolution, and protocol compliance.
+Adversarial verification and empirical challenge of Milestone 2 test suite (`tests/verify_new_providers.js`) and full regression testing across all providers.
 
 ## 🔒 My Identity
 - Archetype: challenger
 - Roles: critic, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m2_1
-- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
-- Milestone: M2
-- Instance: 1 of 2
+- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Milestone: Milestone 2: E2E Verification Test Suite & Zero-Regression Guard
+- Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code directly unless authorized
-- Empirically verify everything via self-executed scripts and test harnesses
-- Report findings with clear verdict (APPROVE / REJECT)
+- Review-only — do NOT modify implementation code
+- Empirically verify everything: run verification code ourselves, do not trust claims or logs
+- Test negative cases and failure modes (assertion rigor, socket leaks, port bindings, missing 0x47 sync byte)
 
 ## Current Parent
-- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
-- Updated: 2026-08-18T01:50:00Z
+- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Updated: 2026-08-18T12:00:00+07:00
 
 ## Review Scope
-- **Files reviewed**: `src/providers/vsmov.js`, `src/routes/hls.js`, `src/handlers.js`, `tests/verify_vsmov_sub_audio.js`
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
-- **Review criteria**: Correctness, edge-case resilience, audio classification robustness, embed HTML scraping tolerances, subtitle URL resolving, strict in-app protocol compliance
+- **Files to review**: `tests/verify_new_providers.js`, `tests/verify_playback.js`, `tests/verify_hotfix_vsmov_kkphim.js`, `src/test.js`, worker m2 handoff report
+- **Interface contracts**: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md`
+- **Review criteria**: Determinism, assertion rigor, negative testing, zero regressions, resource clean up, TS packet sync byte verification
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - H1: Single-server vs Multi-server movies & series handle episode/server selection without dropping streams or misclassifying audio. [CONFIRMED ROBUST]
-  - H2: Malformed embed HTML (missing playerOptions, broken JSON, HTML entity escaping, empty subtitles array, regex-only fallbacks) degrades gracefully without throwing unhandled exceptions. [CONFIRMED ROBUST]
-  - H3: Unusual server names (dirty whitespace, unicode accents, tabs, newlines, unexpected formatting) parse reliably into Vietsub, Lồng Tiếng, or Thuyết Minh. [CONFIRMED ROBUST]
-  - H4: Relative vs absolute subtitle URLs resolve properly against embedOrigin without double-slashes or malformed URLs. [CONFIRMED ROBUST]
-  - H5: Stream objects strictly adhere to In-App Direct Play protocol (`url` present, `externalUrl` omitted). [CONFIRMED ROBUST]
-- **Vulnerabilities found**: 0 vulnerabilities. All 93 test vectors passed cleanly.
-- **Untested angles**: None. Covered unit, integration, upstream edge mocking, and live E2E catalogs.
+- **Hypotheses tested**: 
+  - Sequential determinism without port binding conflicts: Confirmed pass (3x sequential runs on ephemeral port 0 with zero socket leaks).
+  - Assertion sensitivity to missing/corrupted MPEG-TS sync byte `0x47`: Confirmed failure triggered on corruption.
+  - Assertion sensitivity to packet boundary mismatch at offset 188: Confirmed failure triggered.
+  - Assertion sensitivity to segment size < 10KB: Confirmed failure triggered.
+  - Assertion sensitivity to presence of `externalUrl`: Confirmed failure triggered.
+  - Assertion sensitivity to unbranded/misbranded stream title: Confirmed failure triggered.
+  - Upstream rate limit resilience: Handled cleanly; zero crashes in stream aggregation.
+- **Vulnerabilities found**: None. All assertions and edge cases verified.
+- **Untested angles**: None.
 
 ## Loaded Skills
-- None explicitly required
+None required for this review task.
 
 ## Key Decisions Made
-- Executed `tests/verify_vsmov_sub_audio.js` (62/62 assertions passed).
-- Executed `tests/test_m1_subtitle_proxy.js` (26/26 assertions passed).
-- Built and executed `.agents/teamwork_preview_challenger_m2_1/test_adversarial_vsmov.js` with 93 adversarial assertions across 5 comprehensive suites (93/93 assertions passed).
-- Concluded with verdict: **APPROVE**.
+- Confirmed that `tests/verify_new_providers.js` meets all R3 requirements and passes deterministically.
+- Issued verdict: `APPROVE`.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_m2_1/DISPATCH.md` — Inbound instructions record
-- `.agents/teamwork_preview_challenger_m2_1/BRIEFING.md` — Persistent working memory
-- `.agents/teamwork_preview_challenger_m2_1/progress.md` — Liveness and progress tracker
-- `.agents/teamwork_preview_challenger_m2_1/test_adversarial_vsmov.js` — Empirical stress harness
-- `.agents/teamwork_preview_challenger_m2_1/handoff.md` — Final 5-component report
+- `.agents/teamwork_preview_challenger_m2_1/DISPATCH.md` — Dispatch log
+- `.agents/teamwork_preview_challenger_m2_1/progress.md` — Progress tracker and heartbeat
+- `.agents/teamwork_preview_challenger_m2_1/handoff.md` — Handoff report with verdict
+- `tests/adversarial_challenge_m2.js` — Empirical assertion sensitivity and negative test suite

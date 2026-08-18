@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/handlers.js  (Engine v1.5.2)
+ *  VIP Movies Addon — src/handlers.js  (Engine v1.6.0)
  *  Stremio Addon Express Route Handlers
  *  - Bộ gom luồng tổng hợp (Stream Aggregator: KKPhim + NguonC + VsMov)
  *  - Dynamic Catalog & Meta Router
@@ -878,7 +878,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
           <span></span>
           <div class="pulse-ping-dot"></div>
         </span>
-        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.5.2
+        🟢 Server VIP Core Online &nbsp;·&nbsp; v1.6.0
       </div>
     </header>
 
@@ -1032,7 +1032,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
     <!-- Brand Signature Footer -->
     <footer class="taste-footer">
-      VIP Movies Addon v1.5.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>
+      VIP Movies Addon v1.6.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>
     </footer>
   </div>
 

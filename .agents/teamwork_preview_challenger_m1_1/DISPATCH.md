@@ -1,14 +1,19 @@
-## 2026-08-18T04:17:06Z
-You are a Challenger agent conducting empirical adversarial verification of Hotfix v1.5.2.
+## 2026-08-18T04:50:49Z
+
+You are Challenger 1 for Milestone 1: Provider Upgrades (STP, CLBPX, YAN) & HLS Proxy Routing.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1
 
-Read `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`.
+You MUST read:
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1/handoff.md
 
-Your tasks:
-1. Run and verify `node tests/verify_hotfix_vsmov_kkphim.js`.
-2. Empirically test edge cases:
-   - Subtitle proxy (`/hls/sub.vtt`): test empty URL (400), whitespace URL (400), SRT with CRLF, SRT with comma timestamps converted to WebVTT dots, UTF-8 BOM stripping.
-   - KKPhim 3-Tier fallback: test lookup of movies without direct IMDb mapping on phimapi (e.g. `tt5095030`, `tt1375666`), test episode matching with `"1"`, `"01"`, `"Tập 1"`, `tap-1`, `tap-01`.
-   - VSMOV stream subtitles: verify `subtitles[0]` contains `id: "vi_vsmov"`, `lang: "vie"`, `title: "Tiếng Việt (VSMOV VIP)"` and valid URL.
-3. Write your empirical test results and verdict to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1/handoff.md`.
-When done, message parent with your verdict.
+Tasks:
+1. Empirically verify provider functionality with stress test inputs:
+   - Test empty queries, non-existent titles, special characters, series episode requests.
+   - Test `getStreams()` outputs: confirm `name === 'VIP Movies 🎬'`, `url` starts with proxy prefix, `externalUrl` is undefined, title matches branding.
+   - Test `getRefererHeaders()` in `src/routes/hls.js` with various target URLs (sieutamphim.pro, clbphimxua.info, yanhh3d.pw, fbcdn.cloud, defifa.com, hh3d.tv, vsmov.com, etc.) to verify zero collision and correct referers.
+2. Run regression tests: `node tests/verify_playback.js` and `node tests/verify_hotfix_vsmov_kkphim.js`.
+3. Write handoff report with explicit verdict (`APPROVE` or `REQUEST_CHANGES`) to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_challenger_m1_1/handoff.md`.
+
+Send completion message to parent when done.

@@ -1,20 +1,22 @@
-## 2026-08-18T01:47:24Z
-You are teamwork_preview_reviewer_m2_1.
+## 2026-08-18T04:57:05Z
+
+You are Reviewer 1 for Milestone 2: E2E Verification Test Suite & Zero-Regression Guard.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-Worker handoff: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2_1/handoff.md
 
-Review Milestone 2 changes in `src/providers/vsmov.js`:
-- Verify server audio classification (`classifyServerAudio` for Vietsub, Lồng Tiếng, Thuyết Minh).
-- Verify exact title formatting:
-  `[VIP 1 • VSMOV] <Audio> 4K Ultra HD (3840x2160)${epLabel} (HLS Proxy)\n⚡ Server VIP <Audio> • vsmov.com`
-- Verify subtitle extraction from embed HTML (`playerOptions.subtitles`), proxy routing (`${proxyBase}/hls/sub.vtt?url=...`), and attachment `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
-- Verify In-App stream protocol compliance (`url` present, `externalUrl` omitted).
-- Run verification tests:
-  - `node --check src/providers/vsmov.js`
-  - `node tests/verify_vsmov_sub_audio.js`
-  - `npm test`
-- Conclude with a clear verdict: `APPROVE` or `REQUEST_CHANGES`.
+You MUST read:
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m2/handoff.md
 
-Write your report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1/handoff.md` and send a message to parent.
+Tasks:
+1. Review `tests/verify_new_providers.js`:
+   - Check test coverage across all 6 phases: server lifecycle (port 0), direct provider calls (STP, CLBPX, YAN), manifest proxy route rewriting, stream aggregator safety, TS segment binary sync byte (0x47), and Range 206 seeking.
+   - Verify assertions for strict invariants (zero `externalUrl`, `url` via `/hls/manifest.m3u8`, proper branding titles).
+2. Execute the verification commands:
+   - `node tests/verify_new_providers.js`
+   - `node tests/verify_playback.js`
+   - `node tests/verify_hotfix_vsmov_kkphim.js`
+   - `node src/test.js`
+3. Write handoff report with explicit verdict (`APPROVE` or `REQUEST_CHANGES`) to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_reviewer_m2_1/handoff.md`.
+
+Send completion message to parent when done.

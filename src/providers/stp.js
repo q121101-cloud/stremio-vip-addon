@@ -2,42 +2,73 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/stp.js (Engine v1.5.0)
- *  STP Specialized Provider: Western Cinema & K-Drama
- *  Domain Sources: suutamphim.org / tvhay
+ *  VIP Movies Addon — src/providers/stp.js (Engine v1.6.0)
+ *  STP Specialized Provider: Western Cinema & K-Drama (VIP 4)
+ *  Live Domain: sieutamphim.pro
  *
  *  Features:
- *  - Standard interface: { id, label, getCatalog, getStreams, search, getDetail }
- *  - Specializes in Hollywood/Western cinema & Korean Drama (K-Drama)
- *  - 5-second axios timeout for high resilience & zero blocking
- *  - Strict zero externalUrl invariant (url only, HLS proxy)
- *  - Graceful degradation: all errors return [] safely
+ *  - Official Domain: https://sieutamphim.pro
+ *  - Referer Header: https://sieutamphim.pro/
+ *  - Origin Header: https://sieutamphim.pro
+ *  - Multi-tier Stream Extraction:
+ *    * Tier 1: WP-JSON REST API + XOR 0x2a Stream Decoding
+ *    * Tier 2: HTML SSR search + Mirror Fallback
+ *    * Tier 3: Safe degradation returning [] (Zero crash)
+ *  - Brand Stream Label:
+ *    `[VIP 4 • STP] Thuyết Minh HD (HLS Proxy)\n⚡ Server STP • sieutamphim.pro`
+ *  - Strict Invariants:
+ *    * Only `url` pointing to HLS Proxy, STRICTLY NO `externalUrl`
+ *    * Import `scoreMatch` from `../lib/utils`, NO re-declarations
+ *    * 5-second axios timeout for fault isolation & zero blocking
  * ============================================================
  */
 
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
 const { getCachedCinemeta } = require('../lib/cinemeta');
-const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
+const {
+  safeExtra,
+  safeSlug,
+  safeKeyword,
+  safePage,
+  safeType,
+  isSeasonMatch,
+  scoreMatch,
+  escapeRegExp,
+} = require('../lib/utils');
 
 const PROVIDER_ID    = 'stp';
-const PROVIDER_LABEL = 'STP • Âu Mỹ & K-Drama';
-const REFERER_HEADER = 'https://suutamphim.org/';
+const PROVIDER_LABEL = 'STP • sieutamphim.pro';
+const BASE_URL       = 'https://sieutamphim.pro';
+const REFERER_HEADER = 'https://sieutamphim.pro/';
 const STP_UA         = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 const http = axios.create({
+  baseURL: BASE_URL,
   timeout: 5000,
   headers: {
     'User-Agent': STP_UA,
     Accept: 'application/json, text/html, */*',
     Referer: REFERER_HEADER,
-    Origin: 'https://suutamphim.org',
+    Origin: 'https://sieutamphim.pro',
   },
 });
 
 function encodeBase64(str) {
   if (!str) return '';
   return Buffer.from(str, 'utf8').toString('base64url');
+}
+
+/**
+ * Decode XOR 0x2a obfuscated stream strings from sieutamphim.pro
+ */
+function decodeXor0x2a(str, key = 0x2a) {
+  if (!str || typeof str !== 'string') return '';
+  let out = '';
+  for (let i = 0; i < str.length; i++) {
+    out += String.fromCharCode(str.charCodeAt(i) ^ key);
+  }
+  return out;
 }
 
 function formatEpisodeLabel(epName) {
@@ -50,14 +81,119 @@ function formatEpisodeLabel(epName) {
   return ` [Tập ${trimmed}]`;
 }
 
+function classifyAudioType(rawServerName, titleName = '') {
+  const combined = `${rawServerName || ''} ${titleName || ''}`;
+  if (/long\s*tieng|l.{1,5}ng\s*ti.{1,5}ng/i.test(combined)) {
+    return {
+      label: 'Lồng Tiếng HD',
+      audioKey: 'longtieng',
+    };
+  }
+  if (/vietsub|phu\s*de|ph\u1EE5\s*\u0111\u1EC1/i.test(combined)) {
+    return {
+      label: 'Vietsub HD',
+      audioKey: 'vietsub',
+    };
+  }
+  return {
+    label: 'Thuyết Minh HD',
+    audioKey: 'thuyetminh',
+  };
+}
+
 /**
- * Search STP repository / mirrors
+ * Parse WordPress rendered HTML content into structured movie & episode groups
+ */
+function parsePostContent(html, postTitle = '') {
+  if (!html || typeof html !== 'string') return { name: postTitle, origin_name: null, year: null, episodes: [] };
+
+  const nameMatch = html.match(/Tên Phim\s*:\s*([^<\r\n]+)/i);
+  const originMatch = html.match(/Tựa Gốc\s*:\s*([^<\r\n]+)/i);
+  const yearMatch = (originMatch ? originMatch[1] : html).match(/\b(19\d\d|20\d\d)\b/) || postTitle.match(/\b(19\d\d|20\d\d)\b/);
+
+  const cleanName = nameMatch ? nameMatch[1].trim() : postTitle.replace(/\s*&#8211;.*$/i, '').replace(/\s*-\s*Status:.*$/i, '').trim();
+  const cleanOrigin = originMatch ? originMatch[1].replace(/\(\d{4}\)/, '').trim() : null;
+  const parsedYear = yearMatch ? parseInt(yearMatch[1], 10) : null;
+
+  const groups = [];
+  const divMatches = [...html.matchAll(/<div[^>]*class=[\x22\x27][^\x22\x27]*episodeGroup[^\x22\x27]*[\x22\x27][^>]*>/gis)];
+
+  for (let gIdx = 0; gIdx < divMatches.length; gIdx++) {
+    const divTag = divMatches[gIdx][0];
+    const srvMatch = divTag.match(/data-server=[\x22\x27]([^\x22\x27]*)[\x22\x27]/i);
+    const srvName = srvMatch ? srvMatch[1].trim() : `Server ${gIdx + 1}`;
+
+    const epsAttrMatch = divTag.match(/data-episodes=(?:\x27([\s\S]*?)\x27|\x22([\s\S]*?)\x22)/i);
+    const epsRaw = epsAttrMatch ? (epsAttrMatch[1] || epsAttrMatch[2] || '') : '';
+    const eps = [];
+    const epMatches = [...epsRaw.matchAll(/\{\s*[\x22\x27]([^\x22\x27]+)[\x22\x27]\s*,\s*[\x22\x27]([^\x22\x27]+)[\x22\x27]\s*\}/g)];
+
+    for (let eIdx = 0; eIdx < epMatches.length; eIdx++) {
+      const encUrl = epMatches[eIdx][1].trim();
+      const epName = epMatches[eIdx][2].trim();
+      const decodedUrl = decodeXor0x2a(encUrl);
+      if (decodedUrl && (decodedUrl.startsWith('http://') || decodedUrl.startsWith('https://'))) {
+        eps.push({
+          name: epName,
+          slug: `tap-${epName}`,
+          link_m3u8: decodedUrl,
+          link_embed: decodedUrl,
+        });
+      }
+    }
+
+    if (eps.length > 0) {
+      groups.push({
+        server_name: srvName,
+        server_data: eps,
+      });
+    }
+  }
+
+  return {
+    name: cleanName,
+    origin_name: cleanOrigin,
+    year: parsedYear,
+    episodes: groups,
+  };
+}
+
+/**
+ * 1. Search STP repository & mirrors
  */
 async function search(keyword, page = 1) {
   const clean = safeKeyword(keyword);
   const p = safePage(page);
   if (!clean) return [];
 
+  // Tier 1: sieutamphim.pro WP-JSON REST API
+  try {
+    const res = await http.get('/wp-json/wp/v2/posts', {
+      params: { search: clean, per_page: 10, page: p, _embed: true },
+    });
+    const posts = Array.isArray(res.data) ? res.data : [];
+    if (posts.length > 0) {
+      return posts.map((post) => {
+        const parsed = parsePostContent(post.content?.rendered || '', post.title?.rendered || '');
+        const posterUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || null;
+        return {
+          name: parsed.name || post.title?.rendered,
+          origin_name: parsed.origin_name || null,
+          slug: post.slug,
+          year: parsed.year,
+          type: parsed.episodes.length > 1 || (parsed.episodes[0]?.server_data?.length > 1) ? 'series' : 'movie',
+          poster: posterUrl,
+          quality: 'HD',
+          lang: 'Thuyết Minh',
+          id: post.id,
+        };
+      });
+    }
+  } catch (err) {
+    // Graceful fallback to Tier 2
+  }
+
+  // Tier 2: Resilient PhimAPI mirror fallback
   try {
     const res = await http.get('https://phimapi.com/v1/api/tim-kiem', {
       params: { keyword: clean, limit: 12, page: p },
@@ -80,7 +216,7 @@ async function search(keyword, page = 1) {
 }
 
 /**
- * Get film detail
+ * 2. Get film detail
  */
 async function getDetail(slug) {
   const cleanSlug = safeSlug(slug, 'stp');
@@ -89,6 +225,35 @@ async function getDetail(slug) {
   const cached = detailCache.get(cacheKey);
   if (cached) return cached;
 
+  // Tier 1: WP-JSON slug lookup on sieutamphim.pro
+  try {
+    const res = await http.get('/wp-json/wp/v2/posts', {
+      params: { slug: cleanSlug, _embed: true },
+    });
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      const post = res.data[0];
+      const parsed = parsePostContent(post.content?.rendered || '', post.title?.rendered || '');
+      const posterUrl = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || null;
+
+      const movie = {
+        name: parsed.name || post.title?.rendered,
+        origin_name: parsed.origin_name || null,
+        slug: post.slug,
+        year: parsed.year,
+        type: parsed.episodes.length > 1 || (parsed.episodes[0]?.server_data?.length > 1) ? 'series' : 'single',
+        poster_url: posterUrl,
+        thumb_url: posterUrl,
+      };
+
+      const result = { movie, episodes: parsed.episodes };
+      detailCache.set(cacheKey, result, 600);
+      return result;
+    }
+  } catch (err) {
+    // Graceful fallback to Tier 2
+  }
+
+  // Tier 2: PhimAPI mirror detail lookup
   try {
     const res = await http.get(`https://phimapi.com/phim/${cleanSlug}`);
     const movie = res.data?.movie || res.data?.data?.item;
@@ -101,11 +266,12 @@ async function getDetail(slug) {
   } catch (err) {
     console.warn(`[STP/getDetail] "${cleanSlug}":`, err.message);
   }
+
   return null;
 }
 
 /**
- * Get catalog items for Western Cinema & K-Drama
+ * 3. Get catalog items for Western Cinema & K-Drama
  */
 async function getCatalog(type, page = 1, extra = {}) {
   const cleanType = safeType(type, 'au-my');
@@ -161,7 +327,7 @@ async function getCatalog(type, page = 1, extra = {}) {
 }
 
 /**
- * Get streams for Western Cinema & K-Drama
+ * 4. Get streams for Western Cinema & K-Drama (VIP 4 STP)
  */
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
   let imdbId  = null;
@@ -204,20 +370,29 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
   try {
     let movieData = null;
 
+    // Step 1: Lookup via slug
     if (slug && (slug.startsWith('stp_') || slug.startsWith('stp:'))) {
       movieData = await getDetail(slug);
     }
 
+    // Step 2: Lookup via IMDb ID (cached or API)
     if (!movieData && imdbId) {
       const cleanImdb = String(imdbId).toLowerCase().trim();
-      try {
-        const res = await http.get(`https://phimapi.com/imdb/title/${cleanImdb}`);
-        const movie = res.data?.movie || res.data?.data?.item;
-        const episodes = res.data?.episodes || movie?.episodes || [];
-        if (movie) movieData = { movie, episodes };
-      } catch {}
+      const cachedSlug = imdbCache.get(`stp:imdb:${cleanImdb}`);
+      if (cachedSlug) {
+        movieData = await getDetail(cachedSlug);
+      }
+      if (!movieData) {
+        try {
+          const res = await http.get(`https://phimapi.com/imdb/title/${cleanImdb}`);
+          const movie = res.data?.movie || res.data?.data?.item;
+          const episodes = res.data?.episodes || movie?.episodes || [];
+          if (movie) movieData = { movie, episodes };
+        } catch {}
+      }
     }
 
+    // Step 3: Search with title + fuzzy score matching
     if (!movieData && title) {
       const searchItems = await search(title, 1);
       if (searchItems.length > 0) {
@@ -259,7 +434,6 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
       const server = episodes[sIdx];
       const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
-      const cleanServerName = rawServerName.replace(/[\r\n#]+/g, ' ').replace(/\s+/g, ' ').trim() || `Server ${sIdx + 1}`;
       const serverData = server.server_data || [];
       if (!serverData.length) continue;
 
@@ -298,20 +472,19 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
         }
       }
 
-      if (!targetEp || !targetEp.link_m3u8) continue;
+      if (!targetEp || (!targetEp.link_m3u8 && !targetEp.link_embed)) continue;
 
       const epLabel = formatEpisodeLabel(targetEp.name);
-      const isTM = /thuy.{1,5}t minh|l.{1,5}ng ti.{1,5}ng/i.test(rawServerName);
-      const titleHeader = isTM
-        ? `[VIP • STP] Thuyết Minh Full HD${epLabel} (HLS Proxy)`
-        : `[VIP • STP] Vietsub Full HD${epLabel} (HLS Proxy)`;
+      const audio = classifyAudioType(rawServerName, movie.name || title);
+      const titleHeader = `[VIP 4 • STP] ${audio.label}${epLabel} (HLS Proxy)`;
 
-      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(targetEp.link_m3u8)}&ref=${b64Ref}`;
+      const rawStreamUrl = targetEp.link_m3u8 || targetEp.link_embed;
+      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${encodeBase64(rawStreamUrl)}&ref=${b64Ref}`;
 
-      // STRICT INVARIANT: url only, NO externalUrl
+      // STRICT INVARIANT: url only, STRICTLY NO externalUrl
       streams.push({
         name: 'VIP Movies 🎬',
-        title: `${titleHeader}\n⚡ Server STP • Âu Mỹ & K-Drama Tuyển Chọn`,
+        title: `${titleHeader}\n⚡ Server STP • sieutamphim.pro`,
         url: streamUrl,
         behaviorHints: {
           notSupported: false,
@@ -334,4 +507,6 @@ module.exports = {
   getDetail,
   getCatalog,
   getStreams,
+  decodeXor0x2a,
+  parsePostContent,
 };

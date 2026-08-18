@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.5.2)
+ *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.6.0)
  *  KKPhim Provider Module (100% Official Endpoints: phimapi.com)
  *
  *  Features:

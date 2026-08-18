@@ -1,58 +1,66 @@
-# BRIEFING — 2026-08-18T08:50:20+07:00
+# BRIEFING — 2026-08-18T05:00:00Z
 
 ## Mission
-Forensic integrity audit on Milestone 2 code changes in `src/providers/vsmov.js` to verify authentic multi-server separation, subtitle extraction, and strict in-app protocol compliance.
+Forensic integrity audit for Milestone 2: E2E Verification Test Suite & Zero-Regression Guard (`tests/verify_new_providers.js`).
 
 ## 🔒 My Identity
 - Archetype: forensic_auditor
-- Roles: [critic, specialist, auditor]
+- Roles: critic, specialist, auditor
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_auditor_m2_1
-- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
-- Target: Milestone 2 (src/providers/vsmov.js)
+- Original parent: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Target: Milestone 2: E2E Verification Test Suite & Zero-Regression Guard
 
 ## 🔒 Key Constraints
 - Audit-only — do NOT modify implementation code
 - Trust NOTHING — verify everything independently
-- Check for zero cheating, fake mocks in production code, or hardcoded strings tailored only to pass tests
-- Conclude with a clear binary verdict: CLEAN or INTEGRITY VIOLATION
+- Check for hardcoded cheats, facade implementations, pre-populated artifacts
+- Check genuine Express server lifecycle, HTTP requests, buffer assertions (sync byte 0x47, >10,000 bytes)
+- Original request constraints take precedence
 
 ## Current Parent
-- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
-- Updated: 2026-08-18T08:50:20+07:00
+- Conversation ID: 7fe7db36-8ec4-4ad9-bc14-f6fa0b444fae
+- Updated: 2026-08-18T05:00:00Z
 
 ## Audit Scope
-- **Work product**: `src/providers/vsmov.js` (Milestone 2 implementation)
-- **Profile loaded**: General Project (Development Mode per ORIGINAL_REQUEST.md)
-- **Audit type**: Forensic integrity check
+- **Work product**: `tests/verify_new_providers.js` and full regression suites
+- **Profile loaded**: General Project (Integrity Forensics)
+- **Audit type**: forensic integrity check
 
 ## Audit Progress
-- **Phase**: Reporting
+- **Phase**: reporting
 - **Checks completed**:
-  - Source code static analysis & diff inspection
-  - Grep search for hardcoded test IDs, fake mocks, and predetermined responses (0 found)
-  - Pre-populated artifact detection (0 found)
-  - Syntax verification (`node --check` passed for all files)
-  - Verification test suite execution (`verify_vsmov_sub_audio.js` 61/61 PASS, `m2_providers.test.js` 53/53 PASS, `m2_challenger_empirical.test.js` 129/129 PASS)
-  - Empirical verification of live VSMOV API calls and real embed HTML scraping
-- **Checks remaining**: None
-- **Findings so far**: CLEAN — No integrity violations detected
+  - Read ORIGINAL_REQUEST.md, PROJECT.md, and worker M2 handoff.md
+  - Static source code analysis of `tests/verify_new_providers.js`
+  - Verified genuine Express server lifecycle (port 0 + clean shutdown)
+  - Verified no trivial `assert(true)` facades or hardcoded cheats
+  - Verified binary buffer checks (size 1,915,156 bytes > 10,000 bytes, sync byte 0x47 at 0 and 188)
+  - Verified HTTP Range 206 seeking support (1024 bytes slice)
+  - Verified zero pre-populated artifacts
+  - Ran independent test executions:
+    - `node tests/verify_new_providers.js`: 26/26 PASS (100%)
+    - `node tests/verify_playback.js`: 7/7 PASS (100%)
+    - `node tests/verify_hotfix_vsmov_kkphim.js`: 27/27 PASS (100%)
+    - `node src/test.js`: 50/50 PASS (100%)
+- **Findings so far**: CLEAN — 0 integrity violations found
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Server audio classification cheating via hardcoded title/IMDb checks: Disproven (clean regex on server tab names).
-  - Fake/mocked subtitle extraction: Disproven (genuine regex & JSON parsing of `playerOptions.subtitles` and relative URL resolution).
-  - Protocol violations (`externalUrl` leakage): Disproven (100% strict `url` usage across all streams).
-- **Vulnerabilities found**: None in `src/providers/vsmov.js`.
-- **Untested angles**: Fully tested across movies, series, edge cases, and fuzz inputs.
+  - Trivial assert facade hypothesis: Rejected (all 26 assertions are strict checks on live response data).
+  - Pre-populated artifact hypothesis: Rejected (zero mock log/result artifacts found).
+  - Binary sync byte cheating hypothesis: Rejected (inspected live 1.87MB buffer for 0x47 sync bytes).
+  - Port leak / zombie process hypothesis: Rejected (server bound to port 0 and closed in finally block).
+- **Vulnerabilities found**: None.
+- **Untested angles**: Extreme long-running upstream CDN network partition (mitigated by 25s timeout and fallback handling).
 
 ## Loaded Skills
-- None required
+- None specified by dispatch
 
 ## Key Decisions Made
-- Confirmed verdict: CLEAN. Ready to generate handoff report.
+- Confirmed verdict CLEAN for Milestone 2.
+- Compiled complete 5-section handoff report.
 
 ## Artifact Index
-- `DISPATCH.md` — Assignment dispatch record
-- `BRIEFING.md` — Situational awareness
-- `progress.md` — Liveness & progress tracking
-- `handoff.md` — 5-Component Forensic Audit Report
+- `.agents/teamwork_preview_auditor_m2_1/DISPATCH.md` — Dispatch log
+- `.agents/teamwork_preview_auditor_m2_1/BRIEFING.md` — Working state
+- `.agents/teamwork_preview_auditor_m2_1/progress.md` — Liveness & progress tracking
+- `.agents/teamwork_preview_auditor_m2_1/handoff.md` — Final forensic audit report
