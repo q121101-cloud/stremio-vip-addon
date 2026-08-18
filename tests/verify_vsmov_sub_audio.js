@@ -2,7 +2,7 @@
 
 /**
  * ==============================================================================
- *  VIP Movies Addon — tests/verify_vsmov_sub_audio.js (Hotfix v1.5.1)
+ *  VIP Movies Addon — tests/verify_vsmov_sub_audio.js (Hotfix v1.5.2)
  *  Comprehensive 4-Tier Verification Suite for:
  *    1. VSMOV Multi-Server Audio Separation (Vietsub, Lồng Tiếng, Thuyết Minh)
  *    2. Subtitle Proxy Endpoint (/hls/sub.vtt) with anti-403 & WebVTT/SRT handling
@@ -29,7 +29,7 @@ const { TestRunner } = require('./helpers');
 const REQUEST_TIMEOUT_MS = 15000;
 
 async function runVerificationSuite() {
-  const runner = new TestRunner('VIP Movies Addon v1.5.1 — VSMOV Subtitles & Multi-Server Audio');
+  const runner = new TestRunner('VIP Movies Addon v1.5.2 — VSMOV Subtitles & Multi-Server Audio');
   const startTime = Date.now();
 
   console.log('\n================================================================================');

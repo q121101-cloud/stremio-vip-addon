@@ -1,157 +1,45 @@
 # Original User Request
 
-## 2026-08-18T01:34:28Z
+## Initial Request — 2026-08-18T03:33:42Z
 
-<USER_REQUEST>
-Hotfix v1.5.1 for Stremio VIP Movies Addon: fully separate VSMOV server audio tabs into distinct streams (`Vietsub`, `Lồng Tiếng`, `Thuyết Minh`), proxy and inject WebVTT/SRT subtitles into Stremio stream objects via `/hls/sub.vtt`, verify multi-server resolution with E2E tests, and deploy to GitHub.
-
-Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
-Integrity mode: development
-
-## Requirements
-
-### R1. VSMOV Multi-Server Audio Separation & Subtitle Extraction (`src/providers/vsmov.js`)
-- Inspect and extract all server groups / tabs (`Vietsub`, `Lồng tiếng`, `Thuyết minh`) from VSMOV API and player responses. Do not collapse them into a single raw stream.
-- Return distinct, cleanly formatted stream objects:
-  - **Vietsub**:
-    - `name`: `"VIP Movies 🎬"`
-    - `title`: `[VIP 1 • VSMOV] Vietsub 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Vietsub • vsmov.com`
-  - **Lồng Tiếng**:
-    - `name`: `"VIP Movies 🎬"`
-    - `title`: `[VIP 1 • VSMOV] Lồng Tiếng 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Lồng Tiếng • vsmov.com`
-  - **Thuyết Minh**:
-    - `name`: `"VIP Movies 🎬"`
-    - `title`: `[VIP 1 • VSMOV] Thuyết Minh 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Thuyết Minh • vsmov.com`
-- Extract WebVTT/SRT subtitle files (if present) from VSMOV player data, route through proxy (`${proxyBase}/hls/sub.vtt?url=${b64Sub}&ref=${b64Ref}`), and attach to stream objects:
-  `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
-- Maintain strict In-App stream protocol: include `url`, omit `externalUrl`.
-
-### R2. Subtitle Proxy Endpoint (`src/routes/hls.js`)
-- Implement `GET /hls/sub.vtt`:
-  - Fetch subtitle files with headers `Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, and standard Chrome User-Agent.
-  - Return headers: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
-  - Automatically convert SRT to WebVTT format if upstream serves SRT content.
-
-### R3. E2E Multi-Server & Subtitle Verification (`tests/verify_vsmov_sub_audio.js`)
-- Automated verification script:
-  1. Start local server on an ephemeral port.
-  2. Query streams for movies (e.g. Harry Potter `tt0373889`) and series.
-  3. Verify presence of at least 2 distinct VSMOV stream options (e.g., Vietsub and Lồng Tiếng / Thuyết Minh).
-  4. Fetch `/hls/sub.vtt` if subtitle URL is generated, verify HTTP 200 and valid `WEBVTT` header.
-  5. Run full test suite and verify 100% assertions pass.
-
-### R4. Versioning & Deployment
-- Preserve Cyber-Glassmorphism UI and glowing brand signature: `VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`.
-- Bump version to `1.5.1` in `package.json`, `src/manifest.js`, and `src/handlers.js`.
-- Execute git deployment:
-  `git add . && git commit -m "Hotfix v1.5.1: Split VSMOV into distinct Vietsub, Long Tieng & Thuyet Minh 4K streams with Subtitle Proxy" && git push origin main`.
-
-## Acceptance Criteria
-
-### Verification Standards
-- [ ] `node tests/verify_vsmov_sub_audio.js` passes with 0 errors and validates distinct Vietsub & Long Tieng / Thuyet Minh stream objects.
-- [ ] Subtitle endpoint `/hls/sub.vtt` responds with HTTP 200, `text/vtt`, and CORS `*`.
-- [ ] In-app stream objects strictly contain `url` and NO `externalUrl`.
-- [ ] `node --check src/index.js` passes with zero errors.
-- [ ] `git push origin main` completes successfully.
-
-</USER_REQUEST>
-
-## 2026-08-18T02:21:45Z
-
-<USER_REQUEST>
-Hotfix v1.5.1 for Stremio VIP Movies Addon: separate VSMOV server audio tabs into distinct `Vietsub`, `Lồng Tiếng`, `Thuyết Minh` streams with WebVTT subtitle proxy; fix KKPhim HTTP 404 episode-matching bug; run E2E verification with real video segment download (> 50KB); deploy to GitHub.
+Hotfix v1.5.2 cho Stremio VIP Movies Addon: Bổ sung nạp phụ đề WebVTT/SRT từ VSMOV 4K trực tiếp vào stream object Stremio và master M3U8; đồng thời xây dựng cơ chế tìm kiếm thông minh đa tầng (Smart Search Fallback) chống lỗi 404 do lệch slug phìm cho KKPhim.
 
 Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
 Integrity mode: development
 
 ## Requirements
 
-### R1. VSMOV Multi-Server Separation & Subtitle Proxy (`src/providers/vsmov.js`, `src/routes/hls.js`)
-- Extract all server groups from VSMOV API/player response (`Vietsub`, `Lồng tiếng`, `Thuyết minh`). Return them as independent stream objects with titles:
-  - `[VIP 1 • VSMOV] Vietsub 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Vietsub • vsmov.com`
-  - `[VIP 1 • VSMOV] Lồng Tiếng 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Lồng Tiếng • vsmov.com`
-  - `[VIP 1 • VSMOV] Thuyết Minh 4K Ultra HD (3840x2160) (HLS Proxy)\n⚡ Server VIP Thuyết Minh • vsmov.com`
-- Extract WebVTT/SRT subtitle files (when present), proxy via `GET /hls/sub.vtt?url=...&ref=...`, and attach as `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: proxySubUrl }]`.
-- `/hls/sub.vtt` must return: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, auto-convert SRT to WebVTT.
-- All streams must contain `url` and NO `externalUrl`.
+### R1. VSMOV WebVTT Subtitle Injection (`src/providers/vsmov.js`, `src/routes/hls.js`)
+- Trích xuất link phụ đề tiếng Việt từ dữ liệu tập phìm VSMOV (dạng `.vtt` hoặc `.srt`).
+- Proxy phụ đề qua endpoint `/hls/sub.vtt` với headers: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`. Nếu nguồn là SRT, tự động convert sang WebVTT chuẩn.
+- Gắn mảng `subtitles: [{ id: "vi_vsmov", lang: "vie", url: proxySubUrl, title: "Tiếng Việt (VSMOV VIP)" }]` vào stream object trả về cho Stremio.
+- Chèn tag `#EXT-X-MEDIA:TYPE=SUBTITLES` vào đầu Master M3U8 khi rewrite để ExoPlayer/VLC/Nuvio tự động nhận diện phụ đề.
 
-### R2. KKPhim 404 Episode-Matching Fix (`src/providers/kkphim.js`)
-- Fix episode lookup to flexibly match all variants: `ep.name === String(targetEp)`, zero-padded (`"01"`), Vietnamese label (`"Tập 1"`), and slug suffix (`"-1"`).
-- Ensure CDN referer headers are set to valid player origin (e.g. `https://player.phimapi.com/`) to prevent 403/404 from CDN.
-- Ensure Base64URL encoding/decoding of m3u8 links preserves all security query parameters intact.
+### R2. KKPhim Smart Search Fallback (`src/providers/kkphim.js`)
+- Xây dựng cơ chế tra cứu đa tầng chống lỗi 404:
+  - **Tầng 1**: Tra cứu trực tiếp theo IMDb ID.
+  - **Tầng 2**: Nếu thất bại, tìm kiếm theo tên phìm từ Cinemeta (`/v1/api/tim-kiem?keyword=...`), chấm điểm bằng `scoreMatch`, lấy slug khớp cao nhất.
+  - **Tầng 3**: Nếu tất cả thất bại, trả về mảng rỗng `[]` an toàn — không crash, không gửi stream 404.
+- Thuật toán khớp số tập linh hoạt cho phìm bộ: `"1"`, `"01"`, `"Tập 1"`, `tap-1`, `tap-01`.
 
-### R3. E2E Verification (`tests/verify_playback.js`)
-- Automated test against live upstream:
-  1. Harry Potter `tt0373889` must return at least 2 distinct VSMOV stream objects (Vietsub + Lồng Tiếng / Thuyết Minh).
-  2. A KKPhim series episode (e.g. `tt0903747:1:1`) must resolve a valid HLS manifest with HTTP 200 (no 404).
-  3. Download a real `.ts` segment via `/hls/segment.ts`: verify HTTP 200 / 206, payload > 50KB, MPEG-TS sync byte `0x47`.
-- Self-debug loop until 100% pass.
+### R3. E2E Verification (`tests/verify_hotfix_vsmov_kkphim.js`)
+- Kiểm thử tự động 3 ca thực tế:
+  1. **Avengers 3** (`tt5095030`): VSMOV có mảng `subtitles` hợp lệ; `/hls/sub.vtt` trả về HTTP 200 + nội dung WebVTT. KKPhim tự fallback search và trả về stream M3U8 hợp lệ (không 404).
+  2. **Phìm bộ KKPhim** (Tập 1): Khớp chính xác link M3U8 của Tập 1 via `/hls/manifest.m3u8` HTTP 200.
+  3. **Tải phân đoạn `.ts`** thực tế: HTTP 200/206, payload > 50KB, MPEG-TS sync byte `0x47`.
+- Tự động vòng lặp sửa lỗi cho đến khi 100% PASS.
 
 ### R4. Versioning & GitHub Deployment
-- Update version string to `1.5.1` in `package.json`, `src/manifest.js`, and the footer in `src/handlers.js` (`VIP Movies Addon v1.5.1 • Powered by <span class="brand-highlight">Q121101</span>`).
-- `git add . && git commit -m "Hotfix v1.5.1: Swarm verified - Split VSMOV Vietsub/Audio tabs with Subtitle Proxy & Fixed KKPhim 404 episode matching" && git push origin main`.
+- Cập nhật `version: "1.5.2"` trong `package.json` và `src/manifest.js`.
+- Commit và push:
+  `git add . && git commit -m "Hotfix v1.5.2: Injected VSMOV 4K WebVTT Subtitles into HLS/Stremio & Added KKPhim Smart-Search Fallback against 404" && git push origin main`
 
 ## Acceptance Criteria
 
-- [ ] VSMOV streams include at least 2 distinct audio-group entries (Vietsub and one of Lồng Tiếng / Thuyết Minh) verified by test script.
-- [ ] `/hls/sub.vtt` returns HTTP 200, `text/vtt`, CORS `*`.
-- [ ] KKPhim series episode stream resolves to valid HLS manifest (HTTP 200, no 404).
-- [ ] Real `.ts` segment download > 50KB with HTTP 200 / 206.
-- [ ] `node --check src/index.js` zero errors.
-- [ ] `git push origin main` succeeds.
-
-</USER_REQUEST>
-
-## 2026-08-18T02:44:50Z
-
-<USER_REQUEST>
-Transform the VIP Movies Stremio Addon Configurator / Landing page into a world-class Cyber-Glassmorphism interface by integrating and strictly following Taste-Skill Anti-Slop Design Standards (OLED True Black `#0b0d13`, subtle 1px ambient glowing borders, fluid typography, interactive pill switchers, and floating shimmer action dock).
-
-Working directory: `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon`
-Integrity mode: development
-
-## Requirements
-
-### R1. Integrate Taste-Skill & Anti-Slop UI Architecture (`.skills/taste-skill`, `src/handlers.js` / HTML templates)
-- Clone or incorporate Taste-Skill design guidelines (`https://github.com/Leonxlnx/taste-skill.git` -> `.skills/taste-skill`).
-- Implement strict Anti-Slop UI principles:
-  - Background: OLED True Black (`#0b0d13`) paired with deep slate and dynamic aurora ambient mesh glow (`#6366f1`, `#ec4899`, `#06b6d4`).
-  - Cards & Containers: Glassmorphism with subtle `1px` borders (`rgba(255, 255, 255, 0.08)`), multi-layered backdrop blur (`24px+`), inner lighting highlights.
-  - Typography: Modern typography scale using `Plus Jakarta Sans` / `Inter` / `SF Pro Display`, high readability, distinct hierarchy.
-  - Signature Footer: `VIP Movies Addon v1.5.1 • Designed with Taste by <span class="brand-highlight">Q121101</span>`.
-
-### R2. Interactive Multi-Provider & Category Configurator (7 Clusters & 22 Categories)
-- **Header & Live Status**:
-  - Glowing neon cinema badge with smooth pulsating animation.
-  - Real-time live status pill indicator (`🟢 Server VIP Core Online`).
-- **Quick Action Toolbar**:
-  - Smooth pill buttons: `[⚡ Bật tất cả]`, `[🚫 Tắt tất cả]`, `[🎬 Phim Lẻ]`, `[📺 Phim Bộ]`, `[🍿 Chiếu Rạp]`, `[🐉 Hoạt Hình 3D]`.
-- **7 Provider Interactive Cards**:
-  - Distinct branding for VSMOV 4K, KKPhim, NguonC, STP Âu Mỹ, Hoạt Hình 3D, YanHH3D, CLB Phim Xưa.
-  - Smooth interactive pill switches with micro-animations on toggle.
-- **Floating Action Dock**:
-  - Frosted glass floating dock with gradient shimmer effect on hover.
-  - Quick action buttons: "⚡ Cài đặt vào Stremio App", "🌐 Mở trên Stremio Web", and "📋 Sao chép link Manifest".
-  - Live configuration status bar: `Đang bật: X nguồn · Y danh mục`.
-
-### R3. Visual, Responsive & Functional Verification
-- Verify that `GET /` and `GET /:config` return HTTP 200 with valid HTML containing the new Taste-Skill design.
-- Verify 100% responsiveness across mobile (375px+), tablet, desktop, and widescreen/TV viewports.
-- Ensure all existing backend routes (`/manifest.json`, `/catalog/...`, `/stream/...`, `/hls/...`) remain 100% functional and pass `node tests/verify_playback.js`.
-
-### R4. Versioning & GitHub Deployment
-- Maintain version `1.5.1` across `package.json`, `src/manifest.js`, and `src/handlers.js`.
-- Execute git deployment:
-  `git add . && git commit -m "UI Overhaul: Transformed Configurator with Taste-Skill Anti-Slop Design Standards" && git push origin main`.
-
-## Acceptance Criteria
-
-### Verification Standards
-- [ ] Configurator HTML embeds Taste-Skill Anti-Slop design guidelines with OLED `#0b0d13` palette, micro-animations, and glowing signature `Designed with Taste by Q121101`.
-- [ ] Interactive toggle state correctly updates manifest URL and Stremio install deep-links in real-time.
-- [ ] `node tests/verify_playback.js` passes 100% with real `.ts` chunk download > 50KB.
-- [ ] `node --check src/index.js` passes with zero errors.
-- [ ] `git push origin main` completes successfully.
-
-</USER_REQUEST>
+- [ ] VSMOV stream object chứa mảng `subtitles` hợp lệ với `lang: "vie"` và URL proxy.
+- [ ] `GET /hls/sub.vtt?url=...` trả về HTTP 200, `Content-Type: text/vtt`, `Access-Control-Allow-Origin: *`, nội dung bắt đầu bằng `WEBVTT`.
+- [ ] KKPhim `tt5095030` (Avengers 3) trả về stream M3U8 hợp lệ (HTTP 200, không 404) sau khi qua Smart Search Fallback.
+- [ ] KKPhim phìm bộ Tập 1 khớp đúng M3U8 (HTTP 200, `#EXTM3U` header confirmed).
+- [ ] Tải phân đoạn `.ts` thực tế > 50KB, MPEG-TS sync byte `0x47` xác nhận.
+- [ ] `node --check src/index.js` pass, `tests/verify_playback.js` 7/7 phases pass.
+- [ ] `git push origin main` thành công, version `1.5.2` đồng bộ.

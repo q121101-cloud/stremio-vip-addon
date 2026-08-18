@@ -1,66 +1,58 @@
-# BRIEFING — 2026-08-18T01:40:40Z
+# BRIEFING — 2026-08-18T03:38:14Z
 
 ## Mission
-Implement Milestone 1: Subtitle proxy endpoint (/sub.vtt) in `src/routes/hls.js` with SRT->VTT conversion and aggregator subtitle pass-through in `src/handlers.js`.
+Implement Milestone 1: VSMOV WebVTT/SRT Subtitle Injection & HLS Proxying for Hotfix v1.5.2
 
 ## 🔒 My Identity
-- Archetype: implementer
+- Archetype: worker
 - Roles: implementer, qa, specialist
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1_1
-- Original parent: cbf03e27-0cd9-44c3-b074-91f636153881
-- Milestone: M1
+- Original parent: 0a580561-bdd3-4e10-9471-a5f9975ae400
+- Milestone: Milestone 1: VSMOV WebVTT/SRT Subtitle Injection & HLS Proxying
 
 ## 🔒 Key Constraints
-- Exclusively own `src/routes/hls.js` and `src/handlers.js` (subtitles pass-through in `handleStream`).
-- DO NOT CHEAT: genuine implementation only, real state & logic.
-- Follow minimal change principle.
-- Maintain strict In-App stream protocol: include `url`, omit `externalUrl`.
-- Pass all syntax checks and test suites.
+- Genuine implementation only, no dummy/facade code or hardcoding.
+- Modifies exclusively: `src/providers/vsmov.js` and `src/routes/hls.js`.
+- Minimal change principle.
+- Full verification and handoff report.
 
 ## Current Parent
-- Conversation ID: cbf03e27-0cd9-44c3-b074-91f636153881
-- Updated: 2026-08-18T01:40:40Z
+- Conversation ID: 0a580561-bdd3-4e10-9471-a5f9975ae400
+- Updated: 2026-08-18T03:38:14Z
 
 ## Task Summary
-- **What to build**:
-  1. In `src/routes/hls.js`:
-     - Implemented `GET /sub.vtt` & `/sub` with parameter resolution (supporting `url`, `b64`, `sub` and `ref`, `referer`), anti-403 request headers (`Referer: https://vsmov.com/`, `Origin: https://vsmov.com`, Chrome UA), BOM stripping, CRLF normalization, automatic SRT-to-WebVTT conversion (timestamps `,` to `.`, prepending `WEBVTT\n\n`), response headers (`Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`).
-     - Added route aliases `['/manifest.m3u8', '/m3u8', '/m3u8-proxy']` and `['/segment.ts', '/ts', '/segment', '/ts-proxy']`.
-  2. In `src/handlers.js`:
-     - Preserved `sanitized.subtitles = item.subtitles` for array subtitles in `handleStream`.
-     - Enforced strict In-App stream protocol (`url` present, `delete sanitized.externalUrl`).
+- **What to build**: 
+  1. `src/providers/vsmov.js`: Extract subtitle links (.vtt/.srt) from VSMOV media data, attach `subtitles: [{ id: "vi_vsmov", lang: "vie", url: proxySubUrl, title: "Tiếng Việt (VSMOV VIP)" }]`, pass `sub` parameter to master m3u8 proxy url.
+  2. `src/routes/hls.js`: Implement `/hls/sub.vtt` endpoint with headers, SRT->WebVTT auto-conversion (handling BOM, CRLF, comma to dot, WEBVTT header), and `#EXT-X-MEDIA:TYPE=SUBTITLES` injection in `/hls/manifest.m3u8` when `sub` param is present.
 - **Success criteria**:
-  - `node --check src/routes/hls.js` passes (Verified).
-  - `node --check src/handlers.js` passes (Verified).
-  - `node --check src/index.js` passes (Verified).
-  - `npm test` passes 50/50 (Verified).
-  - `node tests/test_m1_subtitle_proxy.js` passes 27/27 (Verified).
-- **Interface contracts**: PROJECT.md § Interface Contracts.
-- **Code layout**: PROJECT.md § Code Layout.
+  - Subtitles extracted properly from VSMOV embed media.
+  - Stream object in `vsmov.js` contains `subtitles` array.
+  - M3U8 proxy URL contains `sub` param.
+  - `/hls/sub.vtt` proxies subtitles and converts SRT to valid WebVTT.
+  - `/hls/manifest.m3u8` injects subtitle track into Master playlist and appends `SUBTITLES="subs"` to `#EXT-X-STREAM-INF`.
+  - Cache key incorporates `sub`.
+  - Syntax check & tests pass with 0 regressions.
+- **Interface contracts**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_orchestrator_1/PROJECT.md
+- **Code layout**: src/providers/vsmov.js, src/routes/hls.js
+
+## Key Decisions Made
+- [TBD after code inspection]
+
+## Artifact Index
+- DISPATCH.md — Assignment instructions
+- BRIEFING.md — Persistent context and state
+- progress.md — Liveness and progress tracking
+- handoff.md — Final handoff report
 
 ## Change Tracker
-- **Files modified**:
-  - `src/routes/hls.js`: Added `/sub.vtt` and `/sub` endpoint, aliases `/m3u8-proxy` and `/ts-proxy`.
-  - `src/handlers.js`: Preserved `sanitized.subtitles = item.subtitles` when `Array.isArray(item.subtitles)`.
-  - `tests/test_m1_subtitle_proxy.js`: Added comprehensive 27-assertion M1 integration/unit test suite.
-- **Build status**: PASS
+- **Files modified**: None yet
+- **Build status**: Pending
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (npm test 50/50, test_m1_subtitle_proxy.js 27/27)
-- **Lint status**: 0 violations
-- **Tests added/modified**: `tests/test_m1_subtitle_proxy.js` (27 assertions covering route aliases, SRT conversion, BOM stripping, WebVTT passthrough, error handling, and aggregator protocol compliance).
+- **Build/test result**: Pending
+- **Lint status**: Pending
+- **Tests added/modified**: Pending
 
 ## Loaded Skills
-- None required for this implementation.
-
-## Key Decisions Made
-- Used `resolveParamUrl` to flexibly parse both raw URLs and base64 URLs from query parameters `url`, `b64`, `sub` and `ref`, `referer`.
-- Implemented robust SRT to WebVTT conversion with regex `replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')` and guaranteed `WEBVTT\n\n` header.
-
-## Artifact Index
-- `.agents/teamwork_preview_worker_m1_1/DISPATCH.md` — Agent dispatch instructions
-- `.agents/teamwork_preview_worker_m1_1/BRIEFING.md` — Persistent situational awareness
-- `.agents/teamwork_preview_worker_m1_1/progress.md` — Progress tracker and liveness heartbeat
-- `.agents/teamwork_preview_worker_m1_1/handoff.md` — Final handoff report
-- `tests/test_m1_subtitle_proxy.js` — Dedicated M1 test suite
+- None

@@ -1,34 +1,30 @@
-## 2026-08-18T01:37:36Z
-You are teamwork_preview_test_writer_e2e_1.
-Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_test_writer_e2e_1
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
+## 2026-08-18T03:38:14Z
 
-Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md and /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md.
-You own the E2E Testing Track.
+<USER_REQUEST>
+You are a Test Writer agent building the E2E Hotfix verification test suite for Stremio VIP Movies Addon Hotfix v1.5.2.
+Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_test_writer_e2e_1
+
+Read the following requirement documents:
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_e2e_deploy/survey_report.md`
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_orchestrator_1/PROJECT.md`
 
 Your tasks:
-1. Create `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_INFRA.md` at project root documenting test architecture, methodology (Tiers 1-4), and feature coverage inventory.
-2. Implement `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/tests/verify_vsmov_sub_audio.js` using the standalone test framework (`tests/helpers.js` TestRunner or `startTestServer` / ephemeral port `app.listen(0)`).
-   Ensure comprehensive coverage across 4 tiers:
-   - **Tier 1 (Feature Coverage)**:
-     - Boot ephemeral server on port 0.
-     - Query stream endpoint for movies (Harry Potter tt0373889).
-     - Query subtitle endpoint `/hls/sub.vtt` with valid base64 subtitle url.
-     - Validate HTTP 200, `Content-Type: text/vtt; charset=utf-8`, and CORS `*`.
-     - Validate `WEBVTT` body header.
-   - **Tier 2 (Boundary & Corner Cases)**:
-     - Subtitle endpoint with missing query params (returns 400 Bad Request).
-     - Subtitle endpoint with invalid/unreachable upstream URL.
-     - Subtitle endpoint with SRT upstream content (verifies automatic conversion to WebVTT format with comma->dot timestamps).
-     - In-App protocol compliance verification: every stream object strictly has `url` and NO `externalUrl`.
-   - **Tier 3 (Cross-Feature Combinations)**:
-     - Multi-server extraction: verify stream list contains distinct audio tracks (`Vietsub` and `Lồng Tiếng` / `Thuyết Minh`).
-     - Subtitles array structure: verify `subtitles: [{ id: 'vi_vsmov', lang: 'vie', url: ... }]` is attached to applicable streams and preserved through `handleStream`.
-     - Exact title formatting checks for each server group.
-   - **Tier 4 (Real-World Scenarios)**:
-     - Full end-to-end simulation of movie and series stream discovery and subtitle retrieval.
-3. Publish `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/TEST_READY.md` at project root when the test suite script and infrastructure are ready.
+1. Create `tests/verify_hotfix_vsmov_kkphim.js` containing comprehensive automated tests for the 3 required cases:
+   - **Case 1 (Avengers 3 - `tt5095030`)**:
+     - VSMOV stream contains a valid `subtitles` array with `{ id: "vi_vsmov", lang: "vie", url: ..., title: "Tiếng Việt (VSMOV VIP)" }`.
+     - Requesting the `/hls/sub.vtt` endpoint returns HTTP 200, `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`, and response body starts with `WEBVTT`.
+     - KKPhim falls back to search and returns a valid M3U8 stream (HTTP 200, `#EXTM3U`, not 404).
+   - **Case 2 (KKPhim TV series Episode 1 - `tt0903747:1:1` or `tt0944947:1:1`)**:
+     - Accurately matches Episode 1 M3U8 stream via `/hls/manifest.m3u8` returning HTTP 200 and `#EXTM3U` header.
+   - **Case 3 (Real TS segment download)**:
+     - Downloads an actual `.ts` segment chunk (>50KB) via `/hls/segment.ts` (or direct/proxied TS segment).
+     - Confirms HTTP 200/206 status, payload size > 50KB, and MPEG-TS sync byte `0x47` (`buffer[0] === 0x47`).
+   - Implement ephemeral server startup on port `0` and guaranteed clean server teardown in `finally` blocks.
+   - Print clear structured test progress and exit with code 0 on pass, non-zero on failure.
+2. Create `TEST_INFRA.md` and `TEST_READY.md` in the project root documenting the test suite, test commands, tiers, and verification criteria.
+3. Test your script by running `node tests/verify_hotfix_vsmov_kkphim.js` (note: implementation may still be in progress, so document initial baseline run).
+4. Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_test_writer_e2e_1/handoff.md`.
 
-Run tests using `node tests/verify_vsmov_sub_audio.js` to verify that your test script is syntactically sound and ready.
-Write your handoff report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_test_writer_e2e_1/handoff.md` and send a message to parent when done.
+When complete, send a message to parent summarizing what was created.
+</USER_REQUEST>

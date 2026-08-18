@@ -41,8 +41,8 @@ async function runForensicAudit() {
     // ─── CHECK 1: Version Synchronization Invariant ───────────────
     console.log('▶ CHECK 1: Version Invariant across artifacts');
     const pkg = require('../package.json');
-    auditAssert('package.json version is 1.5.1', pkg.version === '1.5.1', pkg.version);
-    auditAssert('manifest.js version is 1.5.1', MANIFEST.version === '1.5.1', MANIFEST.version);
+    auditAssert('package.json version is 1.5.2', pkg.version === '1.5.2', pkg.version);
+    auditAssert('manifest.js version is 1.5.2', MANIFEST.version === '1.5.2', MANIFEST.version);
 
     // ─── CHECK 2: Dynamic Template & CSS Variables Inspection ──────
     console.log('\n▶ CHECK 2: Taste-Skill Anti-Slop Palette & Architecture Inspection');
@@ -59,7 +59,7 @@ async function runForensicAudit() {
     auditAssert('Orb Pink defined with 140px blur drift', htmlDefault.includes('orb-pink'));
     auditAssert('Orb Cyan defined with 140px blur drift', htmlDefault.includes('orb-cyan'));
     auditAssert('Cinema emblem pulse animation defined', htmlDefault.includes('@keyframes emblemPulse'));
-    auditAssert('Live status indicator includes Server VIP Core Online · v1.5.1', htmlDefault.includes('Server VIP Core Online &nbsp;·&nbsp; v1.5.1'));
+    auditAssert('Live status indicator includes Server VIP Core Online · v1.5.2', htmlDefault.includes('Server VIP Core Online &nbsp;·&nbsp; v1.5.2'));
 
     // ─── CHECK 3: 1+6 Bento Grid Layout Verification ──────────────
     console.log('\n▶ CHECK 3: 1+6 Bento Grid Layout Verification');
@@ -86,7 +86,7 @@ async function runForensicAudit() {
     auditAssert('Stremio Web CTA button exists', htmlDefault.includes('id="web-install-btn"'));
     auditAssert('Clipboard copy CTA button exists', htmlDefault.includes('id="dock-copy-btn"'));
     auditAssert('Clipboard toast element exists', htmlDefault.includes('id="toast"'));
-    auditAssert('Brand signature with glowing highlight span', htmlDefault.includes('VIP Movies Addon v1.5.1 • Designed with Taste by <span class="brand-highlight">Q121101</span>'));
+    auditAssert('Brand signature with glowing highlight span', htmlDefault.includes('VIP Movies Addon v1.5.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>'));
 
     // ─── CHECK 5: Multi-Configuration Dynamic Hydration Matrix ────
     console.log('\n▶ CHECK 5: Multi-Configuration Dynamic Hydration Matrix');

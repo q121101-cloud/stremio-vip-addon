@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/routes/hls.js (Engine v1.5.1)
+ *  VIP Movies Addon — src/routes/hls.js (Engine v1.5.2)
  *  HLS Proxy Router: Anti-403, Full Segment & Key Rewriter, HTTP Range 206
  *
  *  Routes:
@@ -151,11 +151,12 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
   const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
 
+  const subParam = resolveParamUrl(req.query.sub || req.query.subtitle || req.query.sub_url);
   const refParam = resolveParamUrl(req.query.ref || req.query.referer);
   const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
-  const cacheKey = `m3u8:${protoHost}:${targetUrl}`;
+  const cacheKey = `m3u8:${protoHost}:${targetUrl}:${subParam || ''}`;
   const cached = m3u8Cache.get(cacheKey);
   if (cached) {
     return res.send(cached);
@@ -182,75 +183,103 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
     const encodedRef = Buffer.from(refererUrl).toString('base64url');
     let isNextSubPlaylist = false;
     let isNextSegment     = false;
+    let isMasterPlaylist  = false;
 
-    const rewritten = String(r.data).split(/\r?\n/).map((line) => {
+    const rawLines = String(r.data).split(/\r?\n/);
+    const rewrittenLines = [];
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
       const t = line.trim();
-      if (!t) return line;
+      if (!t) {
+        rewrittenLines.push(line);
+        continue;
+      }
 
       if (t.startsWith('#')) {
         // Master Playlist variant streams
         if (t.startsWith('#EXT-X-STREAM-INF') || t.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
+          isMasterPlaylist = true;
           isNextSubPlaylist = true;
           isNextSegment = false;
-          if (t.includes('URI=')) {
-            return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+          let streamInfLine = t;
+          if (subParam && !streamInfLine.includes('SUBTITLES=')) {
+            streamInfLine = `${streamInfLine},SUBTITLES="subs"`;
+          }
+          if (streamInfLine.includes('URI=')) {
+            streamInfLine = streamInfLine.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
               const uri = qUri || unqUri;
               const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
               const b64Uri = Buffer.from(absUri).toString('base64url');
               return `URI="${protoHost}/hls/manifest.m3u8?url=${b64Uri}&ref=${encodedRef}"`;
             });
           }
-          return line;
+          rewrittenLines.push(streamInfLine);
+          continue;
         }
 
         // Media Playlist segments
         if (t.startsWith('#EXTINF')) {
           isNextSegment = true;
           isNextSubPlaylist = false;
-          return line;
+          rewrittenLines.push(line);
+          continue;
         }
 
         // Audio / Subtitles / Alternative Renditions
         if (t.startsWith('#EXT-X-MEDIA') && t.includes('URI=')) {
-          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+          isMasterPlaylist = true;
+          const rewrittenMedia = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Uri = Buffer.from(absUri).toString('base64url');
+            if (t.includes('TYPE=SUBTITLES') && (absUri.includes('.vtt') || absUri.includes('.srt'))) {
+              return `URI="${protoHost}/hls/sub.vtt?url=${b64Uri}&ref=${encodedRef}"`;
+            }
             return `URI="${protoHost}/hls/manifest.m3u8?url=${b64Uri}&ref=${encodedRef}"`;
           });
+          rewrittenLines.push(rewrittenMedia);
+          continue;
         }
 
         // Decryption Key Files (#EXT-X-KEY / #EXT-X-SESSION-KEY)
         if ((t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-SESSION-KEY')) && t.includes('URI=')) {
-          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+          const rewrittenKey = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Key = Buffer.from(absUri).toString('base64url');
             return `URI="${protoHost}/hls/key?url=${b64Key}&ref=${encodedRef}"`;
           });
+          rewrittenLines.push(rewrittenKey);
+          continue;
         }
 
         // fMP4 Initialization segment (#EXT-X-MAP)
         if (t.startsWith('#EXT-X-MAP') && t.includes('URI=')) {
-          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+          const rewrittenMap = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Map = Buffer.from(absUri).toString('base64url');
             return `URI="${protoHost}/hls/segment.ts?url=${b64Map}&ref=${encodedRef}"`;
           });
+          rewrittenLines.push(rewrittenMap);
+          continue;
         }
 
         // Low-Latency HLS Preload hints & partial segments
         if ((t.startsWith('#EXT-X-PRELOAD-HINT') || t.startsWith('#EXT-X-PART')) && t.includes('URI=')) {
-          return t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
+          const rewrittenPart = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
             const absUri = uri.startsWith('http') ? uri : new URL(uri, baseUrl.href).href;
             const b64Part = Buffer.from(absUri).toString('base64url');
             return `URI="${protoHost}/hls/segment.ts?url=${b64Part}&ref=${encodedRef}"`;
           });
+          rewrittenLines.push(rewrittenPart);
+          continue;
         }
 
-        return line;
+        rewrittenLines.push(line);
+        continue;
       }
 
       // URI Line
@@ -259,13 +288,36 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
 
       if (isNextSubPlaylist || absUrl.includes('.m3u8') || absUrl.includes('playlist')) {
         isNextSubPlaylist = false;
-        return `${protoHost}/hls/manifest.m3u8?url=${b64Url}&ref=${encodedRef}`;
+        rewrittenLines.push(`${protoHost}/hls/manifest.m3u8?url=${b64Url}&ref=${encodedRef}`);
+        continue;
       }
 
       isNextSegment = false;
-      return `${protoHost}/hls/segment.ts?url=${b64Url}&ref=${encodedRef}`;
-    }).join('\n');
+      rewrittenLines.push(`${protoHost}/hls/segment.ts?url=${b64Url}&ref=${encodedRef}`);
+    }
 
+    // Inject subtitle track into master playlist if subParam is provided and it is a Master Playlist
+    if (subParam && isMasterPlaylist) {
+      const b64Sub = Buffer.from(subParam).toString('base64url');
+      const proxySubUrl = `${protoHost}/hls/sub.vtt?url=${b64Sub}&ref=${encodedRef}`;
+      const subTag = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Tiếng Việt (VSMOV VIP)",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE="vie",URI="${proxySubUrl}"`;
+
+      // Check if not already present
+      const alreadyHasSub = rewrittenLines.some((l) => l.startsWith('#EXT-X-MEDIA:TYPE=SUBTITLES') && l.includes('GROUP-ID="subs"'));
+      if (!alreadyHasSub) {
+        // Find insert position: right after #EXTM3U or #EXT-X-VERSION
+        let insertIdx = 1;
+        for (let i = 0; i < rewrittenLines.length; i++) {
+          const l = rewrittenLines[i].trim();
+          if (l.startsWith('#EXTM3U') || l.startsWith('#EXT-X-VERSION')) {
+            insertIdx = i + 1;
+          }
+        }
+        rewrittenLines.splice(insertIdx, 0, subTag);
+      }
+    }
+
+    const rewritten = rewrittenLines.join('\n');
     m3u8Cache.set(cacheKey, rewritten, 300);
     res.send(rewritten);
   } catch (err) {
@@ -377,7 +429,7 @@ router.get(['/sub.vtt', '/sub'], async (req, res) => {
   res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400');
 
-  const rawUrl = req.query.url || req.query.b64 || req.query.sub;
+  const rawUrl = req.query.url || req.query.b64 || req.query.sub || req.query.subtitle || req.query.sub_url;
   const targetUrl = resolveParamUrl(rawUrl);
   if (!targetUrl) {
     return res.status(400).send('Invalid or missing subtitle url');
@@ -392,22 +444,40 @@ router.get(['/sub.vtt', '/sub'], async (req, res) => {
   } catch {}
 
   try {
-    const upstreamRes = await axios({
-      url: targetUrl,
-      method: 'GET',
-      responseType: 'text',
-      headers: {
-        'User-Agent': HLS_UA,
-        Referer: referer,
-        Origin: origin,
-        Accept: '*/*',
-      },
-      timeout: 15000,
-      maxRedirects: 5,
-      validateStatus: (status) => status >= 200 && status < 400,
-    });
+    let content = '';
 
-    let content = String(upstreamRes.data || '');
+    if (targetUrl.startsWith('data:')) {
+      const commaIdx = targetUrl.indexOf(',');
+      if (commaIdx !== -1) {
+        const meta = targetUrl.slice(5, commaIdx);
+        const rawData = targetUrl.slice(commaIdx + 1);
+        if (meta.includes('base64')) {
+          content = Buffer.from(rawData, 'base64').toString('utf8');
+        } else {
+          content = decodeURIComponent(rawData);
+        }
+      } else {
+        content = targetUrl.slice(5);
+      }
+    } else {
+      const upstreamRes = await axios({
+        url: targetUrl,
+        method: 'GET',
+        responseType: 'text',
+        headers: {
+          'User-Agent': HLS_UA,
+          Referer: referer,
+          Origin: origin,
+          Accept: '*/*',
+        },
+        timeout: 15000,
+        maxRedirects: 5,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+
+      content = String(upstreamRes.data || '');
+    }
+
     // Strip UTF-8 BOM
     if (content.charCodeAt(0) === 0xFEFF || content.startsWith('\uFEFF')) {
       content = content.slice(1);
@@ -415,10 +485,12 @@ router.get(['/sub.vtt', '/sub'], async (req, res) => {
     // Normalize CRLF to LF
     content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
-    // If content is SRT format (does not start with WEBVTT), convert SRT to WebVTT
+    // Replace comma timestamps (00:00:00,000 -> 00:00:00.000)
+    content = content.replace(/(\b\d{1,2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2').replace(/(\b\d{1,2}:\d{2}),(\d{3})/g, '$1.$2');
+
+    // Prepend WEBVTT header if not present
     if (!content.startsWith('WEBVTT')) {
-      const convertedTimestamps = content.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-      content = `WEBVTT\n\n${convertedTimestamps}`;
+      content = `WEBVTT\n\n${content}\n`;
     }
 
     return res.send(content);

@@ -2,12 +2,12 @@
 
 /**
  * ==============================================================================
- *  VIP Movies Addon — tests/verify_playback.js (Hotfix v1.5.1)
+ *  VIP Movies Addon — tests/verify_playback.js (Hotfix v1.5.2)
  *  R3 Mandatory E2E Stream Playback, Subtitle Proxy & Binary Delivery Verification
  *
  *  Validates:
  *    1. Ephemeral Port Server Startup (Port 0) & Clean Teardown in `finally`.
- *    2. Addon Manifest Integrity (/manifest.json, /health) with v1.5.1 versioning.
+ *    2. Addon Manifest Integrity (/manifest.json, /health) with v1.5.2 versioning.
  *    3. VSMOV Multi-Server Audio Separation & Subtitles on Harry Potter tt0373889 (>= 2 streams: Vietsub + Lồng Tiếng / Thuyết Minh).
  *    4. Subtitle Proxy Endpoint (/hls/sub.vtt) returning HTTP 200, text/vtt, CORS * and WEBVTT header.
  *    5. KKPhim Series Episode (tt0903747:1:1) resolving valid HLS manifest with HTTP 200 (no 404).
@@ -40,7 +40,7 @@ const REQUEST_TIMEOUT_MS = 25000;
 async function verifyPlayback() {
   const startTime = Date.now();
   console.log(`\n${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${RESET}`);
-  console.log(`${BOLD}${CYAN}║  🎬 VIP MOVIES: HOTFIX v1.5.1 E2E PLAYBACK, AUDIO & SUBTITLE VERIFICATION   ║${RESET}`);
+  console.log(`${BOLD}${CYAN}║  🎬 VIP MOVIES: HOTFIX v1.5.2 E2E PLAYBACK, AUDIO & SUBTITLE VERIFICATION   ║${RESET}`);
   console.log(`${BOLD}${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${RESET}\n`);
 
   // 1. Initialize Express App on Ephemeral Port
@@ -71,16 +71,16 @@ async function verifyPlayback() {
 
   try {
     // ══════════════════════════════════════════════════════════════════════════
-    //  PHASE 1: Manifest & Route Integrity Check (v1.5.1)
+    //  PHASE 1: Manifest & Route Integrity Check (v1.5.2)
     // ══════════════════════════════════════════════════════════════════════════
     stage = 'MANIFEST_CHECK';
-    console.log(`${BOLD}${CYAN}▶ PHASE 1: Addon Manifest & Route Verification (v1.5.1)${RESET}`);
+    console.log(`${BOLD}${CYAN}▶ PHASE 1: Addon Manifest & Route Verification (v1.5.2)${RESET}`);
     const manifestRes = await axios.get(`${baseUrl}/manifest.json`, { timeout: REQUEST_TIMEOUT_MS });
     assert.strictEqual(manifestRes.status, 200, 'Manifest endpoint must return HTTP 200');
     assert.ok(manifestRes.data?.id, 'Manifest must have id');
     assert.ok(Array.isArray(manifestRes.data?.catalogs), 'Manifest must contain catalogs array');
     assert.ok(manifestRes.data.catalogs.length > 0, 'Manifest must contain at least 1 catalog');
-    console.log(`  ${GREEN}✅ PASS: Manifest loaded successfully (v${manifestRes.data.version || '1.5.1'}, ${manifestRes.data.catalogs.length} catalogs)${RESET}\n`);
+    console.log(`  ${GREEN}✅ PASS: Manifest loaded successfully (v${manifestRes.data.version || '1.5.2'}, ${manifestRes.data.catalogs.length} catalogs)${RESET}\n`);
 
     // ══════════════════════════════════════════════════════════════════════════
     //  PHASE 2: Harry Potter tt0373889 & VSMOV Multi-Server Audio Separation
@@ -295,7 +295,7 @@ async function verifyPlayback() {
     // ══════════════════════════════════════════════════════════════════════════
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`${BOLD}╔══════════════════════════════════════════════════════════════════════════════╗${RESET}`);
-    console.log(`${BOLD}║      🎉 ALL HOTFIX v1.5.1 VERIFICATION CHECKS PASSED (100% SUCCESS)          ║${RESET}`);
+    console.log(`${BOLD}║      🎉 ALL HOTFIX v1.5.2 VERIFICATION CHECKS PASSED (100% SUCCESS)          ║${RESET}`);
     console.log(`${BOLD}╠══════════════════════════════════════════════════════════════════════════════╣${RESET}`);
     console.log(`║  1. Manifest & Route Integrity:          ${GREEN}PASSED${RESET} (HTTP 200, Catalogs verified)        ║`);
     console.log(`║  2. VSMOV Multi-Server Audio Tabs:       ${GREEN}PASSED${RESET} (>= 2 Streams, In-App Protocol)       ║`);
@@ -309,7 +309,7 @@ async function verifyPlayback() {
 
     return true;
   } catch (err) {
-    console.error(`\n${RED}${BOLD}❌ [HOTFIX v1.5.1 PLAYBACK VERIFICATION FAILURE REPORT]${RESET}`);
+    console.error(`\n${RED}${BOLD}❌ [HOTFIX v1.5.2 PLAYBACK VERIFICATION FAILURE REPORT]${RESET}`);
     console.error(`   ${RED}Failed Stage:${RESET} ${stage}`);
     console.error(`   ${RED}Error Message:${RESET} ${err.message}`);
     if (err.response) {

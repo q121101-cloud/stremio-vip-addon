@@ -124,7 +124,7 @@ async function runChallengerSuite() {
     const manifestRes = await axios.get(`${baseUrl}/manifest.json`);
     check('Manifest returns HTTP 200', manifestRes.status === 200, `Got ${manifestRes.status}`);
     check('Manifest CORS Access-Control-Allow-Origin: *', manifestRes.headers['access-control-allow-origin'] === '*');
-    check('Manifest version is exactly 1.5.1', manifestRes.data.version === '1.5.1', `Got ${manifestRes.data.version}`);
+    check('Manifest version is exactly 1.5.2', manifestRes.data.version === '1.5.2', `Got ${manifestRes.data.version}`);
     check('Manifest contains exactly 22 catalogs', Array.isArray(manifestRes.data.catalogs) && manifestRes.data.catalogs.length === 22, `Got ${manifestRes.data.catalogs?.length}`);
     check('Manifest resources contain catalog, meta, stream',
       manifestRes.data.resources.some((r) => r === 'catalog' || r.name === 'catalog') &&
@@ -138,7 +138,7 @@ async function runChallengerSuite() {
     const healthRes = await axios.get(`${baseUrl}/health`);
     check('/health returns HTTP 200', healthRes.status === 200);
     check('/health status is ok', healthRes.data.status === 'ok');
-    check('/health version is 1.5.1', healthRes.data.version === '1.5.1', `Got ${healthRes.data.version}`);
+    check('/health version is 1.5.2', healthRes.data.version === '1.5.2', `Got ${healthRes.data.version}`);
     console.log();
 
     // ══════════════════════════════════════════════════════════════════════════

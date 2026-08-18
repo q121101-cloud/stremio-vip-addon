@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.5.1)
+ *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.5.2)
  *  KKPhim Provider Module (100% Official Endpoints: phimapi.com)
  *
  *  Features:
@@ -16,7 +16,7 @@
 
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
-const { getCachedCinemeta } = require('../lib/cinemeta');
+const { resolveCinemeta, getCachedCinemeta } = require('../lib/cinemeta');
 const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
 
 const PROVIDER_ID    = 'kkphim';
@@ -282,10 +282,11 @@ async function getCatalog(type, page = 1, extra = {}) {
 //  5. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
 async function getStreams(arg1, title, type, season, episode, proxyBase) {
-  let imdbId = null;
-  let slug = null;
-  let year = null;
-  let genres = null;
+  let imdbId  = null;
+  let slug    = null;
+  let year    = null;
+  let genres  = null;
+  let aliases = [];
 
   if (typeof arg1 === 'object' && arg1 !== null) {
     imdbId    = arg1.imdbId || null;
@@ -293,6 +294,7 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     type      = arg1.type || 'movie';
     year      = arg1.year || null;
     genres    = arg1.genres || null;
+    aliases   = Array.isArray(arg1.aliases) ? arg1.aliases : [];
     season    = arg1.season != null ? arg1.season : null;
     episode   = arg1.episode != null ? arg1.episode : null;
     slug      = arg1.slug || null;
@@ -316,52 +318,72 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     if (String(episode).trim().startsWith('-') || (!isNaN(epNum) && epNum <= 0)) return [];
   }
 
-  // Check cached Cinemeta for year if missing
-  if (!year && imdbId) {
+  // Resolve Cinemeta metadata (name, year, aliases) if missing
+  if (imdbId && (!title || !year || aliases.length === 0)) {
     const cachedCine = getCachedCinemeta(type, imdbId);
-    if (cachedCine?.year) {
-      year = cachedCine.year;
-    }
-    if (!title && cachedCine?.name) {
-      title = cachedCine.name;
+    if (cachedCine) {
+      if (!year && cachedCine.year) year = cachedCine.year;
+      if (!title && cachedCine.name) title = cachedCine.name;
+      if (Array.isArray(cachedCine.aliases) && cachedCine.aliases.length > 0) {
+        aliases = Array.from(new Set([...aliases, ...cachedCine.aliases]));
+      }
+    } else {
+      const meta = await resolveCinemeta(type, imdbId);
+      if (meta) {
+        if (!year && meta.year) year = meta.year;
+        if (!title && meta.name) title = meta.name;
+        if (Array.isArray(meta.aliases) && meta.aliases.length > 0) {
+          aliases = Array.from(new Set([...aliases, ...meta.aliases]));
+        }
+      }
     }
   }
 
   try {
     let movieData = null;
 
-    // Bước 1: Tra cứu trực tiếp IMDb qua API phimapi
+    // ─── Tier 1: Direct IMDb lookup via phimapi.com/imdb/title/:id ───
     if (imdbId) {
       movieData = await getByImdb(imdbId);
     }
 
-    // Bước 2: Fallback tra cứu qua slug nếu có
+    // ─── Tier 1b: Fallback lookup via slug if available ──────────────
     if (!movieData && slug) {
       movieData = await getDetail(slug);
     }
 
-    // Bước 3: Fallback tìm kiếm theo canonical title & match year / season
-    if (!movieData && title) {
-      const searchResults = await search(title, 10);
-      if (searchResults.length > 0) {
-        let bestItem = null;
-        let bestScore = -1;
-        for (const item of searchResults) {
-          const score = scoreMatch(item, title, year, season);
+    // ─── Tier 2: Smart Search Fallback (Cinemeta title & aliases + scoreMatch) ──
+    if (!movieData && (title || aliases.length > 0)) {
+      const cleanTitle = title ? String(title).trim() : '';
+      const titleWithoutYear = cleanTitle.replace(/\s*\(?\d{4}\)?\s*$/, '').trim();
+      const searchQueries = Array.from(new Set([cleanTitle, titleWithoutYear, ...aliases])).filter(Boolean);
+
+      let bestItem = null;
+      let bestScore = -1;
+
+      for (const q of searchQueries) {
+        if (!q) continue;
+        const results = await search(q, 10);
+        for (const item of results) {
+          const score = scoreMatch(item, cleanTitle || q, year, season);
           if (score > bestScore) {
             bestScore = score;
             bestItem = item;
           }
         }
-        if (bestItem && bestItem.slug && bestScore >= 0.45) {
-          movieData = await getDetail(bestItem.slug);
-          if (movieData && imdbId) {
-            imdbCache.set(`kkphim:imdb:${imdbId}`, movieData, 86400);
-          }
+        if (bestScore >= 0.70) break; // High confidence match early exit
+      }
+
+      if (bestItem && bestItem.slug && bestScore >= 0.45) {
+        movieData = await getDetail(bestItem.slug);
+        if (movieData && imdbId) {
+          const cleanImdb = String(imdbId).toLowerCase().trim();
+          imdbCache.set('kkphim:imdb:' + cleanImdb, movieData, 86400);
         }
       }
     }
 
+    // ─── Tier 3: Safe degradation (safe empty array if all tiers fail) ───
     if (!movieData || !movieData.episodes || !movieData.episodes.length) {
       return [];
     }
@@ -380,7 +402,7 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     const streams = [];
     const baseRef = 'https://player.phimapi.com/';
 
-    // Bước 4: Duyệt tất cả các server (Vietsub, Thuyết Minh, Lồng Tiếng)
+    // Duyệt tất cả các server (Vietsub, Thuyết Minh, Lồng Tiếng)
     for (let sIdx = 0; sIdx < episodes.length; sIdx++) {
       const server = episodes[sIdx];
       const rawServerName = String(server.server_name || '').trim() || `Server ${sIdx + 1}`;
@@ -397,10 +419,10 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
         if (!isNaN(epNum) && epNum <= 0) {
           targetEp = null;
         } else {
-          // Khớp linh hoạt ep.name, ep.slug, 01/001, Tập 1, tap-1, regex, index fallback
+          // Khớp linh hoạt: name, slug, zero-pad, Tập N, tap-N, regex, index fallback
           targetEp = serverData.find((ep) => matchEpisodeItem(ep, targetEpStr, epNum));
 
-          // Index fallback
+          // Index fallback (1-based)
           if (!targetEp && !isNaN(epNum) && epNum >= 1 && epNum <= serverData.length) {
             targetEp = serverData[epNum - 1];
           }

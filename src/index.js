@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Stremio Addon — src/index.js  (Engine v1.5.1)
+ *  VIP Movies Stremio Addon — src/index.js  (Engine v1.5.2)
  *  Entry point chính của server Express
  *
  *  Architecture:
@@ -102,7 +102,7 @@ if (require.main === module) {
 
     console.log('');
     console.log('╔══════════════════════════════════════════════════════╗');
-    console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.5.1     ║');
+    console.log('║      🎬  VIP Movies Stremio Addon  Engine v1.5.2     ║');
     console.log('╠══════════════════════════════════════════════════════╣');
     console.log(`║  Server:      ${addonUrl.padEnd(39)}║`);
     console.log(`║  Manifest:    ${manifestUrl.padEnd(39)}║`);

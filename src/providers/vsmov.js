@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.1)
+ *  VIP Movies Addon — src/providers/vsmov.js (Engine v1.5.2)
  *  VSMOV 4K Provider Module (100% Official API: vsmov.com/api)
  *
  *  Features:
@@ -17,7 +17,7 @@
 
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
-const { getCachedCinemeta } = require('../lib/cinemeta');
+const { resolveCinemeta, getCachedCinemeta } = require('../lib/cinemeta');
 const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
 
 const PROVIDER_ID    = 'vsmov';
@@ -144,8 +144,8 @@ async function resolveEmbedMedia(linkEmbed, linkM3u8) {
       }
     }
 
-    // 2. Extract subtitles from playerOptions.subtitles or html
-    const mSub = html.match(/subtitles\s*:\s*(\[[^\]]*\])/i);
+    // 2. Extract subtitles from playerOptions.subtitles / tracks or html
+    const mSub = html.match(/(?:subtitles|tracks)\s*:\s*(\[[^\]]*\])/i);
     if (mSub && mSub[1]) {
       try {
         const parsed = JSON.parse(mSub[1]);
@@ -157,14 +157,27 @@ async function resolveEmbedMedia(linkEmbed, linkM3u8) {
                 s.code === 'vi' ||
                 s.lang === 'vie' ||
                 s.lang === 'vi' ||
-                (s.name && /vie|tiếng việt|viet/i.test(s.name)))
+                (s.name && /vie|tiếng việt|viet/i.test(s.name)) ||
+                (s.label && /vie|tiếng việt|viet/i.test(s.label)))
           ) || parsed[0];
 
-          if (viSub && viSub.url) {
-            subtitleUrl = String(viSub.url).trim();
+          if (viSub && (viSub.url || viSub.file || viSub.src)) {
+            subtitleUrl = String(viSub.url || viSub.file || viSub.src).trim();
           }
         }
-      } catch {}
+      } catch {
+        const mItems = mSub[1].match(/\{[^}]+\}/g) || [];
+        for (const itemStr of mItems) {
+          const mUrl = itemStr.match(/(?:url|file|src)\s*:\s*["'\x27]([^"'\x27\s]+)["'\x27]/i);
+          const isVie = /vie|tiếng việt|viet/i.test(itemStr);
+          if (mUrl && mUrl[1]) {
+            if (isVie || !subtitleUrl) {
+              subtitleUrl = mUrl[1].trim();
+              if (isVie) break;
+            }
+          }
+        }
+      }
     }
 
     // 2b. Fallback regex for subtitle file path
@@ -434,14 +447,24 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     if (String(episode).trim().startsWith('-') || (!isNaN(epNum) && epNum <= 0)) return [];
   }
 
-  // Check cached Cinemeta for year if missing
-  if (!year && imdbId) {
+  // Check cached / async Cinemeta for year, title, aliases if missing
+  if (imdbId && (!title || !year || aliases.length === 0)) {
     const cachedCine = getCachedCinemeta(type, imdbId);
-    if (cachedCine?.year) {
-      year = cachedCine.year;
-    }
-    if (!title && cachedCine?.name) {
-      title = cachedCine.name;
+    if (cachedCine) {
+      if (!year && cachedCine.year) year = cachedCine.year;
+      if (!title && cachedCine.name) title = cachedCine.name;
+      if (Array.isArray(cachedCine.aliases) && cachedCine.aliases.length > 0) {
+        aliases = Array.from(new Set([...aliases, ...cachedCine.aliases]));
+      }
+    } else {
+      const meta = await resolveCinemeta(type, imdbId);
+      if (meta) {
+        if (!year && meta.year) year = meta.year;
+        if (!title && meta.name) title = meta.name;
+        if (Array.isArray(meta.aliases) && meta.aliases.length > 0) {
+          aliases = Array.from(new Set([...aliases, ...meta.aliases]));
+        }
+      }
     }
   }
 
@@ -562,7 +585,11 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
       if (!masterPlaylistUrl) continue;
 
       const b64MasterUrl = encodeBase64(masterPlaylistUrl);
-      const streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${b64MasterUrl}&ref=${b64Ref}`;
+      let streamUrl = `${proxyBase || ''}/hls/manifest.m3u8?url=${b64MasterUrl}&ref=${b64Ref}`;
+      if (subtitleUrl) {
+        const b64Sub = encodeBase64(subtitleUrl);
+        streamUrl += `&sub=${b64Sub}`;
+      }
       const epLabel = formatEpisodeLabel(targetEp.name);
 
       const audioInfo = classifyServerAudio(rawServerName);
@@ -587,6 +614,7 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
             id: 'vi_vsmov',
             lang: 'vie',
             url: proxySubUrl,
+            title: 'Tiếng Việt (VSMOV VIP)',
           },
         ];
       }

@@ -111,7 +111,7 @@ async function runAdversarialTests() {
     });
 
     test('Exact glowing brand signature matches specification', () => {
-      const expectedSignature = 'VIP Movies Addon v1.5.1 • Designed with Taste by <span class="brand-highlight">Q121101</span>';
+      const expectedSignature = 'VIP Movies Addon v1.5.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>';
       assert(rootHtml.includes(expectedSignature), `Footer signature does not match expected:\n${expectedSignature}`);
     });
 

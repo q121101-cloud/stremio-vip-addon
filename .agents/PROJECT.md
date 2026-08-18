@@ -40,7 +40,7 @@
 | M1 | Taste UI Overhaul & Hydration | Implement Taste-Skill Anti-Slop UI, Bento Grid, Spring Switches, Floating Dock & `/:config` hydration in `src/handlers.js` | none | DONE |
 | M2 | E2E & Visual Verification | Automated test suite execution (`verify_playback.js`, `verify_vsmov_sub_audio.js`, UI route verification) | M1 | DONE |
 | M3 | Forensic Integrity Audit | Independent audit by `teamwork_preview_auditor` | M2 | DONE |
-| M4 | Versioning & GitHub Deployment | Version check (1.5.1), Git commit & Push | M3 | IN_PROGRESS |
+| M4 | Versioning & GitHub Deployment | Version check (1.5.1), Git commit & Push | M3 | DONE |
 
 ## Interface Contracts
 ### Client ↔ Server Config Token

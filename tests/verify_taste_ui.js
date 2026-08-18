@@ -50,7 +50,7 @@ async function runTests() {
     check('Plus Jakarta Sans font stack loaded', htmlRoot.includes('Plus+Jakarta+Sans'));
     check('JetBrains Mono font stack loaded', htmlRoot.includes('JetBrains+Mono'));
     check('Cinema Emblem 🎬 with emblemPulse animation', htmlRoot.includes('cinema-emblem') && htmlRoot.includes('emblemPulse'));
-    check('Live status pill includes Server VIP Core Online · v1.5.1', htmlRoot.includes('Server VIP Core Online') && htmlRoot.includes('v1.5.1'));
+    check('Live status pill includes Server VIP Core Online · v1.5.2', htmlRoot.includes('Server VIP Core Online') && htmlRoot.includes('v1.5.2'));
     check('All 4 category pills present', htmlRoot.includes('id="cat-movie"') && htmlRoot.includes('id="cat-series"') && htmlRoot.includes('id="cat-cinema"') && htmlRoot.includes('id="cat-anime"'));
     check('Batch select pills present', htmlRoot.includes('selectAll()') && htmlRoot.includes('selectNone()'));
     check('VSMOV 4K flagship hero card with 1+6 Bento grid layout', htmlRoot.includes('provider-card vsmov vsmov-hero') && htmlRoot.includes('grid-column: 1 / -1'));
@@ -61,7 +61,7 @@ async function runTests() {
     check('Stremio Web CTA present', htmlRoot.includes('id="web-install-btn"'));
     check('Manifest copy button present in dock', htmlRoot.includes('id="dock-copy-btn"'));
     check('Personalized manifest card present', htmlRoot.includes('id="manifest-box"') && htmlRoot.includes('id="manifest-preview"'));
-    check('Exact brand signature in footer', htmlRoot.includes('VIP Movies Addon v1.5.1 • Designed with Taste by <span class="brand-highlight">Q121101</span>'));
+    check('Exact brand signature in footer', htmlRoot.includes('VIP Movies Addon v1.5.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>'));
 
     // ─── Test 2: GET /configure Alias ──────────────────────────────
     console.log('\n▶ PHASE 2: Configurator Alias (GET /configure)');
@@ -111,7 +111,7 @@ async function runTests() {
     check('GET /manifest.json returns HTTP 200 JSON', resManifest.status === 200 && resManifest.headers.get('content-type').includes('application/json'));
     const manifestJson = await resManifest.json();
     check('Manifest ID matches org.vipmovies.stremio.addon', manifestJson.id === 'org.vipmovies.stremio.addon');
-    check('Manifest Version is 1.5.1', manifestJson.version === '1.5.1');
+    check('Manifest Version is 1.5.2', manifestJson.version === '1.5.2');
 
     const resConfigManifest = await fetch(`${baseUrl}/${customToken}/manifest.json`);
     check('GET /:config/manifest.json returns HTTP 200 JSON', resConfigManifest.status === 200 && resConfigManifest.headers.get('content-type').includes('application/json'));

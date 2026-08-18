@@ -164,7 +164,7 @@ chunk_002.ts
     check('GET / includes OLED True Black (#0b0d13)', resRoot.data.includes('#0b0d13'));
     check('GET / includes flagship 1+6 Bento hero card for VSMOV', resRoot.data.includes('grid-column: 1 / -1') || resRoot.data.includes('vsmov'));
     check('GET / includes brand footer with Q121101', resRoot.data.includes('<span class="brand-highlight">Q121101</span>'));
-    check('GET / includes version 1.5.1', resRoot.data.includes('v1.5.1'));
+    check('GET / includes version 1.5.2', resRoot.data.includes('v1.5.2'));
 
     // 1.2 Route Aliases & Config Hydration
     const resConfigure = await axios.get(`${addonUrl}/configure`);
@@ -191,14 +191,14 @@ chunk_002.ts
     // 1.3 Route Isolation: Ensure non-config paths are not hijacked
     const resManifest = await axios.get(`${addonUrl}/manifest.json`);
     check('GET /manifest.json returns HTTP 200 JSON', resManifest.status === 200 && resManifest.data.id === 'org.vipmovies.stremio.addon');
-    check('GET /manifest.json version is 1.5.1', resManifest.data.version === '1.5.1');
+    check('GET /manifest.json version is 1.5.2', resManifest.data.version === '1.5.2');
     check('GET /manifest.json has 22 catalogs', Array.isArray(resManifest.data.catalogs) && resManifest.data.catalogs.length === 22);
 
     const resTokenManifest = await axios.get(`${addonUrl}/${testToken}/manifest.json`);
     check('GET /:config/manifest.json returns HTTP 200 JSON', resTokenManifest.status === 200);
 
     const resHealth = await axios.get(`${addonUrl}/health`);
-    check('GET /health returns HTTP 200 JSON', resHealth.status === 200 && resHealth.data.status === 'ok' && resHealth.data.version === '1.5.1');
+    check('GET /health returns HTTP 200 JSON', resHealth.status === 200 && resHealth.data.status === 'ok' && resHealth.data.version === '1.5.2');
 
     // ════════════════════════════════════════════════════════════════
     //  SECTION 2: HLS PLAYLIST & TS SEGMENT STREAMING PIPELINE

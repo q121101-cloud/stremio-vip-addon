@@ -1,46 +1,33 @@
-## 2026-08-18T01:37:36Z
-You are teamwork_preview_worker_m1_1.
+## 2026-08-18T03:38:14Z
+<USER_REQUEST>
+You are a Worker agent implementing Milestone 1: VSMOV WebVTT/SRT Subtitle Injection & HLS Proxying for Hotfix v1.5.2.
 Your working directory is: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1_1
-Original User Request file: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md
-Project specification: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
 
-Read /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md and /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md.
+Read the following files:
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md`
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_survey_vsmov/survey_report.md`
+- `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_orchestrator_1/PROJECT.md`
 
 MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Milestone 1 Scope & File Ownership:
-- You exclusively own:
-  1. `src/routes/hls.js`
-  2. `src/handlers.js` (preserve `subtitles` in sanitized stream objects in `handleStream`)
+File Ownership: You exclusively own and modify:
+- `src/providers/vsmov.js`
+- `src/routes/hls.js`
 
-Requirements to implement:
-1. In `src/routes/hls.js`:
-   - Implement `GET /sub.vtt` (and alias `/sub` if appropriate):
-     - Extract `url` (or `b64`, `sub`) and `ref` (or `referer`) using `resolveParamUrl(req.query.url)` and `resolveParamUrl(req.query.ref)`.
-     - If URL is missing, return HTTP 400 `Invalid or missing subtitle url`.
-     - Fetch upstream subtitle with headers:
-       `Referer: refParam || 'https://vsmov.com/'`, `Origin: 'https://vsmov.com'`, `User-Agent: HLS_UA`.
-     - Handle response:
-       - If upstream status >= 400, return error.
-       - Clean / convert content: strip BOM (`\uFEFF`), normalize CRLF to LF.
-       - If content is SRT format (does not start with `WEBVTT`), convert SRT to WebVTT:
-         - Replace timestamp format `00:00:00,000` with `00:00:00.000` (`/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2'`).
-         - Ensure leading `WEBVTT\n\n`.
-       - Set response headers:
-         - `Content-Type: text/vtt; charset=utf-8`
-         - `Access-Control-Allow-Origin: *`
-         - `Cache-Control: public, max-age=86400`
-       - Send the WebVTT content.
-   - Ensure route aliases `['/manifest.m3u8', '/m3u8', '/m3u8-proxy']` and `['/segment.ts', '/ts', '/segment', '/ts-proxy']` are present.
-2. In `src/handlers.js`:
-   - In `handleStream`, ensure `sanitized.subtitles = item.subtitles` is preserved when `item.subtitles` is an array so subtitle tracks are passed to Stremio clients.
-   - Maintain strict In-App stream protocol: `sanitized.url = item.url`, `delete sanitized.externalUrl`.
+Your tasks:
+1. In `src/providers/vsmov.js`:
+   - Extract subtitle links (.vtt / .srt) from VSMOV media data in `resolveEmbedMedia()` or API payload.
+   - In `getStreams()`, attach `subtitles: [{ id: "vi_vsmov", lang: "vie", url: proxySubUrl, title: "Tiếng Việt (VSMOV VIP)" }]` to the stream object.
+   - Pass the subtitle URL as a parameter (e.g. `&sub=${encodeURIComponent(subUrl)}` or base64) to the master M3U8 proxy URL.
+2. In `src/routes/hls.js`:
+   - Implement/ensure `/hls/sub.vtt` endpoint proxies subtitles with headers: `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=86400`.
+   - If the upstream subtitle is SRT (or contains comma timestamps `00:00:00,000`), convert it automatically to valid WebVTT format (replace `,` with `.`, ensure `WEBVTT` header at line 1, strip UTF-8 BOM `\uFEFF`, normalize CRLF).
+   - In Master M3U8 handler (`/hls/manifest.m3u8`), check for `sub` query param. When present, inject `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Tiếng Việt",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE="vie",URI="<subProxyUrl>"` at the top of Master M3U8 and append `SUBTITLES="subs"` to `#EXT-X-STREAM-INF` tags. Ensure cache key incorporates `sub`.
+3. Verification:
+   - Run `node --check src/providers/vsmov.js` and `node --check src/routes/hls.js`.
+   - Run existing tests to verify no regressions (`npm test` or `tests/verify_playback.js`).
+4. Write your changes summary and test results to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1_1/handoff.md`.
 
-Verification commands:
-- `node --check src/routes/hls.js`
-- `node --check src/handlers.js`
-- `node --check src/index.js`
-- `npm test`
-
-Write your implementation report to `/Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/teamwork_preview_worker_m1_1/handoff.md` and send a message to parent when completed.
+When complete, send a message to parent summarizing your work.
+</USER_REQUEST>

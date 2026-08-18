@@ -1,28 +1,25 @@
-# BRIEFING — 2026-08-18T02:45:00Z
+# BRIEFING — 2026-08-18T03:33:42Z
 
 ## Mission
-Transform the VIP Movies Stremio Addon Configurator / Landing page into a world-class Cyber-Glassmorphism interface strictly following Taste-Skill Anti-Slop Design Standards, verify all functionality and routes, and deploy to GitHub.
+Oversee Hotfix v1.5.2 implementation for Stremio VIP Movies Addon (VSMOV subtitles + KKPhim Smart Search Fallback) via project orchestrator and victory auditor.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel
-- Orchestrator: 54bb558b-b5f2-41e2-aa8b-628829575aa9
-- Victory Auditor: [to be spawned on victory claim]
+- Orchestrator: 0a580561-bdd3-4e10-9471-a5f9975ae400
+- Victory Auditor: to be spawned on victory claim
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Must not write code or analyze problems
-- Keep context ultra-light
 
 ## User Context
-- **Last user request**: Transform the VIP Movies Stremio Addon Configurator / Landing page into a world-class Cyber-Glassmorphism interface by integrating and strictly following Taste-Skill Anti-Slop Design Standards (OLED True Black `#0b0d13`, subtle 1px ambient glowing borders, fluid typography, interactive pill switchers, and floating shimmer action dock).
+- **Last user request**: Hotfix v1.5.2 for Stremio VIP Movies Addon (VSMOV subtitles + KKPhim Smart Search Fallback)
 - **Pending clarifications**: none
-- **Delivered results**: none for current request
+- **Delivered results**: none
 
 ## Project Status
 - **Phase**: in progress
-- **Routing Decision**: teamwork_preview_orchestrator (General path)
 
 ## Victory Audit Status
 - **Triggered**: no
@@ -30,5 +27,4 @@ Transform the VIP Movies Stremio Addon Configurator / Landing page into a world-
 - **Retry count**: 0
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Authoritative record of user intent
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md — Root mirror of user intent
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Verbatim user request
