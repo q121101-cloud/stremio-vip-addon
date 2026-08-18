@@ -57,12 +57,17 @@ Complete overhaul and production-ready release of Stremio VIP Movies Addon Engin
 | explorer_survey_2 | teamwork_preview_explorer | Survey routing & catalogs & aggregator | completed | d234e4be-b9b8-4a71-8043-1cbabeccfe64 |
 | explorer_survey_3 | teamwork_preview_explorer | Survey testing, proxy & UI/versioning | completed | 7bcf17ed-fa3c-4453-8c48-a2bfed90d313 |
 | worker_m1 | teamwork_preview_worker | Milestone 1 Provider Refactor | completed | a912ae1d-e50e-42a4-a632-0e37533adc98 |
-| worker_m4 | teamwork_preview_worker | Milestone 4 UI, Versioning & Git Release | in-progress | 7dbddc57-18fc-469a-ab9b-f0b87e835957 |
+| worker_m4 | teamwork_preview_worker | Milestone 4 UI, Versioning & Git Release | completed | 7dbddc57-18fc-469a-ab9b-f0b87e835957 |
+| reviewer_1 | teamwork_preview_reviewer | Provider & Aggregator Review | in-progress | d1fea864-c9b6-478a-82b3-6ecd2299cd8a |
+| reviewer_2 | teamwork_preview_reviewer | Routing & Catalog Review | in-progress | 9c8765c5-028a-4155-b199-63e65b7a29a1 |
+| challenger_1 | teamwork_preview_challenger | Routing & Catalog Stress Test | in-progress | 5b2d99e2-3f18-4eab-907e-a89289617231 |
+| challenger_2 | teamwork_preview_challenger | Real Video Playback Stress Test | in-progress | 71b6e101-3449-42b4-a806-cad2a7a45fb6 |
+| auditor_1 | teamwork_preview_auditor | Forensic Integrity Audit | in-progress | 5eb70b19-f31a-4602-b1e5-e9457e57630b |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 5 / 16
-- Pending subagents: 7dbddc57-18fc-469a-ab9b-f0b87e835957
+- Spawn count: 10 / 16
+- Pending subagents: d1fea864-c9b6-478a-82b3-6ecd2299cd8a, 9c8765c5-028a-4155-b199-63e65b7a29a1, 5b2d99e2-3f18-4eab-907e-a89289617231, 71b6e101-3449-42b4-a806-cad2a7a45fb6, 5eb70b19-f31a-4602-b1e5-e9457e57630b
 - Predecessor: none
 - Successor: not yet spawned
 

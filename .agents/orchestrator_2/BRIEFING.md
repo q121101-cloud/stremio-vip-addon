@@ -1,78 +1,73 @@
-# BRIEFING — 2026-08-17T08:58:30Z
+# BRIEFING — 2026-08-18T08:11:00+07:00
 
 ## Mission
-Complete Milestone 3 (E2E Stream Playback Test & Self-Debug Loop in tests/test_kkphim_playback.js) and Milestone 4 (Full Verification & Git Deployment) for Stremio KKPhim In-App Playback, then submit final victory claim.
+Complete overhaul and production-ready release of Stremio VIP Movies Addon Engine v1.5.0 across all milestones (R1-R5) and acceptance criteria.
 
 ## 🔒 My Identity
 - Archetype: orchestrator
 - Roles: orchestrator, user_liaison, human_reporter, successor
-- Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_2
-- Original parent: a333d38c-bf0b-4317-a0f1-579394c83a1f
-- Original parent conversation ID: a333d38c-bf0b-4317-a0f1-579394c83a1f
+- Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_2/
+- Original parent: parent
+- Original parent conversation ID: aadb1daa-4525-42f3-9567-33b640c8f69c
 
 ## 🔒 My Workflow
-- **Pattern**: Project Pattern
+- **Pattern**: Project Orchestration
 - **Scope document**: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md
-1. **Decompose**:
-   - Milestone 1: KKPhim Provider In-App Stream Format (DONE)
-   - Milestone 2: HLS Proxy Anti-403 Optimization (DONE)
-   - Milestone 3: E2E Stream Playback Test & Self-Debug Loop (DONE)
-   - Milestone 4: Verification & Git Deployment (IN_PROGRESS)
+1. **Decompose**: Review M1 completion, orchestrate R2-R5 (Fail-Safe Stream Aggregator, 404 Routing & 22 K20 Catalogs, Real TS Video Playback E2E test, UI preservation & Git Deployment).
 2. **Dispatch & Execute**:
-   - Direct iteration loop / execution: Worker -> Reviewer -> Gate check.
-3. **On failure**:
-   - Retry -> Replace -> Skip -> Redistribute -> Redesign
-4. **Succession**:
-   - Self-succeed at 16 spawns if milestones remain.
+   - Survey/Explore state of R2-R5 via Explorer subagents.
+   - Implement necessary updates via Worker subagents.
+   - Verify via Reviewer, Challenger, and Forensic Auditor subagents.
+3. **On failure**: Retry -> Replace -> Skip -> Redistribute -> Redesign.
+4. **Succession**: At 16 spawns, write handoff.md, spawn successor.
 - **Work items**:
-  1. Milestone 1 [done]
-  2. Milestone 2 [done]
-  3. Milestone 3 [done]
-  4. Milestone 4 [in-progress]
-- **Current phase**: Milestone 4 (Full Verification & Git Deployment)
-- **Current focus**: Milestone 4: Worker 4 running verification and git push
+  1. R1: Provider Standardization & Conflict Resolution [DONE in M1]
+  2. R2: Fail-Safe Stream Aggregator & Cinemeta Resolution (src/handlers.js) [IN_PROGRESS]
+  3. R3: 404 Routing Elimination & 22 Catalogs K20 Standard (src/index.js, src/manifest.js, src/config.js) [IN_PROGRESS]
+  4. R4: Mandatory Real Video Segment Playback Test (tests/verify_playback.js) [IN_PROGRESS]
+  5. R5: UI Preservation, Versioning & Git Deployment [PENDING]
+- **Current phase**: 2 (Dispatch & Execute)
+- **Current focus**: Survey & verify implementation across R2, R3, R4, R5
 
 ## 🔒 Key Constraints
-- Never write, modify, or create source code files directly.
-- Never run build/test commands yourself — require workers to do so.
-- Never reuse a subagent after it has delivered its handoff.
-- Mandatory integrity warning to all workers. Zero tolerance for shortcuts.
+- NEVER write, modify, or create source code files directly.
+- NEVER run build/test commands yourself — require workers to do so.
+- NEVER investigate or explore the problem at the code level — dispatch Explorers for technical investigation.
+- Audit is a binary veto.
+- Include path to ORIGINAL_REQUEST.md in every subagent dispatch.
 
 ## Current Parent
-- Conversation ID: a333d38c-bf0b-4317-a0f1-579394c83a1f
-- Updated: 2026-08-17T08:50:00Z
+- Conversation ID: aadb1daa-4525-42f3-9567-33b640c8f69c
+- Updated: 2026-08-18T08:10:00+07:00
 
 ## Key Decisions Made
-- Inherited Milestone 1 and 2 completions from Orchestrator 1.
-- Milestone 3 completed and passed Gate Review.
-- Dispatched Worker 4 for final full test suite execution, Git commit & push.
+- M1 completed by worker_m1.
+- Spawned 3 parallel Explorer agents for R2, R3/R5, and R4.
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
-|---|---|---|---|---|
-| explorer_m3_1 | teamwork_preview_explorer | E2E Test Architecture Explorer | completed | 2e3afb7e-4509-4dcf-988c-279d8be6e009 |
-| explorer_m3_2 | teamwork_preview_explorer | Network & Stream Flow Explorer | completed | 714e8dce-a9a1-46c1-b89d-588a9c3f794f |
-| explorer_m3_3 | teamwork_preview_explorer | Test Robustness & Edge Cases | completed | 6f565ef4-f1b5-4b48-854b-080760867385 |
-| worker_m3 | teamwork_preview_worker | E2E Test & Self-Debug Implementer | completed | a8afad72-6768-40af-8dd9-c68e0180b654 |
-| reviewer_m3_1 | teamwork_preview_reviewer | E2E Test Reviewer 1 | completed | dd580849-cdb7-49d0-99eb-4d5fed418938 |
-| reviewer_m3_2 | teamwork_preview_reviewer | E2E Test Reviewer 2 | completed | a6a81bc3-a352-4c5e-9240-d9737173ad41 |
-| challenger_m3_1 | teamwork_preview_challenger | Adversarial Stream Challenger 1 | completed | 681291b9-df1a-4f6e-a0ec-bffc4dba02a9 |
-| challenger_m3_2 | teamwork_preview_challenger | Concurrency & Edge Case Challenger 2 | completed | cc13fcd4-6aa5-4d83-a001-f59910cffb79 |
-| auditor_m3 | teamwork_preview_auditor | Forensic Integrity Auditor | completed | 0adc7fdb-3d6f-416c-a050-b39e898b80e7 |
-| worker_m4 | teamwork_preview_worker | Verification & Git Deployment Worker | in-progress | 36d70c90-b23d-4d5b-ad0a-286feb3ba53d |
+|-------|------|-----------|--------|---------|
+| explorer_r2 | teamwork_preview_explorer | Survey R2 Stream Aggregator & Cinemeta | IN_PROGRESS | 335b9e88-146e-4a07-a5da-64dfde027586 |
+| explorer_r3_r5 | teamwork_preview_explorer | Survey R3 Routing/Catalogs & R5 UI/Version | IN_PROGRESS | 9417c01c-404c-4cac-9060-938817a09163 |
+| explorer_r4 | teamwork_preview_explorer | Survey R4 E2E Playback & Binary TS test | IN_PROGRESS | 4e9db076-6c43-40ee-bcd6-f314fea8f597 |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 10 / 16
-- Pending subagents: 36d70c90-b23d-4d5b-ad0a-286feb3ba53d
-- Predecessor: 5dfdd9a6-b83e-4a88-88a8-6cfe6611dc5c (orchestrator_1)
+- Spawn count: 3 / 16
+- Pending subagents: 335b9e88-146e-4a07-a5da-64dfde027586, 9417c01c-404c-4cac-9060-938817a09163, 4e9db076-6c43-40ee-bcd6-f314fea8f597
+- Predecessor: none
 - Successor: not yet spawned
 
 ## Active Timers
-- Heartbeat cron: task-16
+- Heartbeat cron: fba97c8d-11f8-4b91-a84e-0732134f065c/task-21
 - Safety timer: none
+- On succession: kill all timers before spawning successor
+- On context truncation: run manage_task(Action="list") — re-create if missing
 
 ## Artifact Index
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md — Project blueprint & milestones
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/ORIGINAL_REQUEST.md — Original requirements
-- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/orchestrator_1/handoff.md — Predecessor handoff
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/ORIGINAL_REQUEST.md — Authoritative User Request
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/PROJECT.md — Global Project Specification
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/worker_m1/handoff.md — M1 Handoff
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_r2/handoff.md — Explorer R2 Handoff (pending)
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_r3_r5/handoff.md — Explorer R3/R5 Handoff (pending)
+- /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/explorer_r4/handoff.md — Explorer R4 Handoff (pending)

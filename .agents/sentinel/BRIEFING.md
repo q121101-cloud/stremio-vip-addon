@@ -6,7 +6,7 @@ Coordinate and oversee the complete overhaul, provider standardization, 404 rout
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: /Users/quan/.gemini/antigravity/scratch/stremio-nguonc-addon/.agents/sentinel/
-- Orchestrator: d0d9d1e0-d0af-4902-a2b7-48ea2868170d
+- Orchestrator: fba97c8d-11f8-4b91-a84e-0732134f065c
 - Victory Auditor: [to be spawned on victory claim]
 
 ## 🔒 Key Constraints
@@ -20,7 +20,7 @@ Coordinate and oversee the complete overhaul, provider standardization, 404 rout
 - **Delivered results**: none
 
 ## Project Status
-- **Phase**: in progress
+- **Phase**: in progress (Orchestrator Gen 2 active)
 
 ## Victory Audit Status
 - **Triggered**: no
