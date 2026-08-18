@@ -225,14 +225,12 @@ async function getStreams(type, id, extra = {}, req = null) {
   const { season, episode, title: propTitle, year: propYear, slug: propSlug, proxyBase } = targetExtra || {};
 
   try {
-    let cleanImdb = null;
+    let cleanImdb = targetExtra?.imdbId || (targetId && String(targetId).startsWith('tt') ? String(targetId).split(':')[0] : null);
     let targetSlug = propSlug ? safeSlug(propSlug, 'film4k') : null;
     let queryTitle = propTitle || null;
     let queryYear = propYear || null;
 
-    if (targetId && String(targetId).startsWith('tt')) {
-      cleanImdb = String(targetId).split(':')[0];
-    } else if (targetId && String(targetId).startsWith('film4k_')) {
+    if (targetId && String(targetId).startsWith('film4k_')) {
       targetSlug = safeSlug(targetId.replace(/^film4k_/, ''), 'film4k');
     }
 
@@ -255,7 +253,7 @@ async function getStreams(type, id, extra = {}, req = null) {
 
     // Step 2: Multi-keyword search fallback if no direct watchData
     if (!watchData && queryTitle) {
-      const keywords = generateSearchKeywords(queryTitle, targetExtra.aliases);
+      const keywords = generateSearchKeywords({ title: queryTitle, aliases: targetExtra?.aliases });
       for (const kw of keywords) {
         if (watchData) break;
         const searchRes = await search(kw, 1);

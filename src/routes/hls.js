@@ -137,6 +137,11 @@ router.get('/extract', async (req, res) => {
     const result = await extractM3u8FromEmbed(embedUrl);
     if (!result || !result.m3u8Url) {
       console.warn('[HLS/extract] Could not extract m3u8 from:', embedUrl.slice(0, 80));
+      if (embedUrl && (embedUrl.startsWith('http://') || embedUrl.startsWith('https://'))) {
+        try {
+          return res.redirect(302, embedUrl);
+        } catch {}
+      }
       return res.status(502).send('Could not extract stream URL from embed');
     }
 
@@ -148,7 +153,14 @@ router.get('/extract', async (req, res) => {
     res.redirect(302, proxyUrl);
   } catch (err) {
     console.error('[HLS/extract]', err.message);
-    if (!res.headersSent) res.status(502).send('Extract error: ' + err.message);
+    if (!res.headersSent) {
+      if (embedUrl && (embedUrl.startsWith('http://') || embedUrl.startsWith('https://'))) {
+        try {
+          return res.redirect(302, embedUrl);
+        } catch {}
+      }
+      res.status(502).send('Extract error: ' + err.message);
+    }
   }
 });
 
@@ -220,6 +232,16 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       } catch (extractErr) {
         console.warn('[HLS/manifest] De-embed fallback warning:', extractErr.message);
       }
+    }
+
+    if (!rawManifestData.includes('#EXTM3U')) {
+      m3u8Cache.del(cacheKey);
+      if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+        try {
+          return res.redirect(302, targetUrl);
+        } catch {}
+      }
+      return res.status(502).send('Invalid M3U8 Manifest');
     }
 
     const finalUrl = r.request?.res?.responseUrl || effectiveTargetUrl;
@@ -462,7 +484,14 @@ router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => 
     return res.send(buffer);
   } catch (err) {
     console.error('[HLS/segment]', err.message, targetUrl.slice(0, 80));
-    if (!res.headersSent) res.status(502).send('HLS Segment Error');
+    if (!res.headersSent) {
+      if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+        try {
+          return res.redirect(302, targetUrl);
+        } catch {}
+      }
+      res.status(502).send('HLS Segment Error');
+    }
   }
 });
 
@@ -501,7 +530,14 @@ router.get(['/key', '/key.key'], async (req, res) => {
     res.send(Buffer.from(r.data));
   } catch (err) {
     console.error('[HLS/key]', err.message, targetUrl.slice(0, 80));
-    if (!res.headersSent) res.status(502).send('Key proxy error');
+    if (!res.headersSent) {
+      if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+        try {
+          return res.redirect(302, targetUrl);
+        } catch {}
+      }
+      res.status(502).send('Key proxy error');
+    }
   }
 });
 

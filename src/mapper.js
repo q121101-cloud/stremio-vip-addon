@@ -277,7 +277,7 @@ function unpackDeanEdwards(packed) {
  * Extract m3u8 URL from embed page (async).
  * Supports Vietsub, Thuyết Minh, Lồng Tiếng, and all upstream CDNs.
  */
-async function extractM3u8FromEmbed(embedUrl) {
+async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
   if (!embedUrl) return null;
 
   try {
@@ -288,11 +288,15 @@ async function extractM3u8FromEmbed(embedUrl) {
 
     const axios = require('axios');
     const embedHost = new URL(embedUrl).origin;
+    const referer = customReferer || 'https://phim.nguonc.com/';
+    let origin = 'https://phim.nguonc.com';
+    try { origin = new URL(referer).origin; } catch {}
+
     const r = await axios.get(embedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        Referer: 'https://phim.nguonc.com/',
-        Origin: 'https://phim.nguonc.com',
+        Referer: referer,
+        Origin: origin,
       },
       timeout: 10000,
     });

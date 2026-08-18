@@ -8,7 +8,7 @@
  *  Validates:
  *    1. Ephemeral Port Server Startup (Port 0) & Clean Teardown in `finally`.
  *    2. Addon Health & Dynamic Manifest Integrity (/health, /manifest.json).
- *    3. All 22 Manifest Catalogs across 6 provider clusters (VSMOV, KKPhim, NguonC, STP, HH3D/CLBPX, YAN):
+ *    3. All 25 Manifest Catalogs across 8 provider clusters (FILM4K, VSMOV, KKPhim, NguonC, STP, HH3D, YAN, CLBPX):
  *       - HTTP 200 for every catalog endpoint /catalog/:type/:id.json (zero 404s).
  *       - Metas array schema verification (id, name, type, poster/background).
  *    4. Stream & TS Video Download across all 6 provider clusters:
@@ -184,16 +184,16 @@ async function verifyAllProvidersPlayback() {
     assert.strictEqual(manifestRes.headers['access-control-allow-origin'], '*', 'Manifest must have CORS *');
     assert.ok(manifestRes.data?.id, 'Manifest must have id');
     assert.ok(Array.isArray(manifestRes.data?.catalogs), 'Manifest must contain catalogs array');
-    assert.strictEqual(manifestRes.data.catalogs.length, 22, `Manifest must contain exactly 22 catalogs (got ${manifestRes.data.catalogs.length})`);
-    recordPass(`Manifest verified (id: ${manifestRes.data.id}, 22 standard catalogs declared)`);
+    assert.strictEqual(manifestRes.data.catalogs.length, 25, `Manifest must contain exactly 25 catalogs (got ${manifestRes.data.catalogs.length})`);
+    recordPass(`Manifest verified (id: ${manifestRes.data.id}, 25 standard catalogs declared)`);
 
     console.log('');
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  PHASE 2: All 22 Manifest Catalogs Verification (HTTP 200, Metas Schema)
+    //  PHASE 2: All 25 Manifest Catalogs Verification (HTTP 200, Metas Schema)
     // ══════════════════════════════════════════════════════════════════════════
-    console.log(`${BOLD}${CYAN}▶ PHASE 2: 22 Manifest Catalogs Query & Metas Schema Verification${RESET}`);
-    assert.strictEqual(ALL_CATALOGS.length, 22, `ALL_CATALOGS definition must have 22 items`);
+    console.log(`${BOLD}${CYAN}▶ PHASE 2: 25 Manifest Catalogs Query & Metas Schema Verification${RESET}`);
+    assert.strictEqual(ALL_CATALOGS.length, 25, `ALL_CATALOGS definition must have 25 items`);
 
     let verifiedCatalogsCount = 0;
 
@@ -216,13 +216,13 @@ async function verifyAllProvidersPlayback() {
         }
 
         verifiedCatalogsCount++;
-        recordPass(`[Catalog ${i + 1}/22] ${cat.id} (${cat.provider}) → HTTP 200, ${metas.length} metas`);
+        recordPass(`[Catalog ${i + 1}/25] ${cat.id} (${cat.provider}) → HTTP 200, ${metas.length} metas`);
       } catch (err) {
         recordFail(`Catalog ${cat.id}`, err);
       }
     }
 
-    assert.strictEqual(verifiedCatalogsCount, 22, `All 22 catalogs must respond with HTTP 200`);
+    assert.strictEqual(verifiedCatalogsCount, 25, `All 25 catalogs must respond with HTTP 200`);
     console.log('');
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -460,8 +460,8 @@ async function verifyAllProvidersPlayback() {
     console.log(`${BOLD}╔══════════════════════════════════════════════════════════════════════════════╗${RESET}`);
     console.log(`${BOLD}║   🎉 ALL E2E PLAYBACK VERIFICATIONS COMPLETED SUCCESSFULLY (100% PASS)       ║${RESET}`);
     console.log(`${BOLD}╠══════════════════════════════════════════════════════════════════════════════╣${RESET}`);
-    console.log(`║  1. Ephemeral Server & Manifest:         ${GREEN}PASSED${RESET} (HTTP 200, 22 Catalogs)            ║`);
-    console.log(`║  2. 22 Manifest Catalogs Integrity:      ${GREEN}PASSED${RESET} (All 22 responded HTTP 200)       ║`);
+    console.log(`║  1. Ephemeral Server & Manifest:         ${GREEN}PASSED${RESET} (HTTP 200, 25 Catalogs)            ║`);
+    console.log(`║  2. 25 Manifest Catalogs Integrity:      ${GREEN}PASSED${RESET} (All 25 responded HTTP 200)       ║`);
     console.log(`║  3. VSMOV 4K Stream & Subtitles:         ${GREEN}PASSED${RESET} (Master 4K, WebVTT, >100KB)         ║`);
     console.log(`║  4. KKPhim FHD Stream & TS Segments:     ${GREEN}PASSED${RESET} (HTTP 200, >100KB, Sync 0x47)       ║`);
     console.log(`║  5. NguonC Stream & TS Segments:         ${GREEN}PASSED${RESET} (StreamC, >100KB, Sync 0x47)        ║`);

@@ -12,6 +12,7 @@
 
 const express = require('express');
 const router  = express.Router();
+const axios   = require('axios');
 
 const api     = require('./api');
 const mapper  = require('./mapper');
@@ -1387,8 +1388,37 @@ async function handleMeta(req, res) {
   try {
     let meta = null;
 
+    // 0. FILM4K ID
+    if (id.startsWith('film4k:') || id.startsWith('film4k_')) {
+      const slug = id.replace(/^film4k[_:]/, '');
+      const detail = await providerFilm4K.getDetail(slug);
+      if (detail && detail.movie) {
+        const isSeries = detail.movie.mediaType === 'tv' || type === 'series';
+        const titleVi = detail.movie.title?.vi || detail.movie.title?.en || detail.movie.name || 'Không rõ tên';
+        const titleEn = detail.movie.title?.en;
+        const poster = detail.movie.poster?.vi || detail.movie.poster?.en || detail.movie.poster || null;
+        const backdrop = detail.movie.backdrop || null;
+        const year = detail.movie.year ? String(detail.movie.year) : null;
+        const badgeParts = ['4K Ultra HD'];
+        if (detail.movie.score) badgeParts.push(`★ ${detail.movie.score.toFixed(1)}`);
+        if (year) badgeParts.push(year);
+
+        meta = {
+          id: `film4k_${slug}`,
+          type: isSeries ? 'series' : 'movie',
+          name: titleVi,
+          origin_name: titleEn || titleVi,
+          poster,
+          posterShape: 'poster',
+          background: backdrop,
+          description: detail.movie.overview?.vi || detail.movie.overview?.en || `Phim 4K VIP trên film4k.net • ${titleVi}`,
+          releaseInfo: badgeParts.join(' · '),
+          year: detail.movie.year || null,
+        };
+      }
+    }
     // 1. VSMOV ID
-    if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
+    else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
       const slug = id.replace(/^vsmov[_:]/, '');
       const detail = await providerVsMov.getDetail(slug);
       if (detail && detail.movie) {
@@ -1696,6 +1726,42 @@ router.get('/stream/:type/:id.json', handleStream);
 router.get('/stream/:type/:id', handleStream);
 router.get('/:config/stream/:type/:id.json', handleStream);
 router.get('/:config/stream/:type/:id', handleStream);
+
+// ─── NguonC Transparent Backend Proxy Route ──────────────────
+router.get('/api/nguonc-proxy', async (req, res) => {
+  const reqPath = req.query.path;
+  if (!reqPath) {
+    return res.status(400).json({ error: 'Missing path parameter' });
+  }
+
+  const cleanPath = String(reqPath).startsWith('/') ? reqPath : `/${reqPath}`;
+  const targetUrl = `https://phim.nguonc.com/api${cleanPath}`;
+
+  const forwardParams = { ...req.query };
+  delete forwardParams.path;
+
+  try {
+    const upstreamRes = await axios.get(targetUrl, {
+      params: forwardParams,
+      timeout: 8000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Referer': 'https://phim.nguonc.com/',
+        'Origin': 'https://phim.nguonc.com',
+        'Accept': 'application/json, text/plain, */*',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
+      },
+    });
+
+    res.status(upstreamRes.status).json(upstreamRes.data);
+  } catch (err) {
+    const status = err.response?.status || 502;
+    res.status(status).json(err.response?.data || { error: 'NguonC Proxy Error', message: err.message });
+  }
+});
 
 // ─── Health check ─────────────────────────────────────────────
 router.get('/health', (req, res) => {

@@ -30,6 +30,7 @@ function sendJSON(res, data) {
 function buildDescription(config) {
   const { providers = [], categories = [] } = config || {};
   const providerLabels = {
+    film4k: 'FILM4K',
     vsmov:  'VSMOV 4K',
     kkphim: 'KKPhim',
     nguonc: 'NguonC',
