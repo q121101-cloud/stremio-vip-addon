@@ -880,6 +880,10 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
       opacity: 1;
     }
   </style>
+  <script>
+    window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body>
   <!-- Taste-Skill Ambient Mesh Layer -->
