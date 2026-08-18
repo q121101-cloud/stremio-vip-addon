@@ -1,96 +1,109 @@
-# Forensic Integrity Audit Report — Milestone 1
+# Forensic Integrity Audit Report — Hotfix v1.5.2
 
-**Work Product**: `src/routes/hls.js` and `src/handlers.js` (Milestone 1 Implementation)  
-**Integrity Mode**: Development (per `ORIGINAL_REQUEST.md`)  
-**Verdict**: **`CLEAN`**
+**Work Product**: Stremio VIP Movies Addon — Hotfix v1.5.2 (`src/providers/vsmov.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `src/index.js`, `src/handlers.js`, `src/manifest.js`, `package.json`, `tests/verify_hotfix_vsmov_kkphim.js`)
+**Integrity Mode**: `development` (per `ORIGINAL_REQUEST.md`)
+**Verdict**: `CLEAN`
 
 ---
 
 ## 1. Observation
 
-### Source Code Analysis
-- **`src/routes/hls.js`** (lines 375–432):
-  - Route registration: `router.get(['/sub.vtt', '/sub'], async (req, res) => { ... })`.
-  - Header setup: `setCorsHeaders(res)` (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Headers: *`, `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`), `Content-Type: text/vtt; charset=utf-8`, and `Cache-Control: public, max-age=86400`.
-  - Parameter decoding: resolves URL via `resolveParamUrl(req.query.url || req.query.b64 || req.query.sub)` supporting plain HTTP URLs and Base64/Base64URL encodings.
-  - Anti-403 HTTP fetch: uses `axios` with `User-Agent: HLS_UA` (Chrome 126), dynamic `Referer` (`req.query.ref` or fallback `https://vsmov.com/`), and dynamically calculated `Origin` header.
-  - SRT to WebVTT transformation:
-    - Strips UTF-8 BOM (`0xFEFF` / `\uFEFF`).
-    - Normalizes CRLF and CR linebreaks (`content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()`).
-    - Converts SRT millisecond comma delimiters to dot format: `content.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')`.
-    - Prepends `WEBVTT\n\n` header if not already native WebVTT.
-    - Preserves native WebVTT intact without double-prefixing.
-    - Error handling: catches upstream errors and returns appropriate HTTP status codes (e.g. 403, 404, 500, 502) without uncaught exceptions or server crashes.
-  - Route aliases: `/manifest.m3u8`, `/m3u8`, `/m3u8-proxy` (line 146) and `/segment.ts`, `/ts`, `/segment`, `/ts-proxy` (line 278) registered.
+Direct empirical observations made during the forensic audit across static source code analysis, live network execution, and stress testing:
 
-- **`src/handlers.js`** (lines 944–959):
-  - Subtitle pass-through:
-    ```javascript
-    if (Array.isArray(item.subtitles)) {
-      sanitized.subtitles = item.subtitles;
-    }
-    delete sanitized.externalUrl;
-    ```
-  - In-App protocol compliance: deletes `externalUrl` property from all stream objects, enforces valid non-empty `url`, and preserves `subtitles` array when present while filtering invalid non-array formats.
+### 1.1 Static Source Code Analysis & Prohibited Patterns Scan
+- **Hardcoded Test Outputs**: Grep search across `src/` for test IMDb IDs (`tt5095030`, `tt0903747`, `tt0373889`) returned **0 matches** in executable code (only standard JSDoc parameter documentation examples in `src/lib/cinemeta.js:85,101` and `src/api.js:166`).
+- **Mock/Fake/Stub Objects**: Grep searches for `fakeStream`, `mock`, `stub`, `dummy`, `return <constant>` returned **0 matches** in `src/`.
+- **Pre-populated Result Artifacts**: Zero pre-populated test output logs or fabricated attestations found.
+- **Strict In-App Protocol Enforcement**:
+  - `src/handlers.js:1614`: `delete sanitized.externalUrl;` guarantees no `externalUrl` leaks.
+  - `src/providers/vsmov.js:598-620`: Returns stream objects with `url` routing via `/hls/manifest.m3u8` and attached `subtitles` array with `id: "vi_vsmov"`, `lang: "vie"`, and title `"Tiếng Việt (VSMOV VIP)"`.
+  - `src/providers/kkphim.js:450-458`: Returns stream objects with `url` routing via `/hls/manifest.m3u8` and no `externalUrl`.
 
-### Forensic Checks & Empirical Executions
+### 1.2 Subtitle Extraction & Subtitle Proxy (`/hls/sub.vtt`)
+- **VSMOV Subtitle Extraction**:
+  - `src/providers/vsmov.js:148-181` extracts subtitles from `playerOptions.subtitles` / `tracks` JSON array as well as regex fallback parsing for relative and absolute `.vtt` / `.srt` URLs.
+  - Direct execution with live Harry Potter media (`tt0373889`) extracted real Vietnamese subtitle URL:
+    `https://v5.streamvsmov.com/video/382f09db-83ff-4d89-9be9-797162d4f2e6/subtitle/vie_1785240078185_txr9be.vtt`
+- **Subtitle Proxy (`/hls/sub.vtt`)**:
+  - `src/routes/hls.js:427-504`:
+    - Handles both `data:` URIs and remote HTTP upstream fetches with `Referer: https://vsmov.com/`.
+    - Strips UTF-8 BOM (`\uFEFF`).
+    - Normalizes CRLF/CR to LF (`\n`).
+    - Converts comma-delimited SRT timestamps (`00:00:01,000` -> `00:00:01.000`).
+    - Prepends `WEBVTT\n\n` header when missing.
+    - Sets `Content-Type: text/vtt; charset=utf-8`, `Access-Control-Allow-Origin: *`, and `Cache-Control: public, max-age=86400`.
+  - Live fetching of the VSMOV subtitle via `/hls/sub.vtt` returned HTTP 200 with full Vietnamese WebVTT content.
 
-1. **Hardcoded Test String & Facade Detection**:
-   - Grep search for test strings (e.g. `mockSrtContent`, `Xin chào thế giới`, `57123`, `test.srt`) in `src/` yielded 0 matches.
-   - Code inspection confirmed all proxy logic performs dynamic HTTP calls, dynamic regex conversions, and dynamic parameter resolution.
+### 1.3 KKPhim Smart Search Fallback & Episode Matching
+- **Multi-Tier Fallback Mechanism (`src/providers/kkphim.js:345-389`)**:
+  - **Tier 1**: Direct IMDb ID lookup via `https://phimapi.com/imdb/title/:imdbId`.
+  - **Tier 2**: Smart search fallback resolving title & aliases via Cinemeta (`resolveCinemeta`), querying `https://phimapi.com/v1/api/tim-kiem?keyword=...`, scoring matches via `scoreMatch(item, title, year, season)`, and selecting the highest scoring slug (`bestScore >= 0.45`).
+  - **Tier 3**: Safe degradation returning empty array `[]` when no match is found (zero crashes, zero 404 stream URLs).
+- **Flexible Episode Matching (`src/providers/kkphim.js:66-102`)**:
+  - Validated matching across `"1"`, `"01"`, `"001"`, `"Tập 1"`, `"Tập 01"`, `"tap-1"`, `"tap-01"`, `"episode-1"`, `ep-1`, and 1-based index fallback.
+- **Empirical Execution**:
+  - KKPhim for Avengers 3 (`tt5095030`) successfully retrieved 2 active HLS streams via `phimapi.com` without hardcoding.
 
-2. **Pre-populated Artifact Detection**:
-   - `find . -name '*.log' -o -name '*result*' -o -name '*output*'` returned 0 pre-populated result files.
+### 1.4 Master M3U8 Subtitle Tag Injection & TS Segment Proxy
+- **Master M3U8 Rewriting (`src/routes/hls.js:300-318`)**:
+  - Injects `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Tiếng Việt (VSMOV VIP)",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE="vie",URI="/hls/sub.vtt?url=...&ref=..."` immediately after `#EXTM3U` or `#EXT-X-VERSION`.
+  - Appends `,SUBTITLES="subs"` to `#EXT-X-STREAM-INF` lines.
+- **TS Segment Streaming (`src/routes/hls.js:330-387`)**:
+  - Successfully streamed public Mux TS segment (`1.9 MB > 50 KB`).
+  - First byte verified as MPEG-TS sync byte `0x47`.
+  - HTTP Range header verified: `Range: bytes=0-511` returned HTTP 206 Partial Content with exactly 512 bytes payload.
 
-3. **Syntax & Independent Behavioral Execution**:
-   - `node --check src/routes/hls.js && node --check src/handlers.js && node --check src/index.js` passed with 0 errors.
-   - `node tests/test_m1_subtitle_proxy.js`: 27/27 assertions PASSED (100%).
-   - `node tests/test_m1_preview_challenger2.js`: 103/103 assertions PASSED (100%), including 50 parallel concurrent requests and adversarial edge cases.
+### 1.5 Test Suite Execution Results
+- `tests/verify_hotfix_vsmov_kkphim.js`: **26/26 assertions PASSED (100% success)**.
+- Independent auditor test suite `.agents/teamwork_preview_auditor_m1_1/forensic_check.js`: **26/26 checks PASSED (100% success)**.
+- `node --check` syntax verification: 8/8 files passed with 0 errors.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Observation 1**: `src/routes/hls.js` implements `/hls/sub.vtt` and `/hls/sub` with dynamic `axios` HTTP fetching, dynamic Referer/Origin calculation, UTF-8 BOM stripping, CRLF normalization, and regex timestamp conversion `(\d{2}:\d{2}:\d{2}),(\d{3}) -> $1.$2`.
-2. **Observation 2**: `src/handlers.js` explicitly preserves `item.subtitles` on stream objects when it is an array and strictly deletes `externalUrl`, guaranteeing In-App direct play protocol integrity.
-3. **Observation 3**: Empirical execution across 130+ assertions (covering route aliases, SRT conversion, BOM stripping, native WebVTT passthrough, upstream error propagation, concurrency, and In-App protocol checks) passed with 100% success.
-4. **Observation 4**: Forensic checks for hardcoding, facades, pre-populated logs, and mock evasions showed zero integrity violations.
-5. **Inference**: Milestone 1 implementation is genuine, complete, robust, and free of shortcuts or integrity violations under Development mode constraints.
+1. **Premise 1**: Under Development Mode integrity rules, a work product is rejected if it contains hardcoded test results, facade/stub implementations that fake outputs without real computation, or fabricated verification logs.
+2. **Observation Step 1**: Static source code scanning across all affected files (`src/providers/vsmov.js`, `src/routes/hls.js`, `src/providers/kkphim.js`, `src/index.js`, `src/handlers.js`) confirmed 0 hardcoded test conditionals, 0 fake streams, and 0 dummy facades.
+3. **Observation Step 2**: Live behavioral execution confirmed that VSMOV subtitle extraction connects to real upstream servers, parses HTML/JS player configurations, and proxies subtitles through `/hls/sub.vtt` with valid WebVTT formatting.
+4. **Observation Step 3**: Empirical validation confirmed that KKPhim executes real 3-tier fallback lookups (IMDb direct -> Cinemeta title search + `scoreMatch` -> safe `[]` degradation) and matches episodes across multiple naming variations.
+5. **Observation Step 4**: Master M3U8 rewriting was directly tested and verified to parse playlist structures, rewrite variant URIs, and inject `#EXT-X-MEDIA:TYPE=SUBTITLES` tags for automatic ExoPlayer/VLC detection.
+6. **Observation Step 5**: Binary TS streaming was independently executed and proven to stream genuine MPEG-TS data (>50KB, sync byte `0x47`, HTTP 206 Range support).
+7. **Conclusion Step**: Because all 5 forensic requirements operate authentically with genuine network and parsing logic and zero prohibited shortcuts, the work product is rated `CLEAN`.
 
 ---
 
 ## 3. Caveats
 
-- **Upstream VSMOV Provider Scraping (Milestone 2 Scope)**: Milestone 1 implements the Subtitle Proxy endpoint (`/hls/sub.vtt`) and Aggregator pass-through in `src/handlers.js`. The scraping and attachment of subtitles from live VSMOV embed players (`src/providers/vsmov.js`) is designated for Milestone 2.
+- **Upstream Rate Limiting**: Remote upstream APIs (e.g. `phimapi.com`) may intermittently return HTTP 429 if bombarded with excessive rapid requests during automated testing. The addon implements a 5-second Axios timeout and Tier 3 safe empty array `[]` return to prevent server blocking or crashing during upstream transient rate limits.
+- No other caveats.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict: `CLEAN`**
+Hotfix v1.5.2 is a **GENUINE, AUTHENTIC IMPLEMENTATION** that fully satisfies all requirements R1, R2, R3, and R4 of `ORIGINAL_REQUEST.md`.
 
-The Milestone 1 work product satisfies all forensic integrity checks:
-- No hardcoded test responses or strings.
-- No facade or stubbed proxy logic.
-- Genuine HTTP fetching with anti-403 headers and timeout safety.
-- Authentic SRT to WebVTT conversion with BOM handling and timestamp normalization.
-- Strict compliance with Stremio In-App streaming protocol (`url` present, `externalUrl` deleted, `subtitles` preserved).
+- **Verdict**: `CLEAN`
+- **Integrity Violations Found**: 0
+- **Recommendation**: Accept Hotfix v1.5.2 for release.
 
 ---
 
 ## 5. Verification Method
 
-Run the following commands to independently verify the audit findings:
+To independently verify this audit:
 
 ```bash
-# 1. Syntax check
-node --check src/routes/hls.js
-node --check src/handlers.js
+# 1. Syntax check all source and test files
 node --check src/index.js
+node --check src/routes/hls.js
+node --check src/providers/vsmov.js
+node --check src/providers/kkphim.js
+node --check tests/verify_hotfix_vsmov_kkphim.js
 
-# 2. Run M1 Subtitle Proxy verification suite
-node tests/test_m1_subtitle_proxy.js
+# 2. Run the official hotfix verification suite
+node tests/verify_hotfix_vsmov_kkphim.js
 
-# 3. Run Adversarial M1 Challenger verification suite
-node tests/test_m1_preview_challenger2.js
+# 3. Run the independent auditor forensic suite
+node .agents/teamwork_preview_auditor_m1_1/forensic_check.js
 ```
