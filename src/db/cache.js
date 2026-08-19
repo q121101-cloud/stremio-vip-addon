@@ -7,22 +7,37 @@
  * ============================================================
  */
 
-const supabaseDb = require('./supabase');
+const { getL2StreamCache, setL2StreamCache, getCachedValue, setCachedValue, deleteCachedValue, isReady } = require('./supabase');
 const { TTL } = require('../config/constants');
 
 // ─── 1. In-Memory LRU Cache Class (<1ms Access) ───────────────
 class LRUCache {
   /**
-   * @param {number} maxSize
-   * @param {number} defaultTTL - Seconds
+   * @param {number|object} optionsOrMaxSize
+   * @param {number} [defaultTTL=300] - Seconds
    */
-  constructor(maxSize = 1000, defaultTTL = 300) {
-    this.maxSize    = maxSize;
-    this.defaultTTL = defaultTTL * 1000; // ms
-    this._map       = new Map();
-    this._hits      = 0;
-    this._misses    = 0;
+  constructor(optionsOrMaxSize = 1000, defaultTTL = 300) {
+    if (typeof optionsOrMaxSize === 'object' && optionsOrMaxSize !== null) {
+      this.maxSize = optionsOrMaxSize.max || 1000;
+      this.defaultTTL = optionsOrMaxSize.ttl ? optionsOrMaxSize.ttl : defaultTTL * 1000;
+    } else {
+      this.maxSize = optionsOrMaxSize || 1000;
+      this.defaultTTL = defaultTTL * 1000; // ms
+    }
+    this._map = new Map();
+    this._hits = 0;
+    this._misses = 0;
     this._evictions = 0;
+  }
+
+  has(key) {
+    const entry = this._map.get(key);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this._map.delete(key);
+      return false;
+    }
+    return true;
   }
 
   get(key) {
@@ -44,8 +59,14 @@ class LRUCache {
     return entry.value;
   }
 
-  set(key, value, ttlSeconds) {
-    const ttlMs = (ttlSeconds != null ? ttlSeconds : this.defaultTTL / 1000) * 1000;
+  set(key, value, ttlSecondsOrOpts) {
+    let ttlMs = this.defaultTTL;
+    if (typeof ttlSecondsOrOpts === 'number') {
+      ttlMs = ttlSecondsOrOpts * 1000;
+    } else if (typeof ttlSecondsOrOpts === 'object' && ttlSecondsOrOpts?.ttl) {
+      ttlMs = ttlSecondsOrOpts.ttl;
+    }
+
     if (this._map.has(key)) this._map.delete(key);
 
     if (this._map.size >= this.maxSize) {
@@ -66,8 +87,8 @@ class LRUCache {
 
   clear() {
     this._map.clear();
-    this._hits      = 0;
-    this._misses    = 0;
+    this._hits = 0;
+    this._misses = 0;
     this._evictions = 0;
   }
 
@@ -85,7 +106,45 @@ class LRUCache {
   }
 }
 
-// ─── 2. Tiered Cache (L1 Memory + L2 Supabase) ─────────────────
+// ─── 2. L1 RAM Cache for Streams (1000 items, 10 min TTL) ─────
+const l1Cache = new LRUCache({
+  max: 1000,
+  ttl: 1000 * 60 * 10,
+});
+
+/**
+ * Retrieve cached streams (L1 RAM -> L2 Supabase)
+ * @param {string} streamKey
+ * @returns {Promise<Array|null>}
+ */
+async function getCache(streamKey) {
+  // Check L1 RAM Cache
+  if (l1Cache.has(streamKey)) {
+    return l1Cache.get(streamKey);
+  }
+
+  // Check L2 Supabase Stream Cache
+  const l2Data = await getL2StreamCache(streamKey);
+  if (l2Data) {
+    l1Cache.set(streamKey, l2Data); // Populate L1 on hit
+    return l2Data;
+  }
+
+  return null;
+}
+
+/**
+ * Set stream cache (L1 RAM + L2 Supabase)
+ * @param {string} streamKey
+ * @param {Array} streams
+ * @param {number} [ttlSeconds=14400] - 4 hours default
+ */
+async function setCache(streamKey, streams, ttlSeconds = 14400) {
+  l1Cache.set(streamKey, streams, { ttl: 1000 * 60 * 10 });
+  await setL2StreamCache(streamKey, streams, ttlSeconds);
+}
+
+// ─── 3. Tiered Cache Class (L1 Memory + L2 Supabase) ──────────
 class TieredCache {
   /**
    * @param {string} namespace - e.g. 'catalog', 'detail', 'meta', 'stream'
@@ -98,39 +157,27 @@ class TieredCache {
     this.defaultTTL = defaultTTL;
   }
 
-  /**
-   * Synchronous L1 lookup (instantaneous < 1ms)
-   * @param {string} key
-   * @returns {any|undefined}
-   */
   getSync(key) {
     return this.l1.get(key);
   }
 
-  /**
-   * Asynchronous Tiered lookup (L1 -> L2 Supabase)
-   * @param {string} key
-   * @returns {Promise<any|undefined>}
-   */
   async get(key) {
     const l1Hit = this.l1.get(key);
     if (l1Hit !== undefined) {
       return l1Hit;
     }
 
-    // L1 Miss: Check L2 Supabase
-    if (supabaseDb.isReady()) {
+    if (isReady()) {
       try {
         let l2Hit = null;
         if (this.namespace === 'stream') {
-          l2Hit = await supabaseDb.getStreamCache(key);
+          l2Hit = await getL2StreamCache(key);
         }
         if (!l2Hit) {
-          l2Hit = await supabaseDb.getCachedValue(this.namespace, key);
+          l2Hit = await getCachedValue(this.namespace, key);
         }
 
         if (l2Hit !== null && l2Hit !== undefined) {
-          // Populate L1 for future instant lookups
           this.l1.set(key, l2Hit, this.defaultTTL);
           return l2Hit;
         }
@@ -140,36 +187,24 @@ class TieredCache {
     return undefined;
   }
 
-  /**
-   * Write-through Cache (L1 + background L2 Supabase)
-   * @param {string} key
-   * @param {any} value
-   * @param {number} [ttlSeconds]
-   */
   set(key, value, ttlSeconds) {
     if (value === undefined) return;
     const ttl = ttlSeconds != null ? ttlSeconds : this.defaultTTL;
 
-    // L1 Write (Immediate)
     this.l1.set(key, value, ttl);
 
-    // L2 Write (Background async)
-    if (supabaseDb.isReady()) {
+    if (isReady()) {
       if (this.namespace === 'stream' && Array.isArray(value)) {
-        supabaseDb.setStreamCache(key, value, ttl).catch(() => {});
+        setL2StreamCache(key, value, ttl).catch(() => {});
       }
-      supabaseDb.setCachedValue(this.namespace, key, value, ttl).catch(() => {});
+      setCachedValue(this.namespace, key, value, ttl).catch(() => {});
     }
   }
 
-  /**
-   * Delete key in both tiers
-   * @param {string} key
-   */
   del(key) {
     this.l1.del(key);
-    if (supabaseDb.isReady()) {
-      supabaseDb.deleteCachedValue(this.namespace, key).catch(() => {});
+    if (isReady()) {
+      deleteCachedValue(this.namespace, key).catch(() => {});
     }
   }
 
@@ -181,12 +216,12 @@ class TieredCache {
     return {
       namespace: this.namespace,
       l1: this.l1.stats,
-      l2Ready: supabaseDb.isReady(),
+      l2Ready: isReady(),
     };
   }
 }
 
-// ─── 3. Standard Singleton Cache Instances ────────────────────
+// ─── 4. Standard Singleton Cache Instances ────────────────────
 const catalogCache     = new TieredCache('catalog', 500, TTL.CATALOG);
 const detailCache      = new TieredCache('detail', 1000, TTL.DETAIL);
 const metaCache        = new TieredCache('meta', 1000, TTL.META);
@@ -198,6 +233,9 @@ const hlsManifestCache = new TieredCache('hls_manifest', 500, TTL.HLS_MANIFEST);
 module.exports = {
   LRUCache,
   TieredCache,
+  l1Cache,
+  getCache,
+  setCache,
   catalogCache,
   detailCache,
   metaCache,
