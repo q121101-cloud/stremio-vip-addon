@@ -16,7 +16,7 @@ const manifestRouter = require('./routes/manifest');
 const catalogRouter = require('./routes/catalog');
 const metaRouter = require('./routes/meta');
 const streamRouter = require('./routes/stream');
-const { handleNguonCProxy } = require('./workers/indexer');
+const { workerRouter, handleNguonCProxy } = require('./workers/indexer');
 const { decodeConfig, encodeConfig, isConfigToken, getDefaultToken } = require('./config/compressor');
 const { ADDON_VERSION, DEFAULT_CONFIG } = require('./config/constants');
 const { catalogCache, metaCache, streamCache, imdbCache } = require('./db/cache');
@@ -61,37 +61,17 @@ app.use((req, res, next) => {
 // ─── Favicon silence ─────────────────────────────────────────
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// ─── Health Check Endpoint ───────────────────────────────────
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    addon: 'VIP Movies Stremio Addon',
-    version: ADDON_VERSION,
-    database: {
-      supabaseReady: supabaseDb.isReady(),
-    },
-    cache: {
-      catalog: catalogCache.stats,
-      meta: metaCache.stats,
-      stream: streamCache.stats,
-      imdb: imdbCache.stats,
-    },
-    uptimeSeconds: Math.floor(process.uptime()),
-    timestamp: new Date().toISOString(),
-  });
-});
+// ─── Health Check Endpoint (Keep-alive for UptimeRobot) ───────
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
-// ─── NguonC Stealth Proxy Forwarding ──────────────────────────
-app.get(['/proxy/nguonc', '/api/nguonc-proxy'], handleNguonCProxy);
-
-// ─── Mount HLS Proxy ─────────────────────────────────────────
-app.use('/hls', hlsRouter);
-
-// ─── Mount Stremio Addon Routes ──────────────────────────────
+// ─── Attach Core Routes ──────────────────────────────────────
 app.use('/', manifestRouter);
+app.use('/', streamRouter);
+app.use('/', hlsRouter);
+app.use('/hls', hlsRouter);
 app.use('/', catalogRouter);
 app.use('/', metaRouter);
-app.use('/', streamRouter);
+app.use('/', workerRouter);
 
 // ─── Configurator Dashboard UI (OLED True Black Glassmorphism)
 function escapeHtml(str) {

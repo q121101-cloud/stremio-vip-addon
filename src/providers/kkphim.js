@@ -254,12 +254,17 @@ async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
 // ─────────────────────────────────────────────────────────────
 //  5. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
-async function getStreams(arg1, title, type, season, episode, proxyBase) {
+async function getStreams(arg1, arg2, arg3, arg4, arg5, arg6) {
   let imdbId  = null;
   let slug    = null;
+  let title   = null;
+  let type    = 'movie';
   let year    = null;
   let genres  = null;
   let aliases = [];
+  let season  = 1;
+  let episode = 1;
+  let proxyBase = '';
 
   if (typeof arg1 === 'object' && arg1 !== null) {
     imdbId    = arg1.imdbId || null;
@@ -268,27 +273,30 @@ async function getStreams(arg1, title, type, season, episode, proxyBase) {
     year      = arg1.year || null;
     genres    = arg1.genres || null;
     aliases   = Array.isArray(arg1.aliases) ? arg1.aliases : [];
-    season    = arg1.season != null ? arg1.season : null;
-    episode   = arg1.episode != null ? arg1.episode : null;
+    season    = arg1.season != null ? (parseInt(arg1.season, 10) || 1) : 1;
+    episode   = arg1.episode != null ? (parseInt(arg1.episode, 10) || 1) : 1;
     slug      = arg1.slug || null;
     proxyBase = arg1.proxyBase || '';
   } else if (typeof arg1 === 'string') {
     if (/^tt\d+/i.test(arg1)) {
       imdbId = arg1;
+      if (typeof arg2 === 'string') {
+        title = arg2;
+        type = typeof arg3 === 'string' ? arg3 : 'movie';
+        season = parseInt(arg4, 10) || 1;
+        episode = parseInt(arg5, 10) || 1;
+        proxyBase = arg6 || '';
+      } else {
+        season = parseInt(arg2, 10) || 1;
+        episode = parseInt(arg3, 10) || 1;
+        proxyBase = arg4 || '';
+      }
     } else {
       slug = arg1;
+      season = parseInt(arg2, 10) || 1;
+      episode = parseInt(arg3, 10) || 1;
+      proxyBase = arg4 || '';
     }
-    type = type || 'movie';
-    proxyBase = proxyBase || '';
-  }
-
-  if (season != null) {
-    const seasonNum = parseInt(season, 10);
-    if (isNaN(seasonNum) || seasonNum <= 0 || seasonNum > 1000) return [];
-  }
-  if (episode != null) {
-    const epNum = parseInt(episode, 10);
-    if (String(episode).trim().startsWith('-') || (!isNaN(epNum) && epNum <= 0)) return [];
   }
 
   // Resolve Cinemeta metadata (name, year, aliases) if missing

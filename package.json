@@ -1,15 +1,12 @@
 {
   "name": "stremio-nguonc-addon",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "Enterprise VIP Movies Stremio Addon (VSMOV 4K, KKPhim, NguonC)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node tests/unit_providers.test.js && node tests/hls_proxy.test.js && node tests/live_e2e_benchmark.test.js",
-    "test:unit": "node tests/unit_providers.test.js",
-    "test:hls": "node tests/hls_proxy.test.js",
-    "test:benchmark": "node tests/live_e2e_benchmark.test.js",
+    "test": "vitest run",
     "test:legacy": "node src/test.js"
   },
   "keywords": [
@@ -31,10 +28,12 @@
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.21.1",
-    "node-cache": "^5.1.2"
+    "node-cache": "^5.1.2",
+    "node-cron": "^4.6.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7"
+    "nodemon": "^3.1.7",
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=18.0.0"
