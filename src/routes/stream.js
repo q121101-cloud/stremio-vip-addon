@@ -8,23 +8,29 @@
  */
 
 const express = require('express');
-const router  = express.Router();
-
-const providerVsMov  = require('../providers/vsmov');
-const providerKKPhim = require('../providers/kkphim');
-const providerNguonC = require('../providers/nguonc');
-const { streamCache } = require('../db/cache');
+const router = express.Router();
+const { getCache, setCache } = require('../db/cache');
+const { getMediaMapping } = require('../db/supabase');
+const kkphim = require('../providers/kkphim');
+const nguonc = require('../providers/nguonc');
+const vsmov = require('../providers/vsmov');
 const { decodeConfig } = require('../config/compressor');
 const { resolveCinemeta } = require('../lib/cinemeta');
-const { TIMEOUT, TTL } = require('../config/constants');
+const { TIMEOUTS, TTL } = require('../config/constants');
 
-const ALL_PROVIDERS = {
-  vsmov:  providerVsMov,
-  kkphim: providerKKPhim,
-  nguonc: providerNguonC,
+// Helper bọc timeout 3000ms cho từng provider
+const withTimeout = (promise, ms = 3000, label = 'Provider') => {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`[${label}] Timeout after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 };
 
-const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc'];
+function encodeB64(str) {
+  if (!str) return '';
+  return Buffer.from(str, 'utf8').toString('base64url');
+}
 
 function sendJSON(res, data) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -34,51 +40,28 @@ function sendJSON(res, data) {
   return res.json(data);
 }
 
-function getConfig(req) {
-  if (req.addonConfig) return req.addonConfig;
-  if (req.params.config) return decodeConfig(req.params.config);
-  if (req.query.config) return decodeConfig(req.query.config);
-  return decodeConfig(null);
-}
-
-function withTimeout(promise, ms, label = 'Provider') {
-  let timer;
-  const timeoutPromise = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`[${label}] Timeout after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
-}
-
 function getStreamPriority(stream) {
   if (!stream) return 999;
   const title = (stream.title || '').toLowerCase();
   const name  = (stream.name || '').toLowerCase();
   const text  = `${name} ${title}`;
 
-  // Provider rank (VIP 1 VSMOV -> VIP 2 KKPhim -> VIP 3 NguonC)
   let providerRank = 4;
   if (text.includes('vsmov') || text.includes('vip 1')) providerRank = 1;
   else if (text.includes('kkphim') || text.includes('vip 2')) providerRank = 2;
   else if (text.includes('nguonc') || text.includes('vip 3')) providerRank = 3;
 
-  // Global priority strictly follows: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng
   const is4K         = text.includes('4k') || text.includes('ultra hd') || text.includes('3840x2160') || text.includes('uhd');
   const isVietsub    = text.includes('vietsub') || text.includes('phụ đề') || text.includes('phu de');
   const isThuyetMinh = text.includes('thuyết minh') || text.includes('thuyet minh') || /\btm\b/.test(text) || text.includes('voiceover');
   const isLongTieng  = text.includes('lồng tiếng') || text.includes('long tieng') || /\blt\b/.test(text) || text.includes('dub');
 
-  let bucket = 400; // default / other
-  if (is4K) {
-    bucket = 0;
-  } else if (isVietsub) {
-    bucket = 100;
-  } else if (isThuyetMinh) {
-    bucket = 200;
-  } else if (isLongTieng) {
-    bucket = 300;
-  }
+  let bucket = 400;
+  if (is4K) bucket = 0;
+  else if (isVietsub) bucket = 100;
+  else if (isThuyetMinh) bucket = 200;
+  else if (isLongTieng) bucket = 300;
 
-  // Within 4K bucket, sub-sort: 4K Vietsub -> 4K TM -> 4K LT -> 4K Other
   if (is4K) {
     let subAudioOffset = 0;
     if (isVietsub) subAudioOffset = 0;
@@ -91,173 +74,182 @@ function getStreamPriority(stream) {
   return bucket + providerRank;
 }
 
-function normalizeStreamKey(stream) {
-  if (!stream || !stream.url || typeof stream.url !== 'string') return null;
-  const raw = stream.url.trim();
-  try {
-    const u = new URL(raw);
-    const targetUrl = u.searchParams.get('url');
-    if (targetUrl) {
-      return `target:${targetUrl}`;
-    }
-    return `url:${raw}`;
-  } catch {
-    return `url:${raw}`;
-  }
-}
+const STREAM_ROUTES = [
+  '/stream/:type/:id.json',
+  '/c/:bitmask/stream/:type/:id.json',
+  '/:config/stream/:type/:id.json',
+];
 
-async function handleStream(req, res) {
+router.get(STREAM_ROUTES, async (req, res) => {
   const startTime = Date.now();
   const rawId   = req.params.id || '';
   const rawType = req.params.type || 'movie';
   const id      = rawId.replace(/\.json$/i, '');
   const type    = rawType.replace(/\.json$/i, '');
-  const config  = getConfig(req);
+  const streamKey = `${id}`;
   const proxyBase = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`.replace(/\/$/, '');
 
-  const provMaskKey = (config.providers || []).sort().join(',');
-  const cacheKey = `stream:${type}:${id}:${provMaskKey}`;
-
-  // 1. Instant Tiered Cache Hit (<50ms on cache)
-  const cachedStreams = await streamCache.get(cacheKey);
-  if (cachedStreams && Array.isArray(cachedStreams) && cachedStreams.length > 0) {
-    const elapsed = Date.now() - startTime;
-    console.log(`[Stream Aggregator] CACHE HIT (${elapsed}ms) id=${id} streams=${cachedStreams.length}`);
-    return sendJSON(res, { streams: cachedStreams });
-  }
-
-  console.log(`[Stream Aggregator] type=${type} id=${id} activeProviders=${provMaskKey}`);
-
   try {
-    let imdbId = null;
-    let slug = null;
-    let season = null;
-    let episode = null;
-    let title = null;
-    let year = null;
-    let genres = [];
+    // BƯỚC 1: Kiểm tra Cache L1/L2 (< 50ms)
+    const cachedStreams = await getCache(streamKey);
+    if (cachedStreams && Array.isArray(cachedStreams) && cachedStreams.length > 0) {
+      const elapsed = Date.now() - startTime;
+      console.log(`[Stream Aggregator] CACHE HIT (${elapsed}ms) id=${id} streams=${cachedStreams.length}`);
+      return sendJSON(res, { streams: cachedStreams });
+    }
+
+    // BƯỚC 2: Phân tích ID (Movie: tt1234567 | Series: tt1234567:1:1)
+    const parts = id.split(':');
+    const imdbId = parts[0];
+    const season = parts[1] ? parseInt(parts[1], 10) : 1;
+    const episode = parts[2] ? parseInt(parts[2], 10) : 1;
+
+    // Lấy mapping từ Supabase nếu có
+    let mapping = null;
+    try {
+      mapping = await getMediaMapping(imdbId);
+    } catch {}
+
+    // Cinemeta Metadata Resolution nếu chưa có title
+    let canonicalTitle = mapping?.title || null;
+    let canonicalYear  = mapping?.year || null;
     let aliases = [];
 
-    // Parse ID
-    if (/^tt\d+/i.test(id)) {
-      const parts = id.split(':');
-      imdbId  = parts[0].toLowerCase();
-      season  = parts[1] ? parseInt(parts[1], 10) : null;
-      episode = parts[2] ? parseInt(parts[2], 10) : null;
-
+    if (!canonicalTitle && imdbId.startsWith('tt')) {
       try {
-        const cineMeta = await resolveCinemeta(type, imdbId);
-        if (cineMeta) {
-          title = cineMeta.name || null;
-          year = cineMeta.year || null;
-          genres = cineMeta.genres || [];
-          aliases = cineMeta.aliases || [];
+        const meta = await resolveCinemeta(imdbId, type);
+        if (meta) {
+          canonicalTitle = meta.name || meta.title;
+          canonicalYear  = meta.year;
+          aliases = meta.aliases || [];
         }
-      } catch (e) {
-        console.warn(`[Stream Aggregator] Cinemeta resolve warning for ${imdbId}:`, e.message);
-      }
-    } else {
-      const colonParts = id.split(':');
-      if (colonParts.length >= 3 && !isNaN(parseInt(colonParts[colonParts.length - 1], 10)) && !isNaN(parseInt(colonParts[colonParts.length - 2], 10))) {
-        episode = parseInt(colonParts[colonParts.length - 1], 10);
-        season = parseInt(colonParts[colonParts.length - 2], 10);
-        slug = colonParts.slice(0, colonParts.length - 2).join(':').replace(/^(?:kkphim|nguonc|vsmov|koreandrama|series|movie|custom|phim)[_:]/i, '');
-      } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
-        slug = id.replace(/^kkphim[_:]/, '');
-      } else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
-        slug = id.replace(/^nguonc[_:]/, '');
-      } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
-        slug = id.replace(/^vsmov[_:]/, '');
-      } else {
-        slug = id;
-      }
-
-      if (!title && slug) {
-        const cleanSlugTitle = slug
-          .replace(/^(?:kkphim|nguonc|vsmov|koreandrama|series|movie|custom|phim)[_:]/i, '')
-          .replace(/[-_]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (cleanSlugTitle) {
-          title = cleanSlugTitle;
-          aliases.push(cleanSlugTitle);
-        }
-      }
+      } catch {}
     }
 
-    const payload = { imdbId, type, title, year, genres, aliases, season, episode, slug, proxyBase };
+    const queryPayload = {
+      imdbId,
+      type,
+      title: canonicalTitle,
+      year: canonicalYear,
+      season,
+      episode,
+      aliases,
+      proxyBase,
+    };
 
-    // Active providers
-    const activeProviderKeys = (config.providers || []).filter((p) => ALL_PROVIDERS[p]);
-    const keysToUse = activeProviderKeys.length > 0 ? activeProviderKeys : PROVIDER_ORDER;
-    const providersToRun = keysToUse
-      .filter((k) => ALL_PROVIDERS[k])
-      .map((k) => ALL_PROVIDERS[k]);
+    // BƯỚC 3: Gọi đồng thời 3 Provider Core (Promise.allSettled)
+    const queryProviders = [
+      // Tier 1: VSMOV (Ưu tiên 4K)
+      withTimeout(
+        vsmov.getStreams({
+          ...queryPayload,
+          slug: mapping?.slug_vsmov || null,
+        }),
+        3000,
+        'VSMOV'
+      ).then((streams) => {
+        if (!Array.isArray(streams)) return [];
+        return streams.map((s) => {
+          const proxiedUrl = s.url.startsWith('http') && !s.url.includes('/hls/')
+            ? `${proxyBase}/hls/manifest.m3u8?url=${encodeB64(s.url)}&ref=${encodeB64('https://vsmov.com/')}`
+            : s.url;
 
-    // PARALLEL EXECUTION with Promise.allSettled & TIMEOUT.PROVIDER
-    const results = await Promise.allSettled(
-      providersToRun.map((provider) =>
-        withTimeout(provider.getStreams(payload), TIMEOUT.PROVIDER, provider.name || provider.id || 'Provider')
-      )
-    );
-
-    const mergedStreams = [];
-    for (const r of results) {
-      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
-        for (const item of r.value) {
-          if (!item || typeof item !== 'object') continue;
-          if (!item.url || typeof item.url !== 'string' || !item.url.trim()) continue;
-
-          // Standardize per Stremio Stream Protocol (Strictly url, NO externalUrl)
-          const sanitized = {
-            name: item.name || 'VIP Movies 🎬',
-            title: item.title ? String(item.title).replace(/#/g, '') : 'VIP Server',
-            url: String(item.url).trim(),
-            behaviorHints: {
-              notSupported: false,
-              ...(item.behaviorHints || {}),
-            },
+          return {
+            name: s.name || '[VIP 1 • VSMOV 4K]',
+            title: s.title || `[4K Ultra HD] ${s.server || 'Server VIP'} - ${s.quality || '3840x2160'}\n⚡ Tốc độ cao • HLS Proxy`,
+            url: proxiedUrl,
+            behaviorHints: s.behaviorHints || { notWebReady: false },
+            subtitles: s.subtitles || undefined,
           };
+        });
+      }).catch(() => []),
 
-          if (Array.isArray(item.subtitles) && item.subtitles.length > 0) {
-            sanitized.subtitles = item.subtitles;
-          }
+      // Tier 2: KKPHIM (Full HD / Đa dạng lồng tiếng & Vietsub)
+      withTimeout(
+        kkphim.getStreams({
+          ...queryPayload,
+          slug: mapping?.slug_kkphim || null,
+        }),
+        3000,
+        'KKPhim'
+      ).then((streams) => {
+        if (!Array.isArray(streams)) return [];
+        return streams.map((s) => {
+          const proxiedUrl = s.url.startsWith('http') && !s.url.includes('/hls/')
+            ? `${proxyBase}/hls/manifest.m3u8?url=${encodeB64(s.url)}&ref=${encodeB64('https://player.phimapi.com/')}`
+            : s.url;
 
-          mergedStreams.push(sanitized);
-        }
+          return {
+            name: s.name || '[VIP 2 • KKPHIM]',
+            title: s.title || `[FHD 1080p] ${s.serverName || 'Server VIP'} [Tập ${episode}]\n⚡ Vietsub/Thuyết Minh • HLS Proxy`,
+            url: proxiedUrl,
+            behaviorHints: s.behaviorHints || { notWebReady: false },
+            subtitles: s.subtitles || undefined,
+          };
+        });
+      }).catch(() => []),
+
+      // Tier 3: NGUONC (Dự phòng ổn định cao)
+      withTimeout(
+        nguonc.getStreams({
+          ...queryPayload,
+          slug: mapping?.slug_nguonc || null,
+        }),
+        3000,
+        'NguonC'
+      ).then((streams) => {
+        if (!Array.isArray(streams)) return [];
+        return streams.map((s) => {
+          const proxiedUrl = s.url.startsWith('http') && !s.url.includes('/hls/')
+            ? `${proxyBase}/hls/manifest.m3u8?url=${encodeB64(s.url)}&ref=${encodeB64('https://phim.nguonc.com/')}`
+            : s.url;
+
+          return {
+            name: s.name || '[VIP 3 • NGUONC]',
+            title: s.title || `[FHD 1080p] ${s.serverName || 'Server VIP'} [Tập ${episode}]\n⚡ Dự phòng chất lượng cao • HLS Proxy`,
+            url: proxiedUrl,
+            behaviorHints: s.behaviorHints || { notWebReady: false },
+            subtitles: s.subtitles || undefined,
+          };
+        });
+      }).catch(() => []),
+    ];
+
+    const results = await Promise.allSettled(queryProviders);
+    let aggregatedStreams = [];
+
+    results.forEach((resItem) => {
+      if (resItem.status === 'fulfilled' && Array.isArray(resItem.value)) {
+        aggregatedStreams = aggregatedStreams.concat(resItem.value);
       }
+    });
+
+    // Deduplicate streams
+    const seenUrls = new Set();
+    aggregatedStreams = aggregatedStreams.filter((stream) => {
+      if (!stream || !stream.url) return false;
+      if (seenUrls.has(stream.url)) return false;
+      seenUrls.add(stream.url);
+      return true;
+    });
+
+    // Sort by VIP Priority (4K -> Vietsub -> TM -> LT)
+    aggregatedStreams.sort((a, b) => getStreamPriority(a) - getStreamPriority(b));
+
+    const totalElapsed = Date.now() - startTime;
+    console.log(`[Stream Aggregator] id=${id} → Total ${aggregatedStreams.length} high-speed streams (${totalElapsed}ms)`);
+
+    // BƯỚC 4: Lưu vào Cache (Series: 4 giờ, Movie: 24 giờ)
+    if (aggregatedStreams.length > 0) {
+      const ttl = parts.length > 1 ? (TTL?.SERIES || 4 * 3600) : (TTL?.MOVIE || 24 * 3600);
+      await setCache(streamKey, aggregatedStreams, ttl);
     }
 
-    // Deduplication & Priority Sorting
-    const seen = new Set();
-    const uniqueStreams = [];
-    for (const stream of mergedStreams) {
-      const key = normalizeStreamKey(stream);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      uniqueStreams.push(stream);
-    }
-
-    uniqueStreams.sort((a, b) => getStreamPriority(a) - getStreamPriority(b));
-
-    // Cache streams if non-empty
-    if (uniqueStreams.length > 0) {
-      streamCache.set(cacheKey, uniqueStreams, TTL.STREAM);
-    }
-
-    const elapsed = Date.now() - startTime;
-    console.log(`[Stream Aggregator] id=${id} → Total ${uniqueStreams.length} high-speed streams (${elapsed}ms)`);
-    return sendJSON(res, { streams: uniqueStreams });
+    return sendJSON(res, { streams: aggregatedStreams });
   } catch (err) {
-    console.error(`[Stream Error] id=${id}:`, err.message);
+    console.error('[Stream Aggregator Error]:', err.message);
     return sendJSON(res, { streams: [] });
   }
-}
-
-// ─── Route Registration ───────────────────────────────────────
-router.get('/stream/:type/:id.json', handleStream);
-router.get('/stream/:type/:id', handleStream);
-router.get('/:config/stream/:type/:id.json', handleStream);
-router.get('/:config/stream/:type/:id', handleStream);
+});
 
 module.exports = router;
