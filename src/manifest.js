@@ -197,168 +197,15 @@ const ALL_CATALOGS = [
     extraSupported: ['search', 'genre', 'skip'],
   },
 
-  // ── 4. STP - Sưu Tầm Phim (4 catalogs) ────────────────
+  // ── 4. Thể Thao Live (1 catalog) ──────────────────────
   {
-    provider: 'stp',
-    category: 'movie',
-    type: 'movie',
-    id: 'stp-au-my',
-    name: '🗽 STP • Phim Âu Mỹ Tuyển Chọn',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'stp',
-    category: 'movie',
-    type: 'movie',
-    id: 'stp-phim-le',
-    name: '🎬 STP • Phim Lẻ Đặc Sắc',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'stp',
-    category: 'series',
-    type: 'series',
-    id: 'stp-phim-bo',
-    name: '📺 STP • Phim Bộ Tuyển Chọn',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'stp',
-    category: 'series',
-    type: 'series',
-    id: 'stp-han-quoc',
-    name: '🇰🇷 STP • Phim Hàn Quốc (K-Drama)',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-
-  // ── 5. HH3D - Hoạt Hình 3D (3 catalogs) ───────────────
-  {
-    provider: 'hh3d',
-    category: 'movie',
-    type: 'movie',
-    id: 'hh3d-phim-le',
-    name: '🎬 HH3D • Hoạt Hình 3D Phim Lẻ',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'hh3d',
-    category: 'series',
-    type: 'series',
-    id: 'hh3d-phim-bo',
-    name: '📺 HH3D • Hoạt Hình 3D Phim Bộ',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'hh3d',
-    category: 'anime',
-    type: 'series',
-    id: 'hh3d-tien-hiep',
-    name: '⚔️ HH3D • Tiên Hiệp & Huyền Huyễn 3D',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-
-  // ── 6. YAN - Donghua & Anime (3 catalogs) ─────────────
-  {
-    provider: 'yan',
-    category: 'movie',
-    type: 'movie',
-    id: 'yan-phim-le',
-    name: '🎬 YAN • Donghua Phim Lẻ',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'yan',
-    category: 'series',
-    type: 'series',
-    id: 'yan-phim-bo',
-    name: '📺 YAN • Donghua Phim Bộ',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'yan',
-    category: 'anime',
-    type: 'series',
-    id: 'yan-dang-chieu',
-    name: '🔥 YAN • Donghua Đang Chiếu',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-
-  // ── 7. CLBPX - Câu Lạc Bộ Phim Xưa (2 catalogs) ───────
-  {
-    provider: 'clbpx',
-    category: 'series',
-    type: 'series',
-    id: 'clbpx-kiem-hiep',
-    name: '🗡️ CLBPX • Kiếm Hiệp Kim Dung',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'clbpx',
-    category: 'series',
-    type: 'series',
-    id: 'clbpx-hong-kong',
-    name: '🇭🇰 CLBPX • Phim Hồng Kông / TVB Kinh Điển',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false, options: GENRE_NAMES },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
+    provider: 'sports',
+    category: 'tv',
+    type: 'tv',
+    id: 'sports-live',
+    name: '⚽ Thể Thao Live • Xôi Lạc / Cà Khịa / SoCoLive',
+    extra: [],
+    extraSupported: [],
   },
 ];
 
@@ -371,14 +218,7 @@ const ALL_ID_PREFIXES = [
   'kkphim_',
   'nguonc:',
   'nguonc_',
-  'stp:',
-  'stp_',
-  'hh3d:',
-  'hh3d_',
-  'yan:',
-  'yan_',
-  'clbpx:',
-  'clbpx_',
+  'sports:',
   'tt',
 ];
 
@@ -387,22 +227,22 @@ const BASE_MANIFEST = {
   version: '1.5.2',
   name: 'VIP Movies 🎬',
   description:
-    'Xem phim Vietsub, thuyết minh chất lượng cao từ Server VIP trực tiếp trên Stremio & Nuvio. Hỗ trợ VSMOV 4K, KKPhim, NguonC, STP, HH3D, YAN, CLBPX & IMDb. Cấu hình 22 Catalog K20 chuẩn quốc tế.',
+    'Xem phim Vietsub, thuyết minh chất lượng cao từ VSMOV 4K, KKPhim, NguonC & Kênh Thể Thao Trực Tiếp (Xôi Lạc, Cà Khịa, SoCoLive BLV Tiếng Việt) trên Stremio & Nuvio.',
   logo: 'https://i.imgur.com/3C9XQFP.png',
   resources: [
     'catalog',
     {
       name: 'meta',
-      types: ['movie', 'series'],
+      types: ['movie', 'series', 'tv'],
       idPrefixes: ALL_ID_PREFIXES,
     },
     {
       name: 'stream',
-      types: ['movie', 'series'],
+      types: ['movie', 'series', 'tv'],
       idPrefixes: ALL_ID_PREFIXES,
     },
   ],
-  types: ['movie', 'series'],
+  types: ['movie', 'series', 'tv'],
   idPrefixes: ALL_ID_PREFIXES,
   behaviorHints: {
     adult: false,

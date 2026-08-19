@@ -24,19 +24,13 @@ const { resolveCinemeta } = require('./lib/cinemeta');
 const providerVsMov  = require('./providers/vsmov');
 const providerKKPhim = require('./providers/kkphim');
 const providerNguonC = require('./providers/nguonc');
-const providerSTP    = require('./providers/stp');
-const providerHH3D   = require('./providers/hh3d');
-const providerYAN    = require('./providers/yan');
-const providerCLBPX  = require('./providers/clbpx');
+const providerSports = require('./providers/sports');
 
 const ALL_PROVIDERS = {
   vsmov:  providerVsMov,
   kkphim: providerKKPhim,
   nguonc: providerNguonC,
-  stp:    providerSTP,
-  hh3d:   providerHH3D,
-  yan:    providerYAN,
-  clbpx:  providerCLBPX,
+  sports: providerSports,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -509,10 +503,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
     .provider-card.vsmov::before  { background: radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.18), transparent 70%); }
     .provider-card.kkphim::before { background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.15), transparent 70%); }
     .provider-card.nguonc::before { background: radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.15), transparent 70%); }
-    .provider-card.stp::before    { background: radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.15), transparent 70%); }
-    .provider-card.hh3d::before   { background: radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.15), transparent 70%); }
-    .provider-card.yan::before    { background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.15), transparent 70%); }
-    .provider-card.clbpx::before  { background: radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.15), transparent 70%); }
+    .provider-card.sports::before { background: radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.18), transparent 70%); }
     .provider-card:hover {
       border-color: var(--border-hover);
       transform: translateY(-2px);
@@ -526,10 +517,8 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
     }
     .provider-card.active.vsmov  { border-color: rgba(6, 182, 212, 0.6); box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.35), 0 18px 40px rgba(0, 0, 0, 0.5); }
     .provider-card.active.kkphim { border-color: rgba(236, 72, 153, 0.55); box-shadow: 0 0 0 1px rgba(236, 72, 153, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
-    .provider-card.active.stp    { border-color: rgba(245, 158, 11, 0.55); box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
-    .provider-card.active.hh3d   { border-color: rgba(16, 185, 129, 0.55); box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
-    .provider-card.active.yan    { border-color: rgba(236, 72, 153, 0.55); box-shadow: 0 0 0 1px rgba(236, 72, 153, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
-    .provider-card.active.clbpx  { border-color: rgba(139, 92, 246, 0.55); box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.nguonc { border-color: rgba(99, 102, 241, 0.55); box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 16px 36px rgba(0, 0, 0, 0.45); }
+    .provider-card.active.sports { border-color: rgba(16, 185, 129, 0.6); box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35), 0 18px 40px rgba(0, 0, 0, 0.5); }
     .provider-card.active::before { opacity: 1; }
     .provider-top {
       display: flex;
@@ -933,8 +922,6 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
             <span class="tag-badge tag-amber">Full HD</span>
             <span class="tag-badge tag-pink">IMDb Direct</span>
           </div>
-        </div>
-
         <!-- NguonC -->
         <div class="provider-card nguonc ${isProvActive('nguonc') ? 'active' : ''}" id="card-nguonc" onclick="toggleProvider('nguonc')" role="checkbox" aria-checked="${isProvActive('nguonc') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
@@ -952,67 +939,20 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
           </div>
         </div>
 
-        <!-- STP -->
-        <div class="provider-card stp ${isProvActive('stp') ? 'active' : ''}" id="card-stp" onclick="toggleProvider('stp')" role="checkbox" aria-checked="${isProvActive('stp') ? 'true' : 'false'}" tabindex="0">
+        <!-- Sports Live -->
+        <div class="provider-card sports ${isProvActive('sports') ? 'active' : ''}" id="card-sports" onclick="toggleProvider('sports')" role="checkbox" aria-checked="${isProvActive('sports') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
-            <div class="provider-icon-badge">🗽</div>
+            <div class="provider-icon-badge">⚽</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
           </div>
           <div>
-            <div class="provider-name">STP (Sưu Tầm Phim)</div>
-            <div class="provider-desc">suutamphim.org — Kho Điện Ảnh Âu Mỹ &amp; Phim Bộ Hàn Quốc K-Drama</div>
+            <div class="provider-name">Thể Thao Live (BLV)</div>
+            <div class="provider-desc">Xôi Lạc, SoCoLive, Cà Khịa — Trực tiếp Bóng Đá, Ngoại Hạng Anh &amp; Esports</div>
           </div>
           <div class="tag-row">
-            <span class="tag-badge tag-amber">Âu Mỹ Cinema</span>
-            <span class="tag-badge tag-pink">K-Drama</span>
-          </div>
-        </div>
-
-        <!-- HH3D -->
-        <div class="provider-card hh3d ${isProvActive('hh3d') ? 'active' : ''}" id="card-hh3d" onclick="toggleProvider('hh3d')" role="checkbox" aria-checked="${isProvActive('hh3d') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">⚔️</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">HH3D (Hoạt Hình 3D)</div>
-            <div class="provider-desc">hoathinh3d — Tiên Hiệp &amp; Huyền Huyễn (Đấu Phá, Thôn Phệ...)</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-green">3D Donghua</span>
-            <span class="tag-badge tag-purple">Tiên Hiệp</span>
-          </div>
-        </div>
-
-        <!-- YAN -->
-        <div class="provider-card yan ${isProvActive('yan') ? 'active' : ''}" id="card-yan" onclick="toggleProvider('yan')" role="checkbox" aria-checked="${isProvActive('yan') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">🔥</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">YAN Donghua</div>
-            <div class="provider-desc">yandonghua — Donghua &amp; Anime 3D Cập Nhật Theo Ngày</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-pink">Donghua Mới</span>
-            <span class="tag-badge tag-green">Tốc Độ Cao</span>
-          </div>
-        </div>
-
-        <!-- CLBPX -->
-        <div class="provider-card clbpx ${isProvActive('clbpx') ? 'active' : ''}" id="card-clbpx" onclick="toggleProvider('clbpx')" role="checkbox" aria-checked="${isProvActive('clbpx') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">🗡️</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">CLBPX (Phim Xưa)</div>
-            <div class="provider-desc">clbphimxua — Kiếm Hiệp Kim Dung &amp; TVB Hồng Kông Cổ Điển</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-purple">Kim Dung</span>
-            <span class="tag-badge tag-amber">TVB Hồng Kông</span>
+            <span class="tag-badge tag-green">Trực Tiếp 4K</span>
+            <span class="tag-badge tag-pink">BLV Tiếng Việt</span>
+            <span class="tag-badge tag-indigo">Xôi Lạc / SoCo</span>
           </div>
         </div>
       </div>
@@ -1075,7 +1015,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
   <script>
     var _baseUrl = window.location.origin;
-    var _allProvidersList = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+    var _allProvidersList = ['vsmov', 'kkphim', 'nguonc', 'sports'];
     var _providers = new Set(${JSON.stringify(resolvedConfig.providers)});
     var _categories = new Set(${JSON.stringify(resolvedConfig.categories)});
     var _apiKey = ${JSON.stringify(resolvedConfig.apiKey)};
@@ -1109,66 +1049,97 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
       document.getElementById('provider-count').textContent = _providers.size + ' nguồn VIP';
       document.getElementById('category-count').textContent = _categories.size + ' danh mục';
 
-      ['movie','series','anime','cinema'].forEach(function(c) {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', '/' + token + '/');
+      }
+    }
+
+    function toggleProvider(p) {
+      if (_providers.has(p)) {
+        if (_providers.size <= 1) {
+          showToast('⚠️ Cần giữ lại ít nhất 1 nguồn phát!');
+          return;
+        }
+        _providers.delete(p);
+        var el = document.getElementById('card-' + p);
+        if (el) {
+          el.classList.remove('active');
+          el.setAttribute('aria-checked', 'false');
+        }
+      } else {
+        _providers.add(p);
+        var el = document.getElementById('card-' + p);
+        if (el) {
+          el.classList.add('active');
+          el.setAttribute('aria-checked', 'true');
+        }
+      }
+      updateState();
+    }
+
+    function toggleCategory(c) {
+      if (_categories.has(c)) {
+        if (_categories.size <= 1) {
+          showToast('⚠️ Cần giữ lại ít nhất 1 thể loại!');
+          return;
+        }
+        _categories.delete(c);
         var el = document.getElementById('cat-' + c);
-        if (el) el.classList.toggle('active', _categories.has(c));
-      });
-    }
-
-    function toggleCat(cat) {
-      if (_categories.has(cat)) {
-        if (_categories.size > 1) _categories.delete(cat);
+        if (el) {
+          el.classList.remove('active');
+          el.setAttribute('aria-checked', 'false');
+        }
       } else {
-        _categories.add(cat);
+        _categories.add(c);
+        var el = document.getElementById('cat-' + c);
+        if (el) {
+          el.classList.add('active');
+          el.setAttribute('aria-checked', 'true');
+        }
       }
       updateState();
     }
 
-    function toggleProvider(id) {
-      var card = document.getElementById('card-' + id);
-      if (!card) return;
-      if (_providers.has(id)) {
-        if (_providers.size > 1) {
-          _providers.delete(id);
-          card.classList.remove('active');
-          card.setAttribute('aria-checked','false');
+    function selectAllProviders() {
+      _allProvidersList.forEach(function(p) {
+        _providers.add(p);
+        var el = document.getElementById('card-' + p);
+        if (el) {
+          el.classList.add('active');
+          el.setAttribute('aria-checked', 'true');
         }
-      } else {
-        _providers.add(id);
-        card.classList.add('active');
-        card.setAttribute('aria-checked','true');
+      });
+      updateState();
+    }
+
+    function deselectAllProviders() {
+      _allProvidersList.forEach(function(p) {
+        if (p !== 'vsmov') {
+          _providers.delete(p);
+          var el = document.getElementById('card-' + p);
+          if (el) {
+            el.classList.remove('active');
+            el.setAttribute('aria-checked', 'false');
+          }
+        }
+      });
+      _providers.add('vsmov');
+      var vsmovEl = document.getElementById('card-vsmov');
+      if (vsmovEl) {
+        vsmovEl.classList.add('active');
+        vsmovEl.setAttribute('aria-checked', 'true');
       }
-      updateState();
-    }
-
-    function selectAll() {
-      _categories = new Set(['movie','series','anime','cinema']);
-      _providers = new Set(_allProvidersList);
-      _allProvidersList.forEach(function(id) {
-        var c = document.getElementById('card-'+id);
-        if (c) { c.classList.add('active'); c.setAttribute('aria-checked','true'); }
-      });
-      updateState();
-    }
-
-    function selectNone() {
-      _categories = new Set(['movie']);
-      _providers = new Set(['vsmov', 'kkphim']);
-      _allProvidersList.forEach(function(id) {
-        var c = document.getElementById('card-'+id);
-        var isActive = (id === 'vsmov' || id === 'kkphim');
-        if (c) {
-          c.classList.toggle('active', isActive);
-          c.setAttribute('aria-checked', isActive ? 'true' : 'false');
-        }
-      });
       updateState();
     }
 
     function copyManifest() {
       var url = document.getElementById('manifest-preview').textContent;
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(showToast).catch(function() { fallbackCopy(url); });
+        navigator.clipboard.writeText(url).then(function() {
+          showToast('✅ Đã sao chép link Manifest vào Clipboard!');
+        }).catch(function() {
+          fallbackCopy(url);
+        });
       } else {
         fallbackCopy(url);
       }
@@ -1177,38 +1148,30 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
     function fallbackCopy(text) {
       var ta = document.createElement('textarea');
       ta.value = text;
-      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
       document.body.appendChild(ta);
-      ta.focus();
       ta.select();
-      try { document.execCommand('copy'); showToast(); } catch(e) {}
+      try {
+        document.execCommand('copy');
+        showToast('✅ Đã sao chép link Manifest!');
+      } catch(e) {
+        showToast('❌ Không thể sao chép tự động');
+      }
       document.body.removeChild(ta);
     }
 
-    function showToast() {
+    var _toastTimer = null;
+    function showToast(msg) {
       var t = document.getElementById('toast');
       if (!t) return;
+      t.textContent = msg;
       t.classList.add('show');
-      setTimeout(function() { t.classList.remove('show'); }, 2400);
+      if (_toastTimer) clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(function() {
+        t.classList.remove('show');
+      }, 2500);
     }
-
-    document.querySelectorAll('.provider-card').forEach(function(card) {
-      card.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          card.click();
-        }
-      });
-    });
-
-    document.getElementById('manifest-box').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        copyManifest();
-      }
-    });
-
-    updateState();
   </script>
 </body>
 </html>`);
@@ -1234,6 +1197,11 @@ async function handleCatalog(req, res) {
   console.log(`[Catalog] type=${type} id=${id} search=${searchQuery} genre=${genreFilter} page=${page}`);
 
   try {
+    if (type === 'tv' || id === 'sports-live' || id.startsWith('sports')) {
+      const metas = await providerSports.getCatalog(type, page, { search: searchQuery, genre: genreFilter, skip });
+      return sendJSON(res, { metas });
+    }
+
     const isGenericSearch = !id || id === 'search' || id === 'all' || id === 'global' || id === 'top';
     const providerId = getProviderFromCatalogId(id);
     const catType    = getCatTypeFromCatalogId(id) || type;
@@ -1366,37 +1334,11 @@ async function handleMeta(req, res) {
         meta.id = id;
       }
     }
-    // 4. Specialized Providers (STP, HH3D, YAN, CLBPX)
-    else if (id.startsWith('stp:') || id.startsWith('stp_')) {
-      const slug = id.replace(/^stp[_:]/, '');
-      const detail = await providerSTP.getDetail(slug);
+    // 4. Sports ID
+    else if (id.startsWith('sports:') || id.startsWith('sports_') || type === 'tv') {
+      const detail = await providerSports.getDetail(id);
       if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `stp_${slug}`;
-      }
-    }
-    else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
-      const slug = id.replace(/^hh3d[_:]/, '');
-      const detail = await providerHH3D.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `hh3d_${slug}`;
-      }
-    }
-    else if (id.startsWith('yan:') || id.startsWith('yan_')) {
-      const slug = id.replace(/^yan[_:]/, '');
-      const detail = await providerYAN.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `yan_${slug}`;
-      }
-    }
-    else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
-      const slug = id.replace(/^clbpx[_:]/, '');
-      const detail = await providerCLBPX.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `clbpx_${slug}`;
+        meta = detail.movie;
       }
     }
     // 5. Fallback generic slug
@@ -1430,7 +1372,7 @@ router.get('/meta/:type/:id', handleMeta);
 router.get('/:config/meta/:type/:id.json', handleMeta);
 router.get('/:config/meta/:type/:id', handleMeta);
 
-const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc', 'sports'];
 
 function getStreamPriority(stream) {
   if (!stream) return 200;
@@ -1450,14 +1392,8 @@ function getStreamPriority(stream) {
   if ((combined.includes('nguonc') || combined.includes('vip 3')) && combined.includes('vietsub')) return 50;
   // 6. NguonC Thuyết Minh / Other (VIP 3)
   if (combined.includes('nguonc') || combined.includes('vip 3')) return 60;
-  // 7. STP (Western & K-Drama)
-  if (combined.includes('stp') || combined.includes('suutamphim')) return 70;
-  // 8. HH3D (3D Donghua)
-  if (combined.includes('hh3d') || combined.includes('hoathinh3d')) return 80;
-  // 9. YAN (Donghua Ongoing)
-  if (combined.includes('yan') || combined.includes('yandonghua')) return 90;
-  // 10. CLBPX (Wuxia & TVB)
-  if (combined.includes('clbpx') || combined.includes('clbphimxua')) return 100;
+  // 7. Sports Live
+  if (combined.includes('sports') || combined.includes('thể thao') || combined.includes('xôi lạc') || combined.includes('soco')) return 70;
   return 200;
 }
 
@@ -1487,6 +1423,11 @@ async function handleStream(req, res) {
   console.log(`[Stream Aggregator] type=${type} id=${id} activeProviders=${(config.providers || []).join(',')}`);
 
   try {
+    if (id.startsWith('sports:') || id.startsWith('sports_') || type === 'tv') {
+      const streams = await providerSports.getStreams(id);
+      return sendJSON(res, { streams });
+    }
+
     let imdbId = null;
     let slug = null;
     let season = null;
@@ -1532,38 +1473,6 @@ async function handleStream(req, res) {
       }
     } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
       const withoutPrefix = id.replace(/^vsmov[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('stp:') || id.startsWith('stp_')) {
-      const withoutPrefix = id.replace(/^stp[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
-      const withoutPrefix = id.replace(/^hh3d[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('yan:') || id.startsWith('yan_')) {
-      const withoutPrefix = id.replace(/^yan[_:]/, '');
-      const parts = withoutPrefix.split(':');
-      slug = parts[0];
-      if (parts.length >= 3) {
-        season = parseInt(parts[1], 10);
-        episode = parseInt(parts[2], 10);
-      }
-    } else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
-      const withoutPrefix = id.replace(/^clbpx[_:]/, '');
       const parts = withoutPrefix.split(':');
       slug = parts[0];
       if (parts.length >= 3) {
