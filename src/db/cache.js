@@ -121,7 +121,14 @@ class TieredCache {
     // L1 Miss: Check L2 Supabase
     if (supabaseDb.isReady()) {
       try {
-        const l2Hit = await supabaseDb.getCachedValue(this.namespace, key);
+        let l2Hit = null;
+        if (this.namespace === 'stream') {
+          l2Hit = await supabaseDb.getStreamCache(key);
+        }
+        if (!l2Hit) {
+          l2Hit = await supabaseDb.getCachedValue(this.namespace, key);
+        }
+
         if (l2Hit !== null && l2Hit !== undefined) {
           // Populate L1 for future instant lookups
           this.l1.set(key, l2Hit, this.defaultTTL);
@@ -148,6 +155,9 @@ class TieredCache {
 
     // L2 Write (Background async)
     if (supabaseDb.isReady()) {
+      if (this.namespace === 'stream' && Array.isArray(value)) {
+        supabaseDb.setStreamCache(key, value, ttl).catch(() => {});
+      }
       supabaseDb.setCachedValue(this.namespace, key, value, ttl).catch(() => {});
     }
   }

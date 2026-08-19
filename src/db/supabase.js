@@ -3,7 +3,7 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/db/supabase.js
- *  Supabase PostgreSQL REST Client & Database Query Helpers
+ *  Supabase PostgreSQL REST Client & Media/Stream DB Helpers
  * ============================================================
  */
 
@@ -28,27 +28,126 @@ if (SUPABASE_URL && SUPABASE_KEY) {
   }
 }
 
-/**
- * Check if Supabase client is connected and ready
- * @returns {boolean}
- */
 function isReady() {
   return isSupabaseReady && supabase !== null;
 }
 
-/**
- * Get raw Supabase client
- */
 function getClient() {
   return supabase;
 }
 
+// ─── 1. Media Mappings Query Helpers (media_mappings table) ────
+
 /**
- * Retrieve cached item from Supabase cache_entries table
- * @param {string} namespace
- * @param {string} key
- * @returns {Promise<any|null>}
+ * Retrieve cross-provider media mapping by IMDb ID
+ * @param {string} imdbId
+ * @returns {Promise<object|null>}
  */
+async function getMediaMapping(imdbId) {
+  if (!isReady() || !imdbId) return null;
+  const cleanId = String(imdbId).toLowerCase().trim();
+  try {
+    const { data, error } = await supabase
+      .from('media_mappings')
+      .select('*')
+      .eq('imdb_id', cleanId)
+      .single();
+
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Upsert cross-provider media mapping into media_mappings
+ * @param {object} mediaData
+ * @returns {Promise<boolean>}
+ */
+async function saveMediaMapping(mediaData) {
+  if (!isReady() || !mediaData || !mediaData.imdb_id) return false;
+  try {
+    const cleanId = String(mediaData.imdb_id).toLowerCase().trim();
+    const payload = {
+      imdb_id: cleanId,
+      tmdb_id: mediaData.tmdb_id ? String(mediaData.tmdb_id).trim() : null,
+      type: mediaData.type || 'movie',
+      title: mediaData.title || '',
+      original_title: mediaData.original_title || null,
+      year: mediaData.year ? parseInt(mediaData.year, 10) : null,
+      slug_kkphim: mediaData.slug_kkphim || null,
+      slug_nguonc: mediaData.slug_nguonc || null,
+      slug_vsmov: mediaData.slug_vsmov || null,
+      episodes_data: mediaData.episodes_data || {},
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('media_mappings')
+      .upsert(payload, { onConflict: 'imdb_id' });
+
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// ─── 2. Persistent Stream Cache Query Helpers (stream_cache table) ───
+
+/**
+ * Retrieve cached streams from stream_cache table
+ * @param {string} streamKey - Format: "{imdb_id}:{season}:{episode}"
+ * @returns {Promise<Array|null>}
+ */
+async function getStreamCache(streamKey) {
+  if (!isReady() || !streamKey) return null;
+  try {
+    const { data, error } = await supabase
+      .from('stream_cache')
+      .select('streams, expires_at')
+      .eq('stream_key', streamKey)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (error || !data || !Array.isArray(data.streams)) return null;
+    return data.streams;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save streams into stream_cache table
+ * @param {string} streamKey
+ * @param {Array} streams
+ * @param {number} [ttlSeconds=600]
+ * @returns {Promise<boolean>}
+ */
+async function setStreamCache(streamKey, streams, ttlSeconds = 600) {
+  if (!isReady() || !streamKey || !Array.isArray(streams) || streams.length === 0) return false;
+  try {
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+    const { error } = await supabase
+      .from('stream_cache')
+      .upsert(
+        {
+          stream_key: streamKey,
+          streams: streams,
+          expires_at: expiresAt,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'stream_key' }
+      );
+
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// ─── 3. General Cache Entries (cache_entries fallback table) ────
+
 async function getCachedValue(namespace, key) {
   if (!isReady()) return null;
   const fullKey = `${namespace}:${key}`;
@@ -67,14 +166,6 @@ async function getCachedValue(namespace, key) {
   }
 }
 
-/**
- * Upsert cached item in Supabase cache_entries table
- * @param {string} namespace
- * @param {string} key
- * @param {any} value
- * @param {number} [ttlSeconds=300]
- * @returns {Promise<boolean>}
- */
 async function setCachedValue(namespace, key, value, ttlSeconds = 300) {
   if (!isReady() || value === undefined) return false;
   const fullKey = `${namespace}:${key}`;
@@ -98,12 +189,6 @@ async function setCachedValue(namespace, key, value, ttlSeconds = 300) {
   }
 }
 
-/**
- * Delete a cached item
- * @param {string} namespace
- * @param {string} key
- * @returns {Promise<boolean>}
- */
 async function deleteCachedValue(namespace, key) {
   if (!isReady()) return false;
   const fullKey = `${namespace}:${key}`;
@@ -118,67 +203,14 @@ async function deleteCachedValue(namespace, key) {
   }
 }
 
-/**
- * Save IMDb -> Provider Slug mapping
- * @param {string} imdbId
- * @param {string} provider
- * @param {string} slug
- * @param {object} [meta={}]
- * @returns {Promise<boolean>}
- */
-async function saveImdbMapping(imdbId, provider, slug, meta = {}) {
-  if (!isReady() || !imdbId || !provider || !slug) return false;
-  try {
-    const { error } = await supabase
-      .from('imdb_mappings')
-      .upsert(
-        {
-          imdb_id: String(imdbId).toLowerCase().trim(),
-          provider: String(provider).toLowerCase().trim(),
-          slug: String(slug).trim(),
-          title: meta.title || null,
-          year: meta.year ? parseInt(meta.year, 10) : null,
-          metadata: meta,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'imdb_id,provider' }
-      );
-
-    return !error;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Retrieve IMDb mapping for a provider
- * @param {string} imdbId
- * @param {string} provider
- * @returns {Promise<{ slug: string, metadata: object }|null>}
- */
-async function getImdbMapping(imdbId, provider) {
-  if (!isReady() || !imdbId || !provider) return null;
-  try {
-    const { data, error } = await supabase
-      .from('imdb_mappings')
-      .select('slug, metadata')
-      .eq('imdb_id', String(imdbId).toLowerCase().trim())
-      .eq('provider', String(provider).toLowerCase().trim())
-      .single();
-
-    if (error || !data) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
 module.exports = {
   isReady,
   getClient,
+  getMediaMapping,
+  saveMediaMapping,
+  getStreamCache,
+  setStreamCache,
   getCachedValue,
   setCachedValue,
   deleteCachedValue,
-  saveImdbMapping,
-  getImdbMapping,
 };
