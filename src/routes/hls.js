@@ -28,19 +28,30 @@ const DEFAULT_REFERER = 'https://phim.nguonc.com/';
  * Determine Referer & Origin from URL or dynamic ref parameter
  */
 function getRefererHeaders(targetUrl, refParam) {
-  // If targetUrl belongs to StreamC / amass2 CDNs, dynamically use its own origin
-  if (/streamc\.|amass2\.top/i.test(targetUrl)) {
+  // If targetUrl belongs to StreamC / amass CDNs, dynamically use its own origin (or refParam if given)
+  if (/streamc\.|amass\d*\.top/i.test(targetUrl)) {
+    if (refParam && /streamc|amass/i.test(refParam)) {
+      try {
+        let parsedRef = refParam.trim();
+        if (!parsedRef.startsWith('http://') && !parsedRef.startsWith('https://')) {
+          parsedRef = `https://${parsedRef}`;
+        }
+        const origin = new URL(parsedRef).origin;
+        return { referer: parsedRef, origin };
+      } catch {}
+    }
     try {
       const origin = new URL(targetUrl).origin;
       return { referer: `${origin}/`, origin };
     } catch {}
+    return { referer: 'https://embed.streamc.xyz/', origin: 'https://embed.streamc.xyz' };
   }
 
   // If targetUrl belongs to CDNs requiring strict referer headers (PhimApi, KKPhim), prioritize their dedicated referer
   for (const src of SOURCE_REFERERS) {
     if (src.pattern.test(targetUrl)) {
       if (!refParam || (!src.pattern.test(refParam) && /kkphimplayer|phim1280|vlcdn/i.test(targetUrl))) {
-        return { referer: src.referer, origin: src.origin };
+        return { referer: src.referer, origin: src.origin || new URL(src.referer).origin };
       }
     }
   }
@@ -58,7 +69,7 @@ function getRefererHeaders(targetUrl, refParam) {
 
   for (const src of SOURCE_REFERERS) {
     if (src.pattern.test(targetUrl)) {
-      return { referer: src.referer, origin: src.origin };
+      return { referer: src.referer, origin: src.origin || new URL(src.referer).origin };
     }
   }
 
@@ -178,57 +189,114 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
     return res.send(cached);
   }
 
+  let effectiveTargetUrl = targetUrl;
+  let effectiveReferer = refererUrl;
+  let rawManifestData = null;
+  let upstreamResponse = null;
+
+  // 1. If targetUrl is an embed player URL (e.g. StreamC embed.php), extract direct M3U8 directly first
+  const isLikelyEmbed = /embed\.php|streamc|\/embed\//i.test(targetUrl) && !targetUrl.includes('.m3u8');
+  if (isLikelyEmbed) {
+    try {
+      const extracted = await extractM3u8FromEmbed(targetUrl, refererUrl);
+      if (extracted && extracted.m3u8Url) {
+        effectiveTargetUrl = extracted.m3u8Url;
+        effectiveReferer = extracted.embedHost ? `${extracted.embedHost}/` : refererUrl;
+      }
+    } catch (e) {
+      console.warn('[HLS/manifest] Pre-embed extraction failed:', e.message);
+    }
+  }
+
+  let actualReferer = effectiveReferer;
+  if (/amass\d*\.top/i.test(effectiveTargetUrl) && (/amass\d*\.top/i.test(actualReferer) || !actualReferer)) {
+    actualReferer = 'https://embed.streamc.xyz/';
+  }
+
+  const fetchHeaders = {
+    'User-Agent': HLS_UA,
+    Referer: actualReferer,
+    Accept: '*/*',
+    'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+    Connection: 'keep-alive',
+  };
+  const isStreamcOrAmass = /streamc\.|amass\d*\.top/i.test(effectiveTargetUrl);
+  if (origin && !isStreamcOrAmass) {
+    fetchHeaders.Origin = origin;
+  }
+
   try {
     const r = await axios({
-      url: targetUrl,
+      url: effectiveTargetUrl,
       method: 'GET',
       responseType: 'text',
-      headers: {
-        'User-Agent': HLS_UA,
-        Referer: refererUrl,
-        Origin: origin,
-        Accept: '*/*',
-        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-        Connection: 'keep-alive',
-      },
+      headers: fetchHeaders,
       timeout: 15000,
       maxRedirects: 5,
     });
-
-    let rawManifestData = String(r.data);
-    let effectiveTargetUrl = targetUrl;
+    rawManifestData = String(r.data);
+    upstreamResponse = r;
 
     // If upstream returned HTML webpage instead of M3U8 playlist, auto-extract M3U8 from embed/HTML
     if (!rawManifestData.includes('#EXTM3U')) {
-      try {
-        const extracted = await extractM3u8FromEmbed(targetUrl, refererUrl);
-        if (extracted && extracted.m3u8Url) {
-          const r2 = await axios({
-            url: extracted.m3u8Url,
-            method: 'GET',
-            responseType: 'text',
-            headers: {
-              'User-Agent': HLS_UA,
-              Referer: extracted.embedHost || refererUrl,
-              Origin: origin,
-              Accept: '*/*',
-              'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-              Connection: 'keep-alive',
-            },
-            timeout: 15000,
-            maxRedirects: 5,
-          });
-          if (String(r2.data).includes('#EXTM3U')) {
-            rawManifestData = String(r2.data);
-            effectiveTargetUrl = extracted.m3u8Url;
-          }
+      const extracted = await extractM3u8FromEmbed(effectiveTargetUrl, effectiveReferer);
+      if (extracted && extracted.m3u8Url) {
+        const r2 = await axios({
+          url: extracted.m3u8Url,
+          method: 'GET',
+          responseType: 'text',
+          headers: {
+            'User-Agent': HLS_UA,
+            Referer: extracted.embedHost ? `${extracted.embedHost}/` : effectiveReferer,
+            Accept: '*/*',
+            'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+            Connection: 'keep-alive',
+          },
+          timeout: 15000,
+          maxRedirects: 5,
+        });
+        if (String(r2.data).includes('#EXTM3U')) {
+          rawManifestData = String(r2.data);
+          effectiveTargetUrl = extracted.m3u8Url;
+          upstreamResponse = r2;
         }
-      } catch (extractErr) {
-        console.warn('[HLS/manifest] De-embed fallback warning:', extractErr.message);
       }
     }
+  } catch (primaryErr) {
+    console.warn(`[HLS/manifest] Primary fetch failed (${primaryErr.message}), attempting de-embed fallback...`);
+    try {
+      const extracted = await extractM3u8FromEmbed(targetUrl, refererUrl);
+      if (extracted && extracted.m3u8Url) {
+        const r2 = await axios({
+          url: extracted.m3u8Url,
+          method: 'GET',
+          responseType: 'text',
+          headers: {
+            'User-Agent': HLS_UA,
+            Referer: extracted.embedHost ? `${extracted.embedHost}/` : refererUrl,
+            Accept: '*/*',
+            'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+            Connection: 'keep-alive',
+          },
+          timeout: 15000,
+          maxRedirects: 5,
+        });
+        if (String(r2.data).includes('#EXTM3U')) {
+          rawManifestData = String(r2.data);
+          effectiveTargetUrl = extracted.m3u8Url;
+          upstreamResponse = r2;
+        }
+      }
+    } catch (fallbackErr) {
+      console.error('[HLS/manifest] Fallback extraction failed:', fallbackErr.message);
+    }
+    if (!rawManifestData || !rawManifestData.includes('#EXTM3U')) {
+      throw primaryErr;
+    }
+  }
 
-    if (!rawManifestData.includes('#EXTM3U')) {
+  try {
+    if (!rawManifestData || !rawManifestData.includes('#EXTM3U')) {
       m3u8Cache.del(cacheKey);
       if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
         try {
@@ -238,7 +306,7 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       return res.status(502).send('Invalid M3U8 Manifest');
     }
 
-    const finalUrl = r.request?.res?.responseUrl || effectiveTargetUrl;
+    const finalUrl = upstreamResponse?.request?.res?.responseUrl || effectiveTargetUrl;
     let baseUrl;
     try { baseUrl = new URL(finalUrl); } catch { return res.send(rawManifestData); }
 
@@ -412,14 +480,22 @@ router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => 
   const refParam = resolveParamUrl(req.query.ref || req.query.referer);
   const { referer: refererUrl, origin } = getRefererHeaders(targetUrl, refParam);
 
+  let actualReferer = refererUrl;
+  if (/amass\d*\.top/i.test(targetUrl) && (/amass\d*\.top/i.test(actualReferer) || !actualReferer)) {
+    actualReferer = 'https://embed.streamc.xyz/';
+  }
+
   const upstreamHeaders = {
     'User-Agent': HLS_UA,
-    Referer: refererUrl,
-    Origin: origin,
+    Referer: actualReferer,
     Accept: '*/*',
     'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
     Connection: 'keep-alive',
   };
+  const isStreamcOrAmass = /streamc\.|amass\d*\.top/i.test(targetUrl);
+  if (origin && !isStreamcOrAmass) {
+    upstreamHeaders.Origin = origin;
+  }
 
   // HTTP Range forwarding for seek support
   if (req.headers.range) {

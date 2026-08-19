@@ -573,11 +573,23 @@ class NguonCProvider extends BaseProvider {
 
         const rawM3u8 = matchedEp.m3u8_url || matchedEp.m3u8 || matchedEp.link_m3u8 || '';
         const rawEmbed = matchedEp.embed_url || matchedEp.embed || matchedEp.link_embed || '';
-        const videoUrl = rawM3u8 || rawEmbed;
+        let videoUrl = rawM3u8 || rawEmbed;
         if (!videoUrl) continue;
 
+        let streamReferer = 'https://embed15.streamc.xyz/';
+
+        // Auto de-embed StreamC embed URLs to direct M3U8 if rawM3u8 is not directly provided
+        if (!rawM3u8 && rawEmbed && typeof rawEmbed === 'string' && (rawEmbed.includes('streamc') || rawEmbed.includes('embed.php'))) {
+          try {
+            const extracted = await mapper.extractM3u8FromEmbed(rawEmbed);
+            if (extracted && extracted.m3u8Url) {
+              videoUrl = extracted.m3u8Url;
+              streamReferer = extracted.embedHost ? `${extracted.embedHost}/` : streamReferer;
+            }
+          } catch {}
+        }
+
         const epBadge = isSeries ? ` [Tập ${matchedEp.name || episode}]` : '';
-        const streamReferer = 'https://embed15.streamc.xyz/';
         const proxiedUrl = proxyBase
           ? `${proxyBase}/hls/manifest.m3u8?url=${encodeBase64(videoUrl)}&ref=${encodeBase64(streamReferer)}`
           : videoUrl;

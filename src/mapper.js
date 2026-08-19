@@ -330,14 +330,13 @@ async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
     try { embedHost = new URL(embedUrl).origin; } catch {}
 
     const referer = customReferer || (embedHost ? `${embedHost}/` : 'https://phim.nguonc.com/');
-    let origin = 'https://phim.nguonc.com';
-    try { origin = new URL(referer).origin; } catch {}
 
     const r = await axios.get(embedUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         Referer: referer,
-        Origin: origin,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
       },
       timeout: 10000,
       validateStatus: (status) => status >= 200 && status < 400,
