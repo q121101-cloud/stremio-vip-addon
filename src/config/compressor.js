@@ -3,22 +3,73 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/config/compressor.js
- *  16-bit Bitmask & Base62 Config Engine with Zero-Downtime Fallback
+ *  Bitmask & Base62 Config Engine with Zero-Downtime Fallback
  * ============================================================
  */
 
-const {
-  VALID_PROVIDERS,
-  VALID_CATEGORIES,
-  PROVIDER_BITS,
-  CATEGORY_BITS,
-  DEFAULT_PROVIDER_MASK,
-  DEFAULT_CATEGORY_MASK,
-  DEFAULT_CONFIG_MASK,
-  DEFAULT_CONFIG,
-} = require('./constants');
+// Định nghĩa từng Bit tương ứng với Provider
+const PROVIDER_BITS = {
+  nguonc: 1 << 0, // Bit 0 (1)
+  kkphim: 1 << 1, // Bit 1 (2)
+  vsmov:  1 << 2, // Bit 2 (4)
+};
+
+const ALL_PROVIDERS = ['nguonc', 'kkphim', 'vsmov'];
+const DEFAULT_BITMASK = 7; // 1 | 2 | 4 = 7 (Bật cả 3 nguồn)
+
+const CATEGORY_BITS = {
+  movie:  1 << 8,  // 0x0100 (256)
+  series: 1 << 9,  // 0x0200 (512)
+  anime:  1 << 10, // 0x0400 (1024)
+  cinema: 1 << 11, // 0x0800 (2048)
+};
+
+const DEFAULT_CATEGORY_MASK = CATEGORY_BITS.movie | CATEGORY_BITS.series | CATEGORY_BITS.anime | CATEGORY_BITS.cinema; // 3840
+const DEFAULT_CONFIG_MASK = DEFAULT_BITMASK | DEFAULT_CATEGORY_MASK; // 3847
+
+const DEFAULT_CONFIG = {
+  providers: ['nguonc', 'kkphim', 'vsmov'],
+  categories: ['movie', 'series', 'anime', 'cinema'],
+  apiKey: '',
+};
 
 const BASE62_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+
+/**
+ * Mã hóa danh sách providers thành Bitmask Integer
+ * @param {Array<string>} activeProviders 
+ * @returns {number} bitmask
+ */
+function encodeBitmask(activeProviders = []) {
+  if (!Array.isArray(activeProviders) || activeProviders.length === 0) {
+    return DEFAULT_BITMASK;
+  }
+  let mask = 0;
+  activeProviders.forEach((p) => {
+    if (p && PROVIDER_BITS[p.toLowerCase()]) {
+      mask |= PROVIDER_BITS[p.toLowerCase()];
+    }
+  });
+  return mask || DEFAULT_BITMASK;
+}
+
+/**
+ * Giải mã Bitmask Integer thành danh sách Providers
+ * @param {string|number} maskValue 
+ * @returns {Array<string>} activeProviders
+ */
+function decodeBitmask(maskValue) {
+  const mask = parseInt(maskValue, 10);
+  if (isNaN(mask) || mask <= 0) return [...ALL_PROVIDERS];
+
+  const enabled = [];
+  Object.keys(PROVIDER_BITS).forEach((provider) => {
+    if ((mask & PROVIDER_BITS[provider]) !== 0) {
+      enabled.push(provider);
+    }
+  });
+  return enabled.length > 0 ? enabled : [...ALL_PROVIDERS];
+}
 
 /**
  * Convert integer to Base62 string
@@ -46,7 +97,7 @@ function base62ToInt(str) {
   let result = 0;
   for (let i = 0; i < str.length; i++) {
     const idx = BASE62_CHARS.indexOf(str[i]);
-    if (idx === -1) return 0; // invalid char
+    if (idx === -1) return 0;
     result = result * 62 + idx;
   }
   return result;
@@ -64,14 +115,13 @@ function configToMask(config = {}) {
   const categories = Array.isArray(config.categories) ? config.categories : DEFAULT_CONFIG.categories;
 
   for (const p of providers) {
-    if (PROVIDER_BITS[p]) mask |= PROVIDER_BITS[p];
+    if (p && PROVIDER_BITS[p.toLowerCase()]) mask |= PROVIDER_BITS[p.toLowerCase()];
   }
   for (const c of categories) {
-    if (CATEGORY_BITS[c]) mask |= CATEGORY_BITS[c];
+    if (c && CATEGORY_BITS[c.toLowerCase()]) mask |= CATEGORY_BITS[c.toLowerCase()];
   }
 
-  // If none selected, fallback to defaults
-  if ((mask & 0x00FF) === 0) mask |= DEFAULT_PROVIDER_MASK;
+  if ((mask & 0x00FF) === 0) mask |= DEFAULT_BITMASK;
   if ((mask & 0xFF00) === 0) mask |= DEFAULT_CATEGORY_MASK;
 
   return mask;
@@ -99,69 +149,63 @@ function maskToConfig(mask, apiKey = '') {
   return {
     providers: providers.length > 0 ? providers : [...DEFAULT_CONFIG.providers],
     categories: categories.length > 0 ? categories : [...DEFAULT_CONFIG.categories],
-    apiKey: typeof apiKey === 'string' ? apiKey.slice(0, 128) : '',
+    apiKey: apiKey || '',
   };
 }
 
 /**
- * Encode config object to compact Base62/Bitmask token
+ * Encode config object to compact URL string
+ * Format: "<Base62Mask>" or "<Base62Mask>_<ApiKey>"
  * @param {object} config
  * @returns {string}
  */
-function encodeConfig(config) {
-  if (!config) return intToBase62(DEFAULT_CONFIG_MASK);
-  try {
-    const mask = configToMask(config);
-    const maskStr = intToBase62(mask);
-    const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
+function encodeConfig(config = {}) {
+  const mask = configToMask(config);
+  const maskStr = intToBase62(mask);
+  const apiKey = (config.apiKey || '').trim();
 
-    if (apiKey) {
-      // Encode apiKey in Base64URL and append with dot
-      const b64Key = Buffer.from(apiKey, 'utf8').toString('base64url');
-      return `${maskStr}.${b64Key}`;
-    }
-
-    return maskStr;
-  } catch {
-    return intToBase62(DEFAULT_CONFIG_MASK);
+  if (apiKey) {
+    const safeKey = Buffer.from(apiKey, 'utf8').toString('base64url');
+    return `${maskStr}_${safeKey}`;
   }
+  return maskStr;
 }
 
 /**
- * Decode token (Base62 bitmask, Base64URL JSON, URL params, or raw JSON) into config object
- * @param {string|object} input
+ * Decode config token with fallback support
+ * @param {string} token
  * @returns {{ providers: string[], categories: string[], apiKey: string }}
  */
-function decodeConfig(input) {
-  if (!input) return { ...DEFAULT_CONFIG };
-  if (typeof input === 'object') {
-    const providers = Array.isArray(input.providers)
-      ? input.providers.filter((p) => VALID_PROVIDERS.includes(p))
-      : DEFAULT_CONFIG.providers;
-    const categories = Array.isArray(input.categories)
-      ? input.categories.filter((c) => VALID_CATEGORIES.includes(c))
-      : DEFAULT_CONFIG.categories;
-    const apiKey = typeof input.apiKey === 'string' ? input.apiKey.slice(0, 128) : '';
-
-    return {
-      providers: providers.length ? providers : DEFAULT_CONFIG.providers,
-      categories: categories.length ? categories : DEFAULT_CONFIG.categories,
-      apiKey,
-    };
+function decodeConfig(token) {
+  if (!token || typeof token !== 'string') {
+    return { ...DEFAULT_CONFIG };
   }
 
-  if (typeof input !== 'string') return { ...DEFAULT_CONFIG };
-  const trimmed = input.trim();
-  if (!trimmed) return { ...DEFAULT_CONFIG };
+  const clean = token.trim();
+  if (!clean || clean === 'default' || clean === 'all') {
+    return { ...DEFAULT_CONFIG };
+  }
 
-  // 1. Bitmask Base62 Check (e.g. "1A", "3847", "1A.a2V5" where mask part is <= 4 chars)
-  const dotIdx = trimmed.indexOf('.');
-  const maskPart = dotIdx !== -1 ? trimmed.slice(0, dotIdx) : trimmed;
-  const keyPart  = dotIdx !== -1 ? trimmed.slice(dotIdx + 1) : '';
+  // 1. Bitmask numeric route format (e.g. /c/7/... or raw number)
+  if (/^\d+$/.test(clean)) {
+    const val = parseInt(clean, 10);
+    if (val > 0 && val <= 7) {
+      return {
+        providers: decodeBitmask(val),
+        categories: [...DEFAULT_CONFIG.categories],
+        apiKey: '',
+      };
+    }
+  }
 
-  if (maskPart.length <= 4 && /^[0-9A-Za-z]+$/.test(maskPart)) {
-    const mask = base62ToInt(maskPart);
-    if (mask > 0 && mask <= 65535) {
+  // 2. Base62 Token format (e.g. "1A" or "1A_a2V5...")
+  if (/^[0-9A-Za-z]+(_[0-9A-Za-z_-]+)?$/.test(clean)) {
+    const parts = clean.split('_');
+    const maskPart = parts[0];
+    const keyPart = parts[1] || '';
+
+    if (maskPart.length <= 4) {
+      const maskInt = base62ToInt(maskPart);
       let apiKey = '';
       if (keyPart) {
         try {
@@ -170,75 +214,19 @@ function decodeConfig(input) {
           apiKey = keyPart;
         }
       }
-      return maskToConfig(mask, apiKey);
+      return maskToConfig(maskInt, apiKey);
     }
   }
 
-  // 2. URLSearchParams fallback (e.g. "providers=vsmov,kkphim&categories=movie")
-  if (trimmed.includes('=') && !trimmed.startsWith('{') && !trimmed.startsWith('%7B')) {
-    try {
-      const searchParams = new URLSearchParams(trimmed);
-      const provParam = searchParams.get('providers') || searchParams.getAll('providers').join(',');
-      const catParam  = searchParams.get('categories') || searchParams.getAll('categories').join(',');
-      const apiKey    = (searchParams.get('apiKey') || searchParams.get('key') || '').slice(0, 128);
-
-      const parsedProviders = provParam ? provParam.split(',').map(p => p.trim()).filter(p => VALID_PROVIDERS.includes(p)) : [];
-      const parsedCats      = catParam ? catParam.split(',').map(c => c.trim()).filter(c => VALID_CATEGORIES.includes(c)) : [];
-
-      if (parsedProviders.length > 0 || parsedCats.length > 0 || apiKey) {
-        return {
-          providers: parsedProviders.length ? parsedProviders : DEFAULT_CONFIG.providers,
-          categories: parsedCats.length ? parsedCats : DEFAULT_CONFIG.categories,
-          apiKey,
-        };
-      }
-    } catch {}
-  }
-
-  // 3. Raw / URL-encoded JSON
+  // 3. Backward Compatibility: Legacy Base64URL JSON config
   try {
-    let jsonStr = trimmed;
-    if (jsonStr.startsWith('%7B') || jsonStr.includes('%22')) {
-      try { jsonStr = decodeURIComponent(jsonStr); } catch {}
-    }
+    const jsonStr = Buffer.from(clean, 'base64url').toString('utf8');
     if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
       const parsed = JSON.parse(jsonStr);
-      const providers = Array.isArray(parsed.providers)
-        ? parsed.providers.filter((p) => VALID_PROVIDERS.includes(p))
-        : DEFAULT_CONFIG.providers;
-      const categories = Array.isArray(parsed.categories)
-        ? parsed.categories.filter((c) => VALID_CATEGORIES.includes(c))
-        : DEFAULT_CONFIG.categories;
-      const apiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey.slice(0, 128) : '';
-
       return {
-        providers: providers.length ? providers : DEFAULT_CONFIG.providers,
-        categories: categories.length ? categories : DEFAULT_CONFIG.categories,
-        apiKey,
-      };
-    }
-  } catch {}
-
-  // 4. Base64URL / Base64 JSON fallback
-  try {
-    let json = Buffer.from(trimmed, 'base64url').toString('utf8');
-    if (!json.startsWith('{')) {
-      json = Buffer.from(trimmed, 'base64').toString('utf8');
-    }
-    if (json.startsWith('{')) {
-      const parsed = JSON.parse(json);
-      const providers = Array.isArray(parsed.providers)
-        ? parsed.providers.filter((p) => VALID_PROVIDERS.includes(p))
-        : DEFAULT_CONFIG.providers;
-      const categories = Array.isArray(parsed.categories)
-        ? parsed.categories.filter((c) => VALID_CATEGORIES.includes(c))
-        : DEFAULT_CONFIG.categories;
-      const apiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey.slice(0, 128) : '';
-
-      return {
-        providers: providers.length ? providers : DEFAULT_CONFIG.providers,
-        categories: categories.length ? categories : DEFAULT_CONFIG.categories,
-        apiKey,
+        providers: Array.isArray(parsed.providers) && parsed.providers.length > 0 ? parsed.providers : [...DEFAULT_CONFIG.providers],
+        categories: Array.isArray(parsed.categories) && parsed.categories.length > 0 ? parsed.categories : [...DEFAULT_CONFIG.categories],
+        apiKey: parsed.apiKey || '',
       };
     }
   } catch {}
@@ -246,48 +234,37 @@ function decodeConfig(input) {
   return { ...DEFAULT_CONFIG };
 }
 
-/**
- * Check if a route path segment is a valid config token
- * @param {string} str
- * @returns {boolean}
- */
-function isConfigToken(str) {
+function isValidConfigToken(str) {
   if (!str || typeof str !== 'string') return false;
-  const reserved = [
+  const reserved = new Set([
     'manifest.json',
-    'manifest',
     'catalog',
     'stream',
     'meta',
     'hls',
+    'proxy',
     'health',
     'favicon.ico',
-    'admin',
-    'configure',
-    'proxy',
-    'api',
-  ];
-  if (reserved.includes(str.toLowerCase())) return false;
-
-  try {
-    const cfg = decodeConfig(str);
-    return Boolean(cfg && (Array.isArray(cfg.providers) || Array.isArray(cfg.categories)));
-  } catch {
-    return false;
-  }
-}
-
-function getDefaultToken() {
-  return encodeConfig(DEFAULT_CONFIG);
+    'robots.txt',
+    'sitemap.xml',
+    'c',
+  ]);
+  if (reserved.has(str.toLowerCase())) return false;
+  return /^[0-9A-Za-z_-]+$/.test(str);
 }
 
 module.exports = {
+  PROVIDER_BITS,
+  ALL_PROVIDERS,
+  DEFAULT_BITMASK,
+  encodeBitmask,
+  decodeBitmask,
   intToBase62,
   base62ToInt,
   configToMask,
   maskToConfig,
   encodeConfig,
   decodeConfig,
-  isConfigToken,
-  getDefaultToken,
+  isValidConfigToken,
+  isConfigToken: isValidConfigToken,
 };
