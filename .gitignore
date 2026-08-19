@@ -6,3 +6,6 @@ node_modules/
 .DS_Store
 dist/
 .cache/
+.agents/
+.agents
+.system_generated/

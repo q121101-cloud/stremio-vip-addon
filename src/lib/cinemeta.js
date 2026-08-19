@@ -101,7 +101,26 @@ function parseAliases(meta) {
  * @param {string} rawId - e.g. 'tt1375666' or 'tt0903747:1:1'
  * @returns {Promise<CinemetaMeta|null>}
  */
-async function resolveCinemeta(type, rawId) {
+/**
+ * Resolve IMDb ID to canonical metadata via Cinemeta API with 24h LRUCache
+ * Supports flexible argument order: (type, rawId) or (rawId, type)
+ * Supports automatic fallback between series and movie if one returns empty
+ * @param {'movie'|'series'|string} arg1
+ * @param {string} [arg2]
+ * @returns {Promise<CinemetaMeta|null>}
+ */
+async function resolveCinemeta(arg1, arg2) {
+  let type = 'movie';
+  let rawId = '';
+
+  if (typeof arg1 === 'string' && /^tt\d+/i.test(arg1.trim())) {
+    rawId = arg1;
+    type = typeof arg2 === 'string' ? arg2 : 'movie';
+  } else {
+    type = typeof arg1 === 'string' ? arg1 : 'movie';
+    rawId = typeof arg2 === 'string' ? arg2 : '';
+  }
+
   if (!rawId) return null;
 
   // Clean IMDb ID (strip season/episode)
@@ -126,8 +145,17 @@ async function resolveCinemeta(type, rawId) {
 
   const promise = (async () => {
     try {
-      const res = await cinemetaClient.get(`/meta/${cleanType}/${imdbId}.json`);
-      const meta = res.data?.meta;
+      let res = await cinemetaClient.get(`/meta/${cleanType}/${imdbId}.json`).catch(() => null);
+      let meta = res?.data?.meta;
+
+      // Fallback to alternate type if empty (e.g. series metadata missing on Cinemeta)
+      if (!meta || !meta.name) {
+        const altType = cleanType === 'series' ? 'movie' : 'series';
+        const altRes = await cinemetaClient.get(`/meta/${altType}/${imdbId}.json`).catch(() => null);
+        if (altRes?.data?.meta?.name) {
+          meta = altRes.data.meta;
+        }
+      }
 
       if (!meta || !meta.name) {
         cinemetaCache.set(cacheKey, null, CACHE_TTL_FAILURE);
@@ -173,11 +201,23 @@ async function resolveCinemeta(type, rawId) {
 
 /**
  * Get cached metadata synchronously without network call
- * @param {'movie'|'series'} type
- * @param {string} rawId
+ * Supports flexible argument order: (type, rawId) or (rawId, type)
+ * @param {'movie'|'series'|string} arg1
+ * @param {string} [arg2]
  * @returns {CinemetaMeta|null}
  */
-function getCachedCinemeta(type, rawId) {
+function getCachedCinemeta(arg1, arg2) {
+  let type = 'movie';
+  let rawId = '';
+
+  if (typeof arg1 === 'string' && /^tt\d+/i.test(arg1.trim())) {
+    rawId = arg1;
+    type = typeof arg2 === 'string' ? arg2 : 'movie';
+  } else {
+    type = typeof arg1 === 'string' ? arg1 : 'movie';
+    rawId = typeof arg2 === 'string' ? arg2 : '';
+  }
+
   if (!rawId) return null;
   const imdbId = String(rawId).split(':')[0].trim().toLowerCase();
   if (!/^tt\d+$/i.test(imdbId)) return null;

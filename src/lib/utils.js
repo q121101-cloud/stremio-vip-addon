@@ -73,8 +73,27 @@ function escapeRegExp(str) {
  * @returns {Object}
  */
 function safeExtra(extra) {
-  if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
+  if (!extra) return {};
+  if (typeof extra === 'object' && !Array.isArray(extra)) {
     return extra;
+  }
+  if (typeof extra === 'string') {
+    const result = {};
+    const clean = extra.trim().replace(/^\?/, '').replace(/\.json$/i, '');
+    if (!clean) return {};
+    try {
+      const sp = new URLSearchParams(clean);
+      for (const [k, v] of sp.entries()) {
+        result[k] = v;
+      }
+      return result;
+    } catch {
+      clean.split('&').forEach((part) => {
+        const [k, v] = part.split('=');
+        if (k) result[decodeURIComponent(k)] = v ? decodeURIComponent(v) : '';
+      });
+      return result;
+    }
   }
   return {};
 }
@@ -209,8 +228,28 @@ function isSeasonMatch(movie, episodes, requestedSeason, type = 'series') {
  * @param {number|string|null} [season] - Target series season
  * @returns {number} - Match score between 0.0 and 1.5
  */
-function scoreMatch(item, title, year = null, season = null) {
-  if (!item || !title) return 0;
+function scoreMatch(arg1, arg2, arg3 = null, arg4 = null) {
+  if (!arg1 || !arg2) return 0;
+
+  let item = null;
+  let title = '';
+  let year = arg3;
+  let season = arg4;
+
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    item = arg1;
+    title = typeof arg2 === 'string' ? arg2 : (arg2?.name || arg2?.title || '');
+  } else if (typeof arg2 === 'object' && arg2 !== null) {
+    item = arg2;
+    title = typeof arg1 === 'string' ? arg1 : (arg1?.name || arg1?.title || '');
+  } else if (typeof arg1 === 'string' && typeof arg2 === 'string') {
+    title = arg1;
+    item = { name: arg2 };
+    if (arg4) item.year = arg4;
+  } else {
+    return 0;
+  }
+
   const target = normalizeText(title);
   if (!target || target.length < 2) return 0;
 

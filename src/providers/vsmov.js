@@ -303,12 +303,12 @@ class VSMOVProvider extends BaseProvider {
         return items;
       }
 
-      let endpoint = '/danh-sach/phim-4k';
-      if (cleanType === 'thuyet-minh' || cleanType === 'vsmov-thuyet-minh') {
-        endpoint = '/danh-sach/phim-thuyet-minh';
-      } else if (cleanType === 'series' || cleanType === 'phim-bo') {
+      let endpoint = '/danh-sach/phim-le';
+      if (cleanType === 'series' || cleanType === 'phim-bo' || cleanType === 'phimbo' || cleanType === 'vsmov_phimbo') {
         endpoint = '/danh-sach/phim-bo';
-      } else if (cleanType === 'movie' || cleanType === 'phim-le') {
+      } else if (cleanType === 'thuyet-minh' || cleanType === 'vsmov-thuyet-minh' || cleanType === 'vsmov_thuyet_minh') {
+        endpoint = '/danh-sach/phim-moi-cap-nhat';
+      } else if (cleanType === '4k' || cleanType === 'vsmov_4k' || cleanType === 'vsmov-4k' || cleanType === 'movie' || cleanType === 'phim-le' || cleanType === 'phim-moi-cap-nhat') {
         endpoint = '/danh-sach/phim-le';
       }
 
@@ -317,7 +317,11 @@ class VSMOVProvider extends BaseProvider {
 
       const res = await http.get(endpoint, { params });
       const raw = res.data?.items || res.data?.data?.items || [];
-      items = raw.map((i) => mapCatalogMeta(i));
+      const isSeries = endpoint === '/danh-sach/phim-bo' || cleanType === 'series' || cleanType === 'phim-bo';
+      items = raw.map((i) => ({
+        ...mapCatalogMeta(i),
+        type: isSeries ? 'series' : 'movie',
+      }));
       catalogCache.set(cacheKey, items, 300);
       return items;
     } catch (err) {

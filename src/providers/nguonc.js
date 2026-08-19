@@ -217,16 +217,16 @@ class NguonCProvider extends BaseProvider {
         return items;
       }
 
-      if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest') {
+      if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest' || cleanType === 'phimmoi' || cleanType === 'nguonc_phimmoi') {
         const data = await this.fetchWithFallback(`${this.apiBase}/films/phim-moi-cap-nhat`, {
           params: { page: p },
         });
         const raw = data?.items || [];
-        items = raw.map((i) => mapCatalogMeta(i));
+        items = raw.map((i) => mapCatalogMeta(i, 'movie'));
       } else {
         let listType = cleanType;
-        if (cleanType === 'movie' || cleanType === 'phim-le') listType = 'phim-le';
-        else if (cleanType === 'series' || cleanType === 'phim-bo') listType = 'phim-bo';
+        if (cleanType === 'movie' || cleanType === 'phim-le' || cleanType === 'phimle') listType = 'phim-le';
+        else if (cleanType === 'series' || cleanType === 'phim-bo' || cleanType === 'phimbo' || cleanType === 'nguonc_phimbo') listType = 'phim-bo';
         else if (cleanType === 'anime' || cleanType === 'hoat-hinh') listType = 'hoat-hinh';
         else if (cleanType === 'cinema' || cleanType === 'phim-chieu-rap' || cleanType.includes('cinema') || cleanType.includes('chieu-rap')) listType = 'phim-chieu-rap';
         else if (cleanType === 'tvshows' || cleanType === 'tv-shows') listType = 'tv-shows';
@@ -251,7 +251,8 @@ class NguonCProvider extends BaseProvider {
           }
         }
 
-        items = raw.map((i) => mapCatalogMeta(i, cleanType === 'series' ? 'series' : 'movie'));
+        const isSeriesCategory = listType === 'phim-bo' || listType === 'hoat-hinh' || listType === 'tv-shows';
+        items = raw.map((i) => mapCatalogMeta(i, isSeriesCategory ? 'series' : 'movie'));
       }
 
       catalogCache.set(cacheKey, items, 300);

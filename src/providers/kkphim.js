@@ -226,21 +226,22 @@ async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
     }
 
     // New/List endpoints
-    if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest') {
+    if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest' || cleanType === 'phimmoi' || cleanType === 'kkphim_phimmoi') {
       const res = await http.get('/danh-sach/phim-moi-cap-nhat', { params: { page: p } });
       const raw = res.data?.items || [];
-      items = raw.map((i) => mapCatalogMeta(i));
+      items = raw.map((i) => mapCatalogMeta(i, 'movie'));
     } else {
       let listType = cleanType;
-      if (cleanType === 'movie') listType = 'phim-le';
-      else if (cleanType === 'series') listType = 'phim-bo';
-      else if (cleanType === 'anime') listType = 'hoat-hinh';
-      else if (cleanType === 'cinema') listType = 'phim-chieu-rap';
-      else if (cleanType === 'tvshows') listType = 'tv-shows';
+      if (cleanType === 'movie' || cleanType === 'phim-le' || cleanType === 'phimle') listType = 'phim-le';
+      else if (cleanType === 'series' || cleanType === 'phim-bo' || cleanType === 'phimbo' || cleanType === 'kkphim_phimbo') listType = 'phim-bo';
+      else if (cleanType === 'anime' || cleanType === 'hoat-hinh') listType = 'hoat-hinh';
+      else if (cleanType === 'cinema' || cleanType === 'phim-chieu-rap') listType = 'phim-chieu-rap';
+      else if (cleanType === 'tvshows' || cleanType === 'tv-shows') listType = 'tv-shows';
 
       const res = await http.get(`/v1/api/danh-sach/${listType}`, { params: { page: p } });
       const raw = res.data?.data?.items || [];
-      items = raw.map((i) => mapCatalogMeta(i, cleanType === 'series' ? 'series' : 'movie'));
+      const isSeriesCategory = listType === 'phim-bo' || listType === 'hoat-hinh' || listType === 'tv-shows';
+      items = raw.map((i) => mapCatalogMeta(i, isSeriesCategory ? 'series' : 'movie'));
     }
 
     catalogCache.set(cacheKey, items, 300);

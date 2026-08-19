@@ -273,6 +273,39 @@ const ALL_CATALOGS = [
   },
 ];
 
+const CORE_CATALOGS = [
+  {
+    provider: 'kkphim',
+    type: 'movie',
+    id: 'kkphim_phimmoi',
+    name: 'KKPhim • Mới Cập Nhật',
+  },
+  {
+    provider: 'kkphim',
+    type: 'series',
+    id: 'kkphim_phimbo',
+    name: 'KKPhim • Phim Bộ',
+  },
+  {
+    provider: 'nguonc',
+    type: 'movie',
+    id: 'nguonc_phimmoi',
+    name: 'NguonC • Mới Cập Nhật',
+  },
+  {
+    provider: 'nguonc',
+    type: 'series',
+    id: 'nguonc_phimbo',
+    name: 'NguonC • Phim Bộ',
+  },
+  {
+    provider: 'vsmov',
+    type: 'movie',
+    id: 'vsmov_4k',
+    name: 'VSMOV • Phim 4K VIP',
+  },
+];
+
 const ALL_ID_PREFIXES = [
   'vsmov:',
   'vsmov_',
@@ -308,5 +341,6 @@ module.exports = {
   COUNTRIES,
   GENRE_NAMES,
   ALL_CATALOGS,
+  CORE_CATALOGS,
   ALL_ID_PREFIXES,
 };

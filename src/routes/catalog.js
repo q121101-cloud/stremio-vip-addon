@@ -14,7 +14,7 @@ const providerVsMov  = require('../providers/vsmov');
 const providerKKPhim = require('../providers/kkphim');
 const providerNguonC = require('../providers/nguonc');
 const { catalogCache } = require('../db/cache');
-const { decodeConfig } = require('../config/compressor');
+const { decodeBitmask, decodeConfig } = require('../config/compressor');
 const { safeExtra, safeSlug, safeKeyword, safePage } = require('../lib/utils');
 const { TTL } = require('../config/constants');
 
@@ -41,34 +41,38 @@ function getProviderFromCatalogId(catalogId) {
   return 'kkphim';
 }
 
-function getCatTypeFromCatalogId(catalogId) {
-  if (!catalogId) return 'movie';
+function getCatTypeFromCatalogId(catalogId, reqType = 'movie') {
+  if (!catalogId) return reqType === 'series' ? 'phim-bo' : 'phim-le';
   const id = String(catalogId).toLowerCase().trim();
 
-  // VSMOV
-  if (id === 'vsmov-4k' || id === 'vsmov-4k-sieu-net') return '4k';
-  if (id === 'vsmov-thuyet-minh' || id === 'vsmov-tm') return 'thuyet-minh';
+  // VSMOV Catalogs
+  if (id === 'vsmov_4k' || id === 'vsmov-4k' || id === 'vsmov-4k-sieu-net') return '4k';
+  if (id === 'vsmov_thuyet_minh' || id === 'vsmov-thuyet-minh' || id === 'vsmov-tm') return 'thuyet-minh';
+  if (id === 'vsmov_phimbo' || id === 'vsmov-phimbo' || id === 'vsmov-phim-bo') return 'phim-bo';
 
-  // KKPhim
-  if (id === 'kkphim-movie-latest' || id === 'kkphim-phim-le') return 'movie';
-  if (id === 'kkphim-series-latest' || id === 'kkphim-phim-bo') return 'series';
-  if (id === 'kkphim-cinema-latest' || id === 'kkphim-chieu-rap') return 'cinema';
-  if (id === 'kkphim-anime-latest' || id === 'kkphim-hoat-hinh') return 'anime';
+  // KKPhim Catalogs
+  if (id === 'kkphim_phimmoi' || id === 'kkphim-phimmoi' || id === 'kkphim-movie-latest' || id === 'kkphim-phim-moi' || id === 'kkphim-moi-cap-nhat') return 'phim-moi-cap-nhat';
+  if (id === 'kkphim_phimbo' || id === 'kkphim-phimbo' || id === 'kkphim-series-latest' || id === 'kkphim-phim-bo') return 'phim-bo';
+  if (id === 'kkphim_phimle' || id === 'kkphim-phimle' || id === 'kkphim-phim-le') return 'phim-le';
+  if (id === 'kkphim-cinema-latest' || id === 'kkphim-chieu-rap' || id === 'kkphim_cinema') return 'phim-chieu-rap';
+  if (id === 'kkphim-anime-latest' || id === 'kkphim-hoat-hinh' || id === 'kkphim_anime') return 'hoat-hinh';
 
-  // NguonC
-  if (id === 'nguonc-movie-latest' || id === 'nguonc-phim-le') return 'movie';
-  if (id === 'nguonc-series-latest' || id === 'nguonc-phim-bo') return 'series';
-  if (id === 'nguonc-cinema-latest' || id === 'nguonc-chieu-rap') return 'cinema';
-  if (id === 'nguonc-anime-latest' || id === 'nguonc-moi-cap-nhat') return 'phim-moi-cap-nhat';
+  // NguonC Catalogs
+  if (id === 'nguonc_phimmoi' || id === 'nguonc-phimmoi' || id === 'nguonc-movie-latest' || id === 'nguonc-phim-moi' || id === 'nguonc-moi-cap-nhat') return 'phim-moi-cap-nhat';
+  if (id === 'nguonc_phimbo' || id === 'nguonc-phimbo' || id === 'nguonc-series-latest' || id === 'nguonc-phim-bo') return 'phim-bo';
+  if (id === 'nguonc_phimle' || id === 'nguonc-phimle' || id === 'nguonc-phim-le') return 'phim-le';
+  if (id === 'nguonc-cinema-latest' || id === 'nguonc-chieu-rap' || id === 'nguonc_cinema') return 'phim-chieu-rap';
+  if (id === 'nguonc-anime-latest' || id === 'nguonc-hoat-hinh' || id === 'nguonc_anime') return 'hoat-hinh';
 
-  if (id.includes('series') || id.includes('phim-bo')) return 'series';
-  if (id.includes('single') || id.includes('movie') || id.includes('phim-le')) return 'movie';
-  if (id.includes('cinema') || id.includes('chieu-rap')) return 'cinema';
-  if (id.includes('anime') || id.includes('hoat-hinh')) return 'anime';
+  // Generic keyword match
+  if (id.includes('phimbo') || id.includes('phim-bo') || id.includes('series') || reqType === 'series') return 'phim-bo';
+  if (id.includes('phimmoi') || id.includes('phim-moi') || id.includes('latest')) return 'phim-moi-cap-nhat';
+  if (id.includes('cinema') || id.includes('chieu-rap')) return 'phim-chieu-rap';
+  if (id.includes('anime') || id.includes('hoat-hinh')) return 'hoat-hinh';
 
   const parts = id.replace(/_/g, '-').split('-');
   if (parts.length >= 2) return parts.slice(1).join('-');
-  return 'movie';
+  return reqType === 'series' ? 'phim-bo' : 'phim-le';
 }
 
 async function handleCatalog(req, res) {
@@ -87,6 +91,28 @@ async function handleCatalog(req, res) {
 
   console.log(`[Catalog] type=${type} id=${catalogId} search=${search} genre=${genre} page=${page}`);
 
+  // Active providers check from bitmask or config token
+  let activeProviders = ['nguonc', 'kkphim', 'vsmov'];
+  const token = req.params.bitmask || req.params.config;
+  if (token) {
+    if (/^\d+$/.test(token)) {
+      activeProviders = decodeBitmask(token);
+    } else {
+      const cfg = decodeConfig(token);
+      if (cfg?.providers && cfg.providers.length > 0) {
+        activeProviders = cfg.providers;
+      }
+    }
+  }
+  if (!Array.isArray(activeProviders) || activeProviders.length === 0) {
+    activeProviders = ['nguonc', 'kkphim', 'vsmov'];
+  }
+
+  const provKey = getProviderFromCatalogId(catalogId);
+  if (catalogId !== 'vip_movies' && catalogId !== 'vip_series' && !activeProviders.includes(provKey)) {
+    return sendJSON(res, { metas: [] });
+  }
+
   // Tiered Cache Key
   const cacheKey = `cat:${catalogId}:${type}:${page}:${search || ''}:${genre || ''}`;
   const cachedMetas = await catalogCache.get(cacheKey);
@@ -97,11 +123,10 @@ async function handleCatalog(req, res) {
   // Live Multi-Provider Search
   if (search) {
     try {
-      const searchTasks = [
-        providerKKPhim.search(search, 10),
-        providerNguonC.search(search, 10),
-        providerVsMov.search(search, 1),
-      ];
+      const searchTasks = [];
+      if (activeProviders.includes('kkphim')) searchTasks.push(providerKKPhim.search(search, 10));
+      if (activeProviders.includes('nguonc')) searchTasks.push(providerNguonC.search(search, 10));
+      if (activeProviders.includes('vsmov')) searchTasks.push(providerVsMov.search(search, 1));
 
       const searchResults = await Promise.allSettled(searchTasks);
       let mergedMetas = [];
@@ -139,16 +164,17 @@ async function handleCatalog(req, res) {
   if (catalogId === 'vip_movies' || catalogId === 'vip_series') {
     try {
       const targetType = catalogId === 'vip_series' ? 'series' : 'movie';
-      const [kkRes, nguonRes, vsmovRes] = await Promise.allSettled([
-        providerKKPhim.getCatalog(targetType, 'kkphim-latest', extra, page),
-        providerNguonC.getCatalog(targetType, 'nguonc-latest', extra, page),
-        providerVsMov.getCatalog(targetType, 'vsmov-latest', extra, page),
-      ]);
+      const fetchTasks = [];
+      if (activeProviders.includes('kkphim')) fetchTasks.push(providerKKPhim.getCatalog(targetType, 'kkphim-latest', extra, page));
+      if (activeProviders.includes('nguonc')) fetchTasks.push(providerNguonC.getCatalog(targetType, 'nguonc-latest', extra, page));
+      if (activeProviders.includes('vsmov')) fetchTasks.push(providerVsMov.getCatalog(targetType, 'vsmov-latest', extra, page));
+
+      const results = await Promise.allSettled(fetchTasks);
 
       let mergedMetas = [];
       const seenNames = new Set();
 
-      [kkRes, nguonRes, vsmovRes].forEach((r) => {
+      results.forEach((r) => {
         if (r.status === 'fulfilled' && Array.isArray(r.value)) {
           r.value.forEach((meta) => {
             const cleanName = (meta.name || '').toLowerCase().trim();
@@ -170,8 +196,7 @@ async function handleCatalog(req, res) {
   }
 
   // Specific Provider Catalogs
-  const provKey = getProviderFromCatalogId(catalogId);
-  const catType = getCatTypeFromCatalogId(catalogId);
+  const catType = getCatTypeFromCatalogId(catalogId, type);
   const primaryProvider = ALL_PROVIDERS[provKey] || providerKKPhim;
 
   try {
@@ -179,7 +204,7 @@ async function handleCatalog(req, res) {
     
     // Resilient Fallback to other providers if empty
     if (!Array.isArray(metas) || metas.length === 0) {
-      const fallbackProviders = [providerKKPhim, providerNguonC, providerVsMov].filter((p) => p !== primaryProvider);
+      const fallbackProviders = [providerKKPhim, providerNguonC, providerVsMov].filter((p) => p !== primaryProvider && activeProviders.includes(p.id));
       for (const fallback of fallbackProviders) {
         try {
           const altMetas = await fallback.getCatalog(catType, catalogId, extra, page);
