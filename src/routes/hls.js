@@ -191,22 +191,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
 
   let effectiveTargetUrl = targetUrl;
   let effectiveReferer = refererUrl;
-  let rawManifestData = null;
-  let upstreamResponse = null;
-
-  // 1. If targetUrl is an embed player URL (e.g. StreamC embed.php), extract direct M3U8 directly first
-  const isLikelyEmbed = /embed\.php|streamc|\/embed\//i.test(targetUrl) && !targetUrl.includes('.m3u8');
-  if (isLikelyEmbed) {
-    try {
-      const extracted = await extractM3u8FromEmbed(targetUrl, refererUrl);
-      if (extracted && extracted.m3u8Url) {
-        effectiveTargetUrl = extracted.m3u8Url;
-        effectiveReferer = extracted.embedHost ? `${extracted.embedHost}/` : refererUrl;
-      }
-    } catch (e) {
-      console.warn('[HLS/manifest] Pre-embed extraction failed:', e.message);
-    }
-  }
 
   let actualReferer = effectiveReferer;
   if (/amass\d*\.top/i.test(effectiveTargetUrl) && (/amass\d*\.top/i.test(actualReferer) || !actualReferer)) {
@@ -218,7 +202,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
     Referer: actualReferer,
     Accept: '*/*',
     'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-    Connection: 'keep-alive',
   };
   const isStreamcOrAmass = /streamc\.|amass\d*\.top/i.test(effectiveTargetUrl);
   if (origin && !isStreamcOrAmass) {
@@ -233,14 +216,16 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       headers: fetchHeaders,
       timeout: 15000,
       maxRedirects: 5,
+      validateStatus: (status) => status >= 200 && status < 400,
     });
-    rawManifestData = String(r.data);
-    upstreamResponse = r;
+
+    let rawManifestData = String(r.data);
 
     // If upstream returned HTML webpage instead of M3U8 playlist, auto-extract M3U8 from embed/HTML
     if (!rawManifestData.includes('#EXTM3U')) {
       const extracted = await extractM3u8FromEmbed(effectiveTargetUrl, effectiveReferer);
       if (extracted && extracted.m3u8Url) {
+        effectiveTargetUrl = extracted.m3u8Url;
         const r2 = await axios({
           url: extracted.m3u8Url,
           method: 'GET',
@@ -249,74 +234,26 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
             'User-Agent': HLS_UA,
             Referer: extracted.embedHost ? `${extracted.embedHost}/` : effectiveReferer,
             Accept: '*/*',
-            'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-            Connection: 'keep-alive',
           },
           timeout: 15000,
           maxRedirects: 5,
         });
-        if (String(r2.data).includes('#EXTM3U')) {
-          rawManifestData = String(r2.data);
-          effectiveTargetUrl = extracted.m3u8Url;
-          upstreamResponse = r2;
-        }
+        rawManifestData = String(r2.data);
       }
     }
-  } catch (primaryErr) {
-    console.warn(`[HLS/manifest] Primary fetch failed (${primaryErr.message}), attempting de-embed fallback...`);
-    try {
-      const extracted = await extractM3u8FromEmbed(targetUrl, refererUrl);
-      if (extracted && extracted.m3u8Url) {
-        const r2 = await axios({
-          url: extracted.m3u8Url,
-          method: 'GET',
-          responseType: 'text',
-          headers: {
-            'User-Agent': HLS_UA,
-            Referer: extracted.embedHost ? `${extracted.embedHost}/` : refererUrl,
-            Accept: '*/*',
-            'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-            Connection: 'keep-alive',
-          },
-          timeout: 15000,
-          maxRedirects: 5,
-        });
-        if (String(r2.data).includes('#EXTM3U')) {
-          rawManifestData = String(r2.data);
-          effectiveTargetUrl = extracted.m3u8Url;
-          upstreamResponse = r2;
-        }
-      }
-    } catch (fallbackErr) {
-      console.error('[HLS/manifest] Fallback extraction failed:', fallbackErr.message);
-    }
+
     if (!rawManifestData || !rawManifestData.includes('#EXTM3U')) {
-      throw primaryErr;
-    }
-  }
-
-  try {
-    if (!rawManifestData || !rawManifestData.includes('#EXTM3U')) {
-      m3u8Cache.del(cacheKey);
-      if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
-        try {
-          return res.redirect(302, targetUrl);
-        } catch {}
-      }
-      return res.status(502).send('Invalid M3U8 Manifest');
+      return res.status(502).send('Invalid M3U8 playlist response');
     }
 
-    const finalUrl = upstreamResponse?.request?.res?.responseUrl || effectiveTargetUrl;
-    let baseUrl;
-    try { baseUrl = new URL(finalUrl); } catch { return res.send(rawManifestData); }
-
-    const encodedRef = Buffer.from(refererUrl).toString('base64url');
-    let isNextSubPlaylist = false;
-    let isNextSegment     = false;
-    let isMasterPlaylist  = false;
-
-    const rawLines = rawManifestData.split(/\r?\n/);
+    const baseUrl = new URL(effectiveTargetUrl);
+    const rawLines = rawManifestData.split('\n');
     const rewrittenLines = [];
+
+    let isMasterPlaylist = false;
+    let isNextSubPlaylist = false;
+    let isNextSegment = false;
+    const encodedRef = Buffer.from(effectiveReferer).toString('base64url');
 
     for (let i = 0; i < rawLines.length; i++) {
       const line = rawLines[i];
@@ -327,7 +264,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       }
 
       if (t.startsWith('#')) {
-        // Master Playlist variant streams
         if (t.startsWith('#EXT-X-STREAM-INF') || t.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
           isMasterPlaylist = true;
           isNextSubPlaylist = true;
@@ -348,7 +284,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
           continue;
         }
 
-        // Media Playlist segments
         if (t.startsWith('#EXTINF')) {
           isNextSegment = true;
           isNextSubPlaylist = false;
@@ -356,7 +291,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
           continue;
         }
 
-        // Audio / Subtitles / Alternative Renditions
         if (t.startsWith('#EXT-X-MEDIA') && t.includes('URI=')) {
           isMasterPlaylist = true;
           const rewrittenMedia = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
@@ -372,7 +306,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
           continue;
         }
 
-        // Decryption Key Files (#EXT-X-KEY / #EXT-X-SESSION-KEY)
         if ((t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-SESSION-KEY')) && t.includes('URI=')) {
           const rewrittenKey = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
@@ -384,7 +317,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
           continue;
         }
 
-        // fMP4 Initialization segment (#EXT-X-MAP)
         if (t.startsWith('#EXT-X-MAP') && t.includes('URI=')) {
           const rewrittenMap = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
@@ -396,7 +328,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
           continue;
         }
 
-        // Low-Latency HLS Preload hints & partial segments
         if ((t.startsWith('#EXT-X-PRELOAD-HINT') || t.startsWith('#EXT-X-PART')) && t.includes('URI=')) {
           const rewrittenPart = t.replace(/URI=(?:"([^"]+)"|([^\s,]+))/, (_, qUri, unqUri) => {
             const uri = qUri || unqUri;
@@ -412,7 +343,6 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
         continue;
       }
 
-      // URI Line
       const absUrl = t.startsWith('http') ? t : new URL(t, baseUrl.href).href;
       const b64Url = Buffer.from(absUrl).toString('base64url');
 
@@ -426,16 +356,13 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
       rewrittenLines.push(`${protoHost}/hls/segment.ts?url=${b64Url}&ref=${encodedRef}`);
     }
 
-    // Inject subtitle track into master playlist if subParam is provided and it is a Master Playlist
     if (subParam && isMasterPlaylist) {
       const b64Sub = Buffer.from(subParam).toString('base64url');
       const proxySubUrl = `${protoHost}/hls/sub.vtt?url=${b64Sub}&ref=${encodedRef}`;
       const subTag = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Tiếng Việt (VSMOV VIP)",DEFAULT=YES,AUTOSELECT=YES,FORCED=NO,LANGUAGE="vie",URI="${proxySubUrl}"`;
 
-      // Check if not already present
       const alreadyHasSub = rewrittenLines.some((l) => l.startsWith('#EXT-X-MEDIA:TYPE=SUBTITLES') && l.includes('GROUP-ID="subs"'));
       if (!alreadyHasSub) {
-        // Find insert position: right after #EXTM3U or #EXT-X-VERSION
         let insertIdx = 1;
         for (let i = 0; i < rewrittenLines.length; i++) {
           const l = rewrittenLines[i].trim();
@@ -448,21 +375,17 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
     }
 
     const rewritten = rewrittenLines.join('\n');
-    m3u8Cache.set(cacheKey, rewritten, 300);
-    res.send(rewritten);
+    await m3u8Cache.set(cacheKey, rewritten, 300);
+    return res.send(rewritten);
   } catch (err) {
     console.error('[HLS/manifest]', err.message, targetUrl.slice(0, 80));
-    // Purge dead/broken cache entries
-    m3u8Cache.del(cacheKey);
-
     if (!res.headersSent) {
-      // Self-healing fallback: allow external players to resolve directly if targetUrl is valid
       if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
         try {
           return res.redirect(302, targetUrl);
         } catch {}
       }
-      res.status(502).send('HLS Proxy Error: ' + err.message);
+      return res.status(502).send('HLS Proxy Error: ' + err.message);
     }
   }
 });
@@ -471,8 +394,7 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
 router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => {
   setCorsHeaders(res);
   res.setHeader('Content-Type', req.query.is_key ? 'application/octet-stream' : 'video/MP2T');
-  res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=3600');
-  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', req.query.is_key ? 'no-cache, no-store' : 'public, max-age=31536000, immutable');
 
   const targetUrl = resolveParamUrl(req.query.url || req.query.b64);
   if (!targetUrl) return res.status(400).send('Missing url');
@@ -489,15 +411,12 @@ router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => 
     'User-Agent': HLS_UA,
     Referer: actualReferer,
     Accept: '*/*',
-    'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-    Connection: 'keep-alive',
   };
   const isStreamcOrAmass = /streamc\.|amass\d*\.top/i.test(targetUrl);
   if (origin && !isStreamcOrAmass) {
     upstreamHeaders.Origin = origin;
   }
 
-  // HTTP Range forwarding for seek support
   if (req.headers.range) {
     upstreamHeaders['Range'] = req.headers.range;
   }
@@ -506,52 +425,59 @@ router.get(['/segment.ts', '/ts', '/segment', '/ts-proxy'], async (req, res) => 
     const upstreamRes = await axios({
       url: targetUrl,
       method: 'GET',
-      responseType: 'arraybuffer',
+      responseType: 'stream',
       headers: upstreamHeaders,
-      timeout: 15000,
+      timeout: 25000,
       maxRedirects: 5,
       validateStatus: (status) => status >= 200 && status < 400,
     });
 
-    const buffer = Buffer.from(upstreamRes.data);
-
-    if (req.headers.range) {
-      if (upstreamRes.status === 206) {
-        res.status(206);
-        if (upstreamRes.headers['content-range']) {
-          res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+    if (req.headers.range && upstreamRes.status === 200) {
+      const chunks = [];
+      upstreamRes.data.on('data', (c) => chunks.push(c));
+      upstreamRes.data.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        const rangeMatch = req.headers.range.match(/bytes=(\d+)-(\d*)/);
+        if (rangeMatch) {
+          const start = parseInt(rangeMatch[1], 10);
+          let end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : buffer.length - 1;
+          if (isNaN(end) || end >= buffer.length) end = buffer.length - 1;
+          if (start <= end && start < buffer.length) {
+            const slice = buffer.subarray(start, end + 1);
+            res.status(206);
+            res.setHeader('Content-Range', `bytes ${start}-${end}/${buffer.length}`);
+            res.setHeader('Content-Length', slice.length);
+            return res.send(slice);
+          }
         }
-        if (upstreamRes.headers['content-length']) {
-          res.setHeader('Content-Length', upstreamRes.headers['content-length']);
-        } else {
-          res.setHeader('Content-Length', buffer.length);
-        }
-        return res.send(buffer);
-      }
-
-      // Upstream returned 200, handle Range locally by buffer slicing
-      const rangeMatch = req.headers.range.match(/bytes=(\d+)-(\d*)/);
-      if (rangeMatch) {
-        const start = parseInt(rangeMatch[1], 10);
-        let end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : buffer.length - 1;
-        if (isNaN(end) || end >= buffer.length) end = buffer.length - 1;
-        if (start <= end && start < buffer.length) {
-          const slice = buffer.subarray(start, end + 1);
-          res.status(206);
-          res.setHeader('Content-Range', `bytes ${start}-${end}/${buffer.length}`);
-          res.setHeader('Content-Length', slice.length);
-          return res.send(slice);
-        }
-      }
+        res.status(200).send(buffer);
+      });
+      upstreamRes.data.on('error', (err) => {
+        console.error('[HLS/segment] Stream error:', err.message);
+        if (!res.headersSent) res.status(502).end();
+      });
+      return;
     }
 
     res.status(upstreamRes.status);
+
+    if (upstreamRes.headers['content-range']) {
+      res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+    }
     if (upstreamRes.headers['content-length']) {
       res.setHeader('Content-Length', upstreamRes.headers['content-length']);
-    } else {
-      res.setHeader('Content-Length', buffer.length);
     }
-    return res.send(buffer);
+    if (upstreamRes.headers['accept-ranges']) {
+      res.setHeader('Accept-Ranges', upstreamRes.headers['accept-ranges']);
+    } else {
+      res.setHeader('Accept-Ranges', 'bytes');
+    }
+
+    upstreamRes.data.pipe(res);
+    upstreamRes.data.on('error', (err) => {
+      console.error('[HLS/segment] Stream error:', err.message);
+      if (!res.headersSent) res.status(502).end();
+    });
   } catch (err) {
     console.error('[HLS/segment]', err.message, targetUrl.slice(0, 80));
     if (!res.headersSent) {

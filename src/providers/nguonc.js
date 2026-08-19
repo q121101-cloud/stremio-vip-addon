@@ -216,16 +216,14 @@ class NguonCProvider extends BaseProvider {
       try {
         return await this.fetchViaProxy(targetUrl, proxyBase, options);
       } catch (proxyErr) {
-        if (options.fallbackToDirectOnProxyFailure) {
-          try {
-            const res = await axios.get(targetUrl, {
-              headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
-              timeout: options.timeout || 3500,
-              params: options.params,
-            });
-            return res.data;
-          } catch {}
-        }
+        try {
+          const res = await axios.get(targetUrl, {
+            headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
+            timeout: options.timeout || 3500,
+            params: options.params,
+          });
+          return res.data;
+        } catch {}
         throw proxyErr;
       }
     }
