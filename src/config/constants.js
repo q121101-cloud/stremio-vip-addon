@@ -15,16 +15,19 @@ const ADDON_DESCRIPTION =
 const ADDON_LOGO = 'https://i.imgur.com/3C9XQFP.png';
 
 // ─── 1. Provider & Category IDs ───────────────────────────────
-const VALID_PROVIDERS = ['vsmov', 'kkphim', 'nguonc'];
+const ALL_PROVIDERS = ['nguonc', 'kkphim', 'vsmov'];
+const VALID_PROVIDERS = ['nguonc', 'kkphim', 'vsmov'];
 const VALID_CATEGORIES = ['movie', 'series', 'anime', 'cinema'];
 
 // ─── 2. 16-Bit Bitmask Specifications ─────────────────────────
 // Lower 8 bits (0-7): Provider flags
 const PROVIDER_BITS = {
-  vsmov:  1 << 0, // 0x0001 (1)
-  kkphim: 1 << 1, // 0x0002 (2)
-  nguonc: 1 << 2, // 0x0004 (4)
+  nguonc: 1 << 0, // Bit 0 (1)
+  kkphim: 1 << 1, // Bit 1 (2)
+  vsmov:  1 << 2, // Bit 2 (4)
 };
+
+const DEFAULT_BITMASK = 7; // 1 | 2 | 4 = 7
 
 // Upper 8 bits (8-15): Category flags
 const CATEGORY_BITS = {
@@ -34,18 +37,21 @@ const CATEGORY_BITS = {
   cinema: 1 << 11, // 0x0800 (2048)
 };
 
-const DEFAULT_PROVIDER_MASK = PROVIDER_BITS.vsmov | PROVIDER_BITS.kkphim | PROVIDER_BITS.nguonc; // 7
+const DEFAULT_PROVIDER_MASK = PROVIDER_BITS.nguonc | PROVIDER_BITS.kkphim | PROVIDER_BITS.vsmov; // 7
 const DEFAULT_CATEGORY_MASK = CATEGORY_BITS.movie | CATEGORY_BITS.series | CATEGORY_BITS.anime | CATEGORY_BITS.cinema; // 3840 (0x0F00)
 const DEFAULT_CONFIG_MASK = DEFAULT_PROVIDER_MASK | DEFAULT_CATEGORY_MASK; // 3847
 
 const DEFAULT_CONFIG = {
-  providers: ['vsmov', 'kkphim', 'nguonc'],
+  providers: ['nguonc', 'kkphim', 'vsmov'],
   categories: ['movie', 'series', 'anime', 'cinema'],
   apiKey: '',
 };
 
-// ─── 3. Cache TTLs (Seconds) ──────────────────────────────────
+// ─── 3. Cache TTLs (Seconds / MS) ─────────────────────────────
 const TTL = {
+  SERIES: 4 * 3600,           // 4 hours (14400s)
+  MOVIE: 24 * 3600,           // 24 hours (86400s)
+  L1_RAM: 10 * 60 * 1000,     // 10 minutes (600000ms)
   MEMORY_DEFAULT: 300,        // 5 phút
   CATALOG: 300,               // 5 phút
   DETAIL: 1800,               // 30 phút
@@ -58,13 +64,17 @@ const TTL = {
 };
 
 // ─── 4. HTTP Timeouts (Milliseconds) ──────────────────────────
-const TIMEOUT = {
-  PROVIDER: 4500,
+const TIMEOUTS = {
+  PROVIDER_QUERY: 3000, // Strict 3000ms
+  HTTP_FETCH: 5000,
+  PROVIDER: 3000,
   CINEMETA: 3000,
   HLS_MANIFEST: 6000,
   HLS_SEGMENT: 15000,
   DB_QUERY: 2000,
 };
+
+const TIMEOUT = TIMEOUTS;
 
 // ─── 5. Standard User Agent & Headers ─────────────────────────
 const USER_AGENT_CHROME =
@@ -279,15 +289,18 @@ module.exports = {
   ADDON_VERSION,
   ADDON_DESCRIPTION,
   ADDON_LOGO,
+  ALL_PROVIDERS,
   VALID_PROVIDERS,
   VALID_CATEGORIES,
   PROVIDER_BITS,
+  DEFAULT_BITMASK,
   CATEGORY_BITS,
   DEFAULT_PROVIDER_MASK,
   DEFAULT_CATEGORY_MASK,
   DEFAULT_CONFIG_MASK,
   DEFAULT_CONFIG,
   TTL,
+  TIMEOUTS,
   TIMEOUT,
   USER_AGENT_CHROME,
   HLS_REFERERS,
