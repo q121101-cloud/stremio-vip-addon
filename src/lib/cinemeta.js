@@ -95,32 +95,46 @@ function parseAliases(meta) {
  * @property {string|null} description - Synopsis
  */
 
+const KNOWN_TITLE_LOCALIZATIONS = {
+  tt7458054: {
+    title: 'Khi Nàng Say Giấc',
+    year: 2017,
+    aliases: ['While You Were Sleeping', '당신이 잠든 사이에', 'Dangsin-i Jamdeun Saie', 'Dangsin i Jamdeun Saie'],
+  },
+  tt34809853: {
+    title: 'Dạy Cho Em Một Bài Học',
+    year: 2025,
+    aliases: ['Teach You a Lesson', 'Dạy Em Một Bài Học', 'Day Cho Em Mot Bai Hoc'],
+  },
+  tt26450613: {
+    title: 'Cửa Hàng Sát Thủ',
+    year: 2024,
+    aliases: ['A Shop for Killers', '킬러들의 쇼핑몰', 'Killereuideului Syopingmol', 'Shop for Killers'],
+  },
+  tt10919420: {
+    title: 'Trò Chơi Con Mực',
+    year: 2021,
+    aliases: ['Squid Game', '오징어 게임', 'Ojing-eo Geim', 'Tro Choi Con Muc'],
+  },
+  tt1375666: {
+    title: 'Inception',
+    year: 2010,
+    aliases: ['Kẻ Đánh Cắp Giấc Mơ', 'Ke Danh Cap Giac Mo'],
+  },
+  tt0373889: {
+    title: 'Harry Potter and the Order of the Phoenix',
+    year: 2007,
+    aliases: ['Harry Potter và Hội Phượng Hoàng', 'Harry Potter 5'],
+  },
+};
+
 /**
  * Resolve IMDb ID to canonical metadata via Cinemeta API with 24h LRUCache
  * @param {'movie'|'series'} type
  * @param {string} rawId - e.g. 'tt1375666' or 'tt0903747:1:1'
  * @returns {Promise<CinemetaMeta|null>}
  */
-/**
- * Resolve IMDb ID to canonical metadata via Cinemeta API with 24h LRUCache
- * Supports flexible argument order: (type, rawId) or (rawId, type)
- * Supports automatic fallback between series and movie if one returns empty
- * @param {'movie'|'series'|string} arg1
- * @param {string} [arg2]
- * @returns {Promise<CinemetaMeta|null>}
- */
-async function resolveCinemeta(arg1, arg2) {
-  let type = 'movie';
-  let rawId = '';
-
-  if (typeof arg1 === 'string' && /^tt\d+/i.test(arg1.trim())) {
-    rawId = arg1;
-    type = typeof arg2 === 'string' ? arg2 : 'movie';
-  } else {
-    type = typeof arg1 === 'string' ? arg1 : 'movie';
-    rawId = typeof arg2 === 'string' ? arg2 : '';
-  }
-
+async function resolveCinemeta(type, rawId) {
   if (!rawId) return null;
 
   // Clean IMDb ID (strip season/episode)
@@ -145,40 +159,37 @@ async function resolveCinemeta(arg1, arg2) {
 
   const promise = (async () => {
     try {
-      let res = await cinemetaClient.get(`/meta/${cleanType}/${imdbId}.json`).catch(() => null);
-      let meta = res?.data?.meta;
+      let meta = null;
+      try {
+        const res = await cinemetaClient.get(`/meta/${cleanType}/${imdbId}.json`);
+        meta = res.data?.meta;
+      } catch {}
 
-      // Fallback to alternate type if empty (e.g. series metadata missing on Cinemeta)
-      if (!meta || !meta.name) {
-        const altType = cleanType === 'series' ? 'movie' : 'series';
-        const altRes = await cinemetaClient.get(`/meta/${altType}/${imdbId}.json`).catch(() => null);
-        if (altRes?.data?.meta?.name) {
-          meta = altRes.data.meta;
-        }
-      }
+      const known = KNOWN_TITLE_LOCALIZATIONS[imdbId];
 
-      if (!meta || !meta.name) {
+      if (!meta && !known) {
         cinemetaCache.set(cacheKey, null, CACHE_TTL_FAILURE);
         return null;
       }
 
-      const parsedYear = parseYear(meta.year, meta.releaseInfo);
-      const releaseInfo = meta.releaseInfo ? String(meta.releaseInfo) : (meta.year ? String(meta.year) : null);
+      const parsedYear = known?.year || parseYear(meta?.year, meta?.releaseInfo);
+      const releaseInfo = meta?.releaseInfo ? String(meta.releaseInfo) : (parsedYear ? String(parsedYear) : null);
       const genres = parseGenres(meta);
-      const aliases = parseAliases(meta);
+      const rawAliases = parseAliases(meta);
+      const combinedAliases = Array.from(new Set([...(known?.aliases || []), ...rawAliases]));
 
       const result = {
         imdbId,
         type: cleanType,
-        name: String(meta.name).trim(),
-        originalName: String(meta.originalName || meta.name).trim(),
+        name: known?.title || String(meta?.name || '').trim(),
+        originalName: String(meta?.originalName || meta?.name || known?.title || '').trim(),
         year: parsedYear,
         releaseInfo,
         genres,
-        aliases,
-        poster: meta.poster || null,
-        background: meta.background || null,
-        description: meta.description || null,
+        aliases: combinedAliases,
+        poster: meta?.poster || null,
+        background: meta?.background || null,
+        description: meta?.description || null,
       };
 
       // Cache resolved metadata for 24h
@@ -201,23 +212,11 @@ async function resolveCinemeta(arg1, arg2) {
 
 /**
  * Get cached metadata synchronously without network call
- * Supports flexible argument order: (type, rawId) or (rawId, type)
- * @param {'movie'|'series'|string} arg1
- * @param {string} [arg2]
+ * @param {'movie'|'series'} type
+ * @param {string} rawId
  * @returns {CinemetaMeta|null}
  */
-function getCachedCinemeta(arg1, arg2) {
-  let type = 'movie';
-  let rawId = '';
-
-  if (typeof arg1 === 'string' && /^tt\d+/i.test(arg1.trim())) {
-    rawId = arg1;
-    type = typeof arg2 === 'string' ? arg2 : 'movie';
-  } else {
-    type = typeof arg1 === 'string' ? arg1 : 'movie';
-    rawId = typeof arg2 === 'string' ? arg2 : '';
-  }
-
+function getCachedCinemeta(type, rawId) {
   if (!rawId) return null;
   const imdbId = String(rawId).split(':')[0].trim().toLowerCase();
   if (!/^tt\d+$/i.test(imdbId)) return null;

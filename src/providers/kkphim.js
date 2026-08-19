@@ -2,7 +2,7 @@
 
 /**
  * ============================================================
- *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.6.0)
+ *  VIP Movies Addon — src/providers/kkphim.js (Engine v1.5.2)
  *  KKPhim Provider Module (100% Official Endpoints: phimapi.com)
  *
  *  Features:
@@ -17,7 +17,7 @@
 const axios = require('axios');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
 const { resolveCinemeta, getCachedCinemeta } = require('../lib/cinemeta');
-const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp, generateSearchKeywords, matchEpisodeItem } = require('../lib/utils');
+const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
 
 const PROVIDER_ID    = 'kkphim';
 const PROVIDER_LABEL = 'KKPhim';
@@ -59,7 +59,47 @@ function formatEpisodeLabel(epName) {
   return ` [Tập ${trimmed}]`;
 }
 
+/**
+ * Flexible episode matching helper supporting exact name, zero-padded 01/001,
+ * "Tập 1", "Tập 01", "tap-1", "episode-1", slug suffix "-1", regex number extraction, and fallback.
+ */
+function matchEpisodeItem(ep, targetEpStr, targetEpNum) {
+  if (!ep) return false;
+  const nameStr = String(ep.name || '').trim();
+  const slugStr = String(ep.slug || '').trim();
+  const pad2 = !isNaN(targetEpNum) && targetEpNum > 0 ? String(targetEpNum).padStart(2, '0') : targetEpStr;
+  const pad3 = !isNaN(targetEpNum) && targetEpNum > 0 ? String(targetEpNum).padStart(3, '0') : targetEpStr;
 
+  // Direct name equality
+  if (nameStr === targetEpStr || nameStr === pad2 || nameStr === pad3) return true;
+  if (nameStr === `Tập ${targetEpStr}` || nameStr === `Tập ${pad2}` || nameStr === `Tập ${pad3}`) return true;
+  if (nameStr === `Tập${targetEpStr}` || nameStr === `Tập${pad2}` || nameStr === `Tập${pad3}`) return true;
+  if (nameStr.toLowerCase() === `episode ${targetEpStr}` || nameStr.toLowerCase() === `ep ${pad2}`) return true;
+
+  // Slug equality & slug patterns
+  if (slugStr === targetEpStr || slugStr === pad2 || slugStr === pad3) return true;
+  if (slugStr === `tap-${targetEpStr}` || slugStr === `tap-${pad2}` || slugStr === `tap-${pad3}`) return true;
+  if (slugStr === `episode-${targetEpStr}` || slugStr === `ep-${targetEpStr}` || slugStr === `ep-${pad2}`) return true;
+  if (slugStr.endsWith(`-${targetEpStr}`) || slugStr.endsWith(`-${pad2}`) || slugStr.endsWith(`-${pad3}`)) return true;
+  if (slugStr.endsWith(`-tap-${targetEpStr}`) || slugStr.endsWith(`-tap-${pad2}`)) return true;
+
+  // Regex extraction from name / slug
+  if (!isNaN(targetEpNum) && targetEpNum > 0) {
+    const nameMatch = nameStr.match(/(?:tập|tap|ep|episode)\s*(\d+)/i) || nameStr.match(/\b(\d+)\b/);
+    if (nameMatch && parseInt(nameMatch[1], 10) === targetEpNum) return true;
+
+    const slugMatch = slugStr.match(/(?:tap|ep|episode)[-_](\d+)/i) || slugStr.match(/[-_](\d+)$/);
+    if (slugMatch && parseInt(slugMatch[1], 10) === targetEpNum) return true;
+  }
+
+  if (nameStr && targetEpStr && !targetEpStr.startsWith('-')) {
+    try {
+      const re = new RegExp(`(^|[^0-9a-zA-Z])${escapeRegExp(targetEpStr)}([^0-9a-zA-Z]|$)`, 'i');
+      if (re.test(nameStr) || re.test(slugStr)) return true;
+    } catch {}
+  }
+  return false;
+}
 
 function mapCatalogMeta(item, forceType = null) {
   const isSeries = item.type === 'series' || item.type === 'hoathinh' || item.type === 'tvshows';
@@ -92,7 +132,7 @@ async function getByImdb(imdbId) {
   const cleanImdb = String(imdbId).toLowerCase().trim();
   if (!cleanImdb) return null;
   const cacheKey = `kkphim:imdb:${cleanImdb}`;
-  const cached = await imdbCache.get(cacheKey);
+  const cached = imdbCache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -113,14 +153,14 @@ async function getByImdb(imdbId) {
 // ─────────────────────────────────────────────────────────────
 //  2. Tìm kiếm phim: search(keyword, limit = 10)
 // ─────────────────────────────────────────────────────────────
-async function search(keyword, limit = 5) {
+async function search(keyword, limit = 10) {
   const cleanKeyword = safeKeyword(keyword);
   if (!cleanKeyword) return [];
   try {
     const res = await http.get('/v1/api/tim-kiem', {
       params: {
         keyword: cleanKeyword,
-        limit: Math.max(1, parseInt(limit, 10) || 5),
+        limit: Math.max(1, parseInt(limit, 10) || 10),
       },
     });
     const items = res.data?.data?.items || [];
@@ -149,7 +189,7 @@ async function getDetail(slug) {
   const cleanSlug = safeSlug(slug, 'kkphim');
   if (!cleanSlug) return null;
   const cacheKey = `kkphim:detail:${cleanSlug}`;
-  const cached = await detailCache.get(cacheKey);
+  const cached = detailCache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -168,22 +208,9 @@ async function getDetail(slug) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  4. Danh mục & Bộ lọc Catalog: getCatalog(type, id/page, extra, page)
+//  4. Danh mục & Bộ lọc Catalog: getCatalog(type, page = 1, extra = {})
 // ─────────────────────────────────────────────────────────────
-async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
-  let catalogId = null;
-  let page = 1;
-  let extra = {};
-
-  if (typeof arg2 === 'string' && isNaN(Number(arg2))) {
-    catalogId = arg2;
-    extra = typeof arg3 === 'object' ? arg3 : {};
-    page = typeof arg4 === 'number' ? arg4 : parseInt(arg4, 10) || 1;
-  } else {
-    page = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10) || 1;
-    extra = typeof arg3 === 'object' ? arg3 : {};
-  }
-
+async function getCatalog(type, page = 1, extra = {}) {
   const cleanType = safeType(type, 'phim-le');
   const safe = safeExtra(extra);
   const p = safePage(page);
@@ -191,7 +218,7 @@ async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
   const genreFilter = safeKeyword(safe.genre);
   const countryFilter = safeKeyword(safe.country);
   const cacheKey = `kkphim:cat:${cleanType}:${p}:${searchQuery}:${genreFilter}:${countryFilter}`;
-  const cached = await catalogCache.get(cacheKey);
+  const cached = catalogCache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -226,22 +253,21 @@ async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
     }
 
     // New/List endpoints
-    if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest' || cleanType === 'phimmoi' || cleanType === 'kkphim_phimmoi') {
+    if (cleanType === 'phim-moi-cap-nhat' || cleanType === 'latest') {
       const res = await http.get('/danh-sach/phim-moi-cap-nhat', { params: { page: p } });
       const raw = res.data?.items || [];
-      items = raw.map((i) => mapCatalogMeta(i, 'movie'));
+      items = raw.map((i) => mapCatalogMeta(i));
     } else {
       let listType = cleanType;
-      if (cleanType === 'movie' || cleanType === 'phim-le' || cleanType === 'phimle') listType = 'phim-le';
-      else if (cleanType === 'series' || cleanType === 'phim-bo' || cleanType === 'phimbo' || cleanType === 'kkphim_phimbo') listType = 'phim-bo';
-      else if (cleanType === 'anime' || cleanType === 'hoat-hinh') listType = 'hoat-hinh';
-      else if (cleanType === 'cinema' || cleanType === 'phim-chieu-rap') listType = 'phim-chieu-rap';
-      else if (cleanType === 'tvshows' || cleanType === 'tv-shows') listType = 'tv-shows';
+      if (cleanType === 'movie') listType = 'phim-le';
+      else if (cleanType === 'series') listType = 'phim-bo';
+      else if (cleanType === 'anime') listType = 'hoat-hinh';
+      else if (cleanType === 'cinema') listType = 'phim-chieu-rap';
+      else if (cleanType === 'tvshows') listType = 'tv-shows';
 
       const res = await http.get(`/v1/api/danh-sach/${listType}`, { params: { page: p } });
       const raw = res.data?.data?.items || [];
-      const isSeriesCategory = listType === 'phim-bo' || listType === 'hoat-hinh' || listType === 'tv-shows';
-      items = raw.map((i) => mapCatalogMeta(i, isSeriesCategory ? 'series' : 'movie'));
+      items = raw.map((i) => mapCatalogMeta(i, cleanType === 'series' ? 'series' : 'movie'));
     }
 
     catalogCache.set(cacheKey, items, 300);
@@ -255,17 +281,12 @@ async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
 // ─────────────────────────────────────────────────────────────
 //  5. Trích xuất Luồng Stream: getStreams({ imdbId, type, title, year, genres, season, episode, slug, proxyBase })
 // ─────────────────────────────────────────────────────────────
-async function getStreams(arg1, arg2, arg3, arg4, arg5, arg6) {
+async function getStreams(arg1, title, type, season, episode, proxyBase) {
   let imdbId  = null;
   let slug    = null;
-  let title   = null;
-  let type    = 'movie';
   let year    = null;
   let genres  = null;
   let aliases = [];
-  let season  = 1;
-  let episode = 1;
-  let proxyBase = '';
 
   if (typeof arg1 === 'object' && arg1 !== null) {
     imdbId    = arg1.imdbId || null;
@@ -274,30 +295,27 @@ async function getStreams(arg1, arg2, arg3, arg4, arg5, arg6) {
     year      = arg1.year || null;
     genres    = arg1.genres || null;
     aliases   = Array.isArray(arg1.aliases) ? arg1.aliases : [];
-    season    = arg1.season != null ? (parseInt(arg1.season, 10) || 1) : 1;
-    episode   = arg1.episode != null ? (parseInt(arg1.episode, 10) || 1) : 1;
+    season    = arg1.season != null ? arg1.season : null;
+    episode   = arg1.episode != null ? arg1.episode : null;
     slug      = arg1.slug || null;
     proxyBase = arg1.proxyBase || '';
   } else if (typeof arg1 === 'string') {
     if (/^tt\d+/i.test(arg1)) {
       imdbId = arg1;
-      if (typeof arg2 === 'string') {
-        title = arg2;
-        type = typeof arg3 === 'string' ? arg3 : 'movie';
-        season = parseInt(arg4, 10) || 1;
-        episode = parseInt(arg5, 10) || 1;
-        proxyBase = arg6 || '';
-      } else {
-        season = parseInt(arg2, 10) || 1;
-        episode = parseInt(arg3, 10) || 1;
-        proxyBase = arg4 || '';
-      }
     } else {
       slug = arg1;
-      season = parseInt(arg2, 10) || 1;
-      episode = parseInt(arg3, 10) || 1;
-      proxyBase = arg4 || '';
     }
+    type = type || 'movie';
+    proxyBase = proxyBase || '';
+  }
+
+  if (season != null) {
+    const seasonNum = parseInt(season, 10);
+    if (isNaN(seasonNum) || seasonNum <= 0 || seasonNum > 1000) return [];
+  }
+  if (episode != null) {
+    const epNum = parseInt(episode, 10);
+    if (String(episode).trim().startsWith('-') || (!isNaN(epNum) && epNum <= 0)) return [];
   }
 
   // Resolve Cinemeta metadata (name, year, aliases) if missing
@@ -337,12 +355,8 @@ async function getStreams(arg1, arg2, arg3, arg4, arg5, arg6) {
     // ─── Tier 2: Smart Search Fallback (Cinemeta title & aliases + scoreMatch) ──
     if (!movieData && (title || aliases.length > 0)) {
       const cleanTitle = title ? String(title).trim() : '';
-      const searchQueries = generateSearchKeywords({
-        title: cleanTitle,
-        originalName: null,
-        aliases,
-        season,
-      });
+      const titleWithoutYear = cleanTitle.replace(/\s*\(?\d{4}\)?\s*$/, '').trim();
+      const searchQueries = Array.from(new Set([cleanTitle, titleWithoutYear, ...aliases])).filter(Boolean);
 
       let bestItem = null;
       let bestScore = -1;

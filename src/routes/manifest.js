@@ -3,147 +3,153 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/routes/manifest.js
- *  Stremio Manifest Router with 16-bit Bitmask & Base62 Support
+ *  Dynamic Manifest Router — hỗ trợ 2 format URL:
+ *    1. GET /:config/manifest.json  (Base64URL token)
+ *    2. GET /manifest.json?config=  (Query string)
  * ============================================================
  */
 
 const express = require('express');
 const router  = express.Router();
-const { decodeBitmask, decodeConfig } = require('../config/compressor');
 
-const CATALOG_DEFINITIONS = [
-  {
-    provider: 'kkphim',
-    type: 'movie',
-    id: 'kkphim_phimmoi',
-    name: 'KKPhim • Mới Cập Nhật',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'kkphim',
-    type: 'series',
-    id: 'kkphim_phimbo',
-    name: 'KKPhim • Phim Bộ',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'nguonc',
-    type: 'movie',
-    id: 'nguonc_phimmoi',
-    name: 'NguonC • Mới Cập Nhật',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'nguonc',
-    type: 'series',
-    id: 'nguonc_phimbo',
-    name: 'NguonC • Phim Bộ',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-  {
-    provider: 'vsmov',
-    type: 'movie',
-    id: 'vsmov_4k',
-    name: 'VSMOV • Phim 4K VIP',
-    extra: [
-      { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false },
-      { name: 'skip', isRequired: false },
-    ],
-    extraSupported: ['search', 'genre', 'skip'],
-  },
-];
+const { MANIFEST, buildManifest } = require('../manifest');
+const { decodeConfig, isConfigToken, VALID_PROVIDERS } = require('../config');
 
-const BASE_MANIFEST = {
-  id: 'community.stremio.vip.vietnam',
-  version: '2.0.0',
-  name: 'VIP Vietnam Multi-Source (K20)',
-  description: 'Tối ưu luồng phát phim 4K/Full HD từ NguonC, KKPhim và VSMOV.',
-  resources: ['catalog', 'meta', 'stream'],
-  types: ['movie', 'series'],
-  idPrefixes: ['tt', 'kkphim_', 'nguonc_', 'vsmov_'],
-  catalogs: CATALOG_DEFINITIONS.map(({ provider, ...cat }) => cat),
-  behaviorHints: {
-    adult: false,
-    p2p: false,
-    configurable: true,
-    configurationRequired: false,
-  },
-};
-
-function buildManifest(config = {}) {
-  const activeProviders =
-    config && Array.isArray(config.providers) && config.providers.length > 0
-      ? config.providers.map((p) => String(p).toLowerCase())
-      : ['nguonc', 'kkphim', 'vsmov'];
-
-  const filteredCatalogs = CATALOG_DEFINITIONS
-    .filter((c) => activeProviders.includes(c.provider.toLowerCase()))
-    .map(({ provider, ...cat }) => cat);
-
-  return {
-    ...BASE_MANIFEST,
-    catalogs: filteredCatalogs.length > 0 ? filteredCatalogs : BASE_MANIFEST.catalogs,
-    description: `Active Sources: ${activeProviders.map((p) => p.toUpperCase()).join(', ')}`,
-  };
-}
-
-const MANIFEST_ROUTES = [
-  '/manifest.json',
-  '/c/:bitmask/manifest.json',
-  '/:config/manifest.json',
-];
-
-router.get(MANIFEST_ROUTES, (req, res) => {
-  let activeProviders = ['nguonc', 'kkphim', 'vsmov'];
-  const token = req.params.bitmask || req.params.config;
-
-  if (token) {
-    if (/^\d+$/.test(token)) {
-      activeProviders = decodeBitmask(token);
-    } else {
-      const cfg = decodeConfig(token);
-      if (cfg?.providers && cfg.providers.length > 0) {
-        activeProviders = cfg.providers;
-      }
-    }
-  }
-
-  if (!Array.isArray(activeProviders) || activeProviders.length === 0) {
-    activeProviders = ['nguonc', 'kkphim', 'vsmov'];
-  }
-
-  const manifest = buildManifest({ providers: activeProviders });
-
+// ─── Helper ────────────────────────────────────────────────────
+function sendJSON(res, data) {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', '*');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'max-age=300, stale-while-revalidate=600');
+  return res.json(data);
+}
 
-  return res.json(manifest);
+/**
+ * Tạo description động theo config
+ */
+function buildDescription(config) {
+  const { providers = [], categories = [] } = config || {};
+  const providerLabels = {
+    vsmov:  'VSMOV 4K',
+    kkphim: 'KKPhim',
+    nguonc: 'NguonC',
+    stp:    'STP',
+    hh3d:   'HH3D',
+    yan:    'YAN',
+    clbpx:  'CLBPX',
+  };
+  const catLabels = {
+    movie:  'Phim Lẻ',
+    series: 'Phim Bộ',
+    anime:  'Hoạt Hình',
+    cinema: 'Chiếu Rạp',
+  };
+
+  const provStr = (Array.isArray(providers) ? providers : [])
+    .filter((p) => VALID_PROVIDERS.includes(p))
+    .map((p) => providerLabels[p] || p)
+    .join(' • ');
+
+  const catStr = (Array.isArray(categories) ? categories : [])
+    .map((c) => catLabels[c] || c)
+    .join(', ');
+
+  return `Đang bật: ${provStr || 'Tất cả nguồn'} — ${catStr || 'Tất cả danh mục'}. Xem phim Vietsub & Thuyết Minh trên Stremio / Nuvio.`;
+}
+
+/**
+ * Giải mã config từ token hoặc query string
+ * @param {string|null} token - Base64URL token
+ * @param {string|null} query - query param ?config=
+ * @returns {{ config, isDefault }}
+ */
+function resolveConfig(token, query) {
+  if (token && isConfigToken(token)) {
+    return { config: decodeConfig(token), isDefault: false };
+  }
+  if (query) {
+    try {
+      const decoded = decodeConfig(query);
+      return { config: decoded, isDefault: false };
+    } catch {}
+  }
+  return { config: null, isDefault: true };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  GET /manifest.json & GET /manifest
+//  GET /manifest.json?config=<token>&key=<apiKey>
+// ─────────────────────────────────────────────────────────────
+function handleManifest(req, res) {
+  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const baseUrl  = `${protocol}://${host}`;
+  const configUrl = `${baseUrl}/`;
+
+  const configQuery = req.query.config || null;
+  const { config, isDefault } = resolveConfig(null, configQuery);
+
+  if (isDefault) {
+    console.log('[Manifest] Default manifest');
+    const manifest = {
+      ...MANIFEST,
+      behaviorHints: {
+        ...MANIFEST.behaviorHints,
+        configurationURL: configUrl,
+      },
+    };
+    return sendJSON(res, manifest);
+  }
+
+  console.log(`[Manifest] Query config: providers=${config.providers.join(',')} cats=${config.categories.join(',')}`);
+  const manifest = buildManifest(config, configUrl);
+  manifest.description = buildDescription(config);
+  sendJSON(res, manifest);
+}
+
+router.get('/manifest.json', handleManifest);
+router.get('/manifest', handleManifest);
+
+// ─────────────────────────────────────────────────────────────
+//  GET /:config/manifest.json & GET /:config/manifest
+// ─────────────────────────────────────────────────────────────
+function handleConfigManifest(req, res) {
+  const token    = req.params.config;
+  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const baseUrl  = `${protocol}://${host}`;
+  const configUrl = `${baseUrl}/`;
+
+  const { config, isDefault } = resolveConfig(token, null);
+
+  if (isDefault) {
+    console.log(`[Manifest] Invalid token "${token.slice(0, 20)}..." — returning default`);
+    return sendJSON(res, {
+      ...MANIFEST,
+      behaviorHints: { ...MANIFEST.behaviorHints, configurationURL: configUrl },
+    });
+  }
+
+  console.log(`[Manifest] Token config: providers=${config.providers.join(',')} cats=${config.categories.join(',')}`);
+  const manifest = buildManifest(config, configUrl);
+  manifest.description = buildDescription(config);
+
+  sendJSON(res, manifest);
+}
+
+router.get('/:config/manifest.json', handleConfigManifest);
+router.get('/:config/manifest', handleConfigManifest);
+
+// ─────────────────────────────────────────────────────────────
+//  Middleware: attach decoded config to req when /:config is present
+// ─────────────────────────────────────────────────────────────
+router.use('/:config', (req, res, next) => {
+  const token = req.params.config;
+  if (!isConfigToken(token)) return next();
+
+  req.addonConfig = decodeConfig(token);
+  req.configToken = token;
+  next();
 });
 
 module.exports = router;
-module.exports.buildManifest = buildManifest;
-module.exports.BASE_MANIFEST = BASE_MANIFEST;
-module.exports.CATALOG_DEFINITIONS = CATALOG_DEFINITIONS;
