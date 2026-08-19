@@ -30,14 +30,9 @@ function sendJSON(res, data) {
 function buildDescription(config) {
   const { providers = [], categories = [] } = config || {};
   const providerLabels = {
-    film4k: 'FILM4K',
     vsmov:  'VSMOV 4K',
     kkphim: 'KKPhim',
     nguonc: 'NguonC',
-    stp:    'STP',
-    hh3d:   'HH3D',
-    yan:    'YAN',
-    clbpx:  'CLBPX',
   };
   const catLabels = {
     movie:  'Phim Lẻ',

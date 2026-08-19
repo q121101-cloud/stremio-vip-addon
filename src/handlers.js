@@ -22,24 +22,14 @@ const { imdbCache, catalogCache, detailCache }  = require('./lib/cache');
 const { resolveCinemeta } = require('./lib/cinemeta');
 
 // ─── Providers ────────────────────────────────────────────────
-const providerFilm4K = require('./providers/film4k');
 const providerVsMov  = require('./providers/vsmov');
 const providerKKPhim = require('./providers/kkphim');
 const providerNguonC = require('./providers/nguonc');
-const providerSTP    = require('./providers/stp');
-const providerHH3D   = require('./providers/hh3d');
-const providerYAN    = require('./providers/yan');
-const providerCLBPX  = require('./providers/clbpx');
 
 const ALL_PROVIDERS = {
-  film4k: providerFilm4K,
   vsmov:  providerVsMov,
   kkphim: providerKKPhim,
   nguonc: providerNguonC,
-  stp:    providerSTP,
-  hh3d:   providerHH3D,
-  yan:    providerYAN,
-  clbpx:  providerCLBPX,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -120,11 +110,6 @@ function getCatTypeFromCatalogId(catalogId) {
   if (!catalogId) return 'movie';
   const id = String(catalogId).toLowerCase().trim();
 
-  // 0. FILM4K
-  if (id === 'film4k-4k-movies' || id === 'film4k-movie' || id === 'film4k-phim-le') return '4k-movies';
-  if (id === 'film4k-4k-series' || id === 'film4k-series' || id === 'film4k-phim-bo') return '4k-series';
-  if (id === 'film4k-chieu-rap' || id === 'film4k-cinema') return 'cinema';
-
   // 1. VSMOV
   if (id === 'vsmov-4k' || id === 'vsmov-4k-sieu-net') return '4k';
   if (id === 'vsmov-thuyet-minh' || id === 'vsmov-tm') return 'thuyet-minh';
@@ -140,27 +125,6 @@ function getCatTypeFromCatalogId(catalogId) {
   if (id === 'nguonc-series-latest' || id === 'nguonc-phim-bo') return 'series';
   if (id === 'nguonc-cinema-latest' || id === 'nguonc-chieu-rap') return 'cinema';
   if (id === 'nguonc-anime-latest' || id === 'nguonc-moi-cap-nhat') return 'phim-moi-cap-nhat';
-
-  // 4. STP (Sưu Tầm Phim)
-  if (id === 'stp-au-my' || id === 'stp-dien-anh-au-my' || id === 'stp-western') return 'au-my';
-  if (id === 'stp-han-quoc' || id === 'stp-phim-han-quoc' || id === 'stp-korean') return 'han-quoc';
-  if (id === 'stp-phim-le' || id === 'stp-single' || id === 'stp_movies_phimle' || id === 'stp_movies_dacsac') return 'movie';
-  if (id === 'stp-phim-bo' || id === 'stp-series' || id === 'stp_series_phimbo') return 'series';
-
-  // 5. HH3D (Hoạt Hình 3D)
-  if (id === 'hh3d-phim-le' || id === 'hh3d-single') return 'movie';
-  if (id === 'hh3d-phim-bo' || id === 'hh3d-series') return 'series';
-  if (id === 'hh3d-tien-hiep' || id === 'hh3d-donghua' || id === 'hh3d-kiem-hiep') return 'tien-hiep';
-
-  // 6. YAN (Donghua)
-  if (id === 'yan-phim-le' || id === 'yan-single' || id === 'yan_movies') return 'movie';
-  if (id === 'yan-phim-bo' || id === 'yan-series' || id === 'yan_series_3d' || id === 'yan_series_donghua') return 'series';
-  if (id === 'yan-dang-chieu' || id === 'yan-ongoing') return 'dang-chieu';
-
-  // 7. CLBPX (Phim Xưa)
-  if (id === 'clbpx-kiem-hiep' || id === 'clbpx-kiem-hiep-xua' || id === 'clbpx-wuxia' || id === 'clbpx_series_kiemhiep') return 'kiem-hiep';
-  if (id === 'clbpx-hong-kong' || id === 'clbpx-phim-hong-kong' || id === 'clbpx-tvb' || id === 'clbpx_series_tvb') return 'hong-kong';
-  if (id === 'clbpx_movies_xua' || id === 'clbpx-phim-le') return 'movie';
 
   // Generic fallback checks
   if (id.includes('series') || id.includes('phim-bo')) return 'series';
@@ -926,30 +890,12 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
       </div>
     </section>
 
-    <!-- 8 Provider Bento Grid (VIP 4K Flagship Layout) -->
+    <!-- 3 Provider Bento Grid (VIP 4K Flagship Layout) -->
     <section class="taste-card">
-      <div class="card-header-label">🌐 8 Cụm Nguồn Phim VIP (Chuẩn 4K Ultra HD &amp; Audio Độc Lập)</div>
+      <div class="card-header-label">🌐 3 Cụm Nguồn Phim VIP (Chuẩn 4K Ultra HD &amp; Audio Độc Lập)</div>
       <div class="provider-grid">
-        <!-- FILM4K Flagship Hero Tile -->
-        <div class="provider-card film4k vsmov-hero ${isProvActive('film4k') ? 'active' : ''}" id="card-film4k" onclick="toggleProvider('film4k')" role="checkbox" aria-checked="${isProvActive('film4k') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">💎</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">FILM4K (VIP Ultra HD Engine)</div>
-            <div class="provider-desc">film4k.net — 4K Ultra HD (3840x2160), Vietsub, Thuyết Minh &amp; Audio Đa Kênh 6CH</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-cyan">4K Ultra HD</span>
-            <span class="tag-badge tag-green">Vietsub &amp; TM</span>
-            <span class="tag-badge tag-amber">HLS Proxy Direct</span>
-            <span class="tag-badge tag-indigo">Original 6CH Audio</span>
-          </div>
-        </div>
-
         <!-- VSMOV 4K Flagship Hero Tile -->
-        <div class="provider-card vsmov ${isProvActive('vsmov') ? 'active' : ''}" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="${isProvActive('vsmov') ? 'true' : 'false'}" tabindex="0">
+        <div class="provider-card vsmov vsmov-hero ${isProvActive('vsmov') ? 'active' : ''}" id="card-vsmov" onclick="toggleProvider('vsmov')" role="checkbox" aria-checked="${isProvActive('vsmov') ? 'true' : 'false'}" tabindex="0">
           <div class="provider-top">
             <div class="provider-icon-badge">🌟</div>
             <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
@@ -999,70 +945,6 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
             <span class="tag-badge tag-indigo">IMDb</span>
           </div>
         </div>
-
-        <!-- STP -->
-        <div class="provider-card stp ${isProvActive('stp') ? 'active' : ''}" id="card-stp" onclick="toggleProvider('stp')" role="checkbox" aria-checked="${isProvActive('stp') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">🗽</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">STP (Sưu Tầm Phim)</div>
-            <div class="provider-desc">suutamphim.org — Kho Điện Ảnh Âu Mỹ &amp; Phim Bộ Hàn Quốc K-Drama</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-amber">Âu Mỹ Cinema</span>
-            <span class="tag-badge tag-pink">K-Drama</span>
-          </div>
-        </div>
-
-        <!-- HH3D -->
-        <div class="provider-card hh3d ${isProvActive('hh3d') ? 'active' : ''}" id="card-hh3d" onclick="toggleProvider('hh3d')" role="checkbox" aria-checked="${isProvActive('hh3d') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">⚔️</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">HH3D (Hoạt Hình 3D)</div>
-            <div class="provider-desc">hoathinh3d — Tiên Hiệp &amp; Huyền Huyễn (Đấu Phá, Thôn Phệ...)</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-green">3D Donghua</span>
-            <span class="tag-badge tag-purple">Tiên Hiệp</span>
-          </div>
-        </div>
-
-        <!-- YAN -->
-        <div class="provider-card yan ${isProvActive('yan') ? 'active' : ''}" id="card-yan" onclick="toggleProvider('yan')" role="checkbox" aria-checked="${isProvActive('yan') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">🔥</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">YAN Donghua</div>
-            <div class="provider-desc">yandonghua — Donghua &amp; Anime 3D Cập Nhật Theo Ngày</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-pink">Donghua Mới</span>
-            <span class="tag-badge tag-green">Tốc Độ Cao</span>
-          </div>
-        </div>
-
-        <!-- CLBPX -->
-        <div class="provider-card clbpx ${isProvActive('clbpx') ? 'active' : ''}" id="card-clbpx" onclick="toggleProvider('clbpx')" role="checkbox" aria-checked="${isProvActive('clbpx') ? 'true' : 'false'}" tabindex="0">
-          <div class="provider-top">
-            <div class="provider-icon-badge">🗡️</div>
-            <div class="switch-track" aria-hidden="true"><div class="switch-thumb"></div></div>
-          </div>
-          <div>
-            <div class="provider-name">CLBPX (Phim Xưa)</div>
-            <div class="provider-desc">clbphimxua — Kiếm Hiệp Kim Dung &amp; TVB Hồng Kông Cổ Điển</div>
-          </div>
-          <div class="tag-row">
-            <span class="tag-badge tag-purple">Kim Dung</span>
-            <span class="tag-badge tag-amber">TVB Hồng Kông</span>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -1080,7 +962,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
     <!-- Brand Signature Footer -->
     <footer class="taste-footer">
-      VIP Movies Addon v1.7.0 • Designed with Taste by <span class="brand-highlight">Q121101</span>
+      VIP Movies Addon v1.7.2 • Designed with Taste by <span class="brand-highlight">Q121101</span>
     </footer>
   </div>
 
@@ -1123,7 +1005,7 @@ router.get(['/', '/configure', '/:config', '/:config/configure'], (req, res, nex
 
   <script>
     var _baseUrl = window.location.origin;
-    var _allProvidersList = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+    var _allProvidersList = ['vsmov', 'kkphim', 'nguonc'];
     var _providers = new Set(${JSON.stringify(resolvedConfig.providers)});
     var _categories = new Set(${JSON.stringify(resolvedConfig.categories)});
     var _apiKey = ${JSON.stringify(resolvedConfig.apiKey)};
@@ -1451,40 +1333,7 @@ async function handleMeta(req, res) {
         meta.id = id;
       }
     }
-    // 4. Specialized Providers (STP, HH3D, YAN, CLBPX)
-    else if (id.startsWith('stp:') || id.startsWith('stp_')) {
-      const slug = id.replace(/^stp[_:]/, '');
-      const detail = await providerSTP.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `stp_${slug}`;
-      }
-    }
-    else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
-      const slug = id.replace(/^hh3d[_:]/, '');
-      const detail = await providerHH3D.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `hh3d_${slug}`;
-      }
-    }
-    else if (id.startsWith('yan:') || id.startsWith('yan_')) {
-      const slug = id.replace(/^yan[_:]/, '');
-      const detail = await providerYAN.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `yan_${slug}`;
-      }
-    }
-    else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
-      const slug = id.replace(/^clbpx[_:]/, '');
-      const detail = await providerCLBPX.getDetail(slug);
-      if (detail && detail.movie) {
-        meta = providerKKPhim.mapDetailMeta(detail.movie, detail.episodes, type);
-        meta.id = `clbpx_${slug}`;
-      }
-    }
-    // 5. Fallback generic slug
+    // 4. Fallback generic slug
     else {
       const slug = mapper.extractSlug(id);
       const detail = await providerNguonC.getDetail(slug);
@@ -1515,7 +1364,7 @@ router.get('/meta/:type/:id', handleMeta);
 router.get('/:config/meta/:type/:id.json', handleMeta);
 router.get('/:config/meta/:type/:id', handleMeta);
 
-const PROVIDER_ORDER = ['film4k', 'vsmov', 'kkphim', 'nguonc', 'stp', 'hh3d', 'yan', 'clbpx'];
+const PROVIDER_ORDER = ['vsmov', 'kkphim', 'nguonc'];
 
 function getStreamPriority(stream) {
   if (!stream) return 999;
@@ -1523,15 +1372,11 @@ function getStreamPriority(stream) {
   const name = (stream.name || '').toLowerCase();
   const text = `${name} ${title}`;
 
-  // Provider rank (VIP 0 FILM4K -> VIP 1 VSMOV -> VIP 2 KKPhim -> VIP 3 NguonC -> VIP 4 STP -> VIP 5 CLBPX -> VIP 6 YAN)
-  let providerRank = 8;
-  if (text.includes('film4k') || text.includes('vip 0')) providerRank = 0;
-  else if (text.includes('vsmov') || text.includes('vip 1')) providerRank = 1;
+  // Provider rank (VIP 1 VSMOV -> VIP 2 KKPhim -> VIP 3 NguonC)
+  let providerRank = 4;
+  if (text.includes('vsmov') || text.includes('vip 1')) providerRank = 1;
   else if (text.includes('kkphim') || text.includes('vip 2')) providerRank = 2;
   else if (text.includes('nguonc') || text.includes('vip 3')) providerRank = 3;
-  else if (text.includes('stp') || text.includes('vip 4') || text.includes('sieutamphim') || text.includes('suutamphim')) providerRank = 4;
-  else if (text.includes('clbpx') || text.includes('vip 5') || text.includes('clbphimxua')) providerRank = 5;
-  else if (text.includes('yan') || text.includes('vip 6') || text.includes('hh3d') || text.includes('yanhh3d') || text.includes('hoathinh3d')) providerRank = 6;
 
   // Global priority strictly follows: 4K/UHD -> Vietsub -> Thuyết Minh -> Lồng Tiếng
   const is4K = text.includes('4k') || text.includes('ultra hd') || text.includes('3840x2160') || text.includes('uhd');
@@ -1618,34 +1463,24 @@ async function handleStream(req, res) {
         console.warn(`[Stream Aggregator] Cinemeta resolve warning for ${imdbId}:`, e.message);
       }
     } else {
-      // General non-IMDb ID parsing (e.g., film4k:slug:1:1, kkphim:slug:1:1, etc.)
+      // General non-IMDb ID parsing (e.g., kkphim:slug:1:1, etc.)
       const colonParts = id.split(':');
       if (colonParts.length >= 3 && !isNaN(parseInt(colonParts[colonParts.length - 1], 10)) && !isNaN(parseInt(colonParts[colonParts.length - 2], 10))) {
         episode = parseInt(colonParts[colonParts.length - 1], 10);
         season = parseInt(colonParts[colonParts.length - 2], 10);
-        slug = colonParts.slice(0, colonParts.length - 2).join(':').replace(/^(?:film4k|kkphim|nguonc|vsmov|stp|hh3d|yan|clbpx|koreandrama|series|movie|custom|phim)[_:]/i, '');
-      } else if (id.startsWith('film4k:') || id.startsWith('film4k_')) {
-        slug = id.replace(/^film4k[_:]/, '');
+        slug = colonParts.slice(0, colonParts.length - 2).join(':').replace(/^(?:kkphim|nguonc|vsmov|koreandrama|series|movie|custom|phim)[_:]/i, '');
       } else if (id.startsWith('kkphim:') || id.startsWith('kkphim_')) {
         slug = id.replace(/^kkphim[_:]/, '');
       } else if (id.startsWith('nguonc:') || id.startsWith('nguonc_')) {
         slug = id.replace(/^nguonc[_:]/, '');
       } else if (id.startsWith('vsmov:') || id.startsWith('vsmov_')) {
         slug = id.replace(/^vsmov[_:]/, '');
-      } else if (id.startsWith('stp:') || id.startsWith('stp_')) {
-        slug = id.replace(/^stp[_:]/, '');
-      } else if (id.startsWith('hh3d:') || id.startsWith('hh3d_')) {
-        slug = id.replace(/^hh3d[_:]/, '');
-      } else if (id.startsWith('yan:') || id.startsWith('yan_')) {
-        slug = id.replace(/^yan[_:]/, '');
-      } else if (id.startsWith('clbpx:') || id.startsWith('clbpx_')) {
-        slug = id.replace(/^clbpx[_:]/, '');
       } else {
         slug = id;
       }
 
       if (!title && slug) {
-        const cleanSlugTitle = slug.replace(/^(?:kkphim|nguonc|vsmov|stp|hh3d|yan|clbpx|koreandrama|series|movie|custom|phim)[_:]/i, '')
+        const cleanSlugTitle = slug.replace(/^(?:kkphim|nguonc|vsmov|koreandrama|series|movie|custom|phim)[_:]/i, '')
           .replace(/[-_]/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
