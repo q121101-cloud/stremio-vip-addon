@@ -617,4 +617,9 @@ router.get(['/sub.vtt', '/sub'], async (req, res) => {
   }
 });
 
+router.getRefererHeaders = getRefererHeaders;
+router.decodeB64 = decodeB64;
+router.resolveParamUrl = resolveParamUrl;
+router.setCorsHeaders = setCorsHeaders;
+
 module.exports = router;

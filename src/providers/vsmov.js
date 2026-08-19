@@ -38,8 +38,13 @@ function encodeBase64(str) {
 
 function formatImageUrl(url) {
   if (!url) return null;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const clean = url.startsWith('/') ? url.slice(1) : url;
+  if (typeof url === 'object') {
+    url = url.url || url.src || url.path || url.poster || url.thumb || '';
+  }
+  if (typeof url !== 'string' || !url.trim()) return null;
+  const cleanUrl = url.trim();
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+  const clean = cleanUrl.startsWith('/') ? cleanUrl.slice(1) : cleanUrl;
   return `https://vsmov.com/${clean}`;
 }
 

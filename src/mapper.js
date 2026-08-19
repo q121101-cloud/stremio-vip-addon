@@ -24,18 +24,27 @@ function findCategoryGroup(category, groupName) {
 }
 
 function detectType(film) {
-  const totalEpisodes = film.total_episodes || 1;
+  if (!film) return 'movie';
   const currentEpisode = (film.current_episode || '').toUpperCase();
-  if (currentEpisode === 'FULL' || totalEpisodes === 1) return 'movie';
+  if (currentEpisode === 'FULL') return 'movie';
+
   if (film.category) {
     const formatGroup = findCategoryGroup(film.category, 'Định dạng');
-    if (formatGroup) {
-      const names = formatGroup.list.map((i) => i.name.toLowerCase());
-      if (names.some((n) => n.includes('phim lẻ') || n.includes('phim le'))) return 'movie';
+    if (formatGroup && formatGroup.list) {
+      const names = formatGroup.list.map((i) => (i.name || '').toLowerCase());
       if (names.some((n) => n.includes('phim bộ') || n.includes('phim bo'))) return 'series';
+      if (names.some((n) => n.includes('phim lẻ') || n.includes('phim le'))) return 'movie';
     }
   }
-  return totalEpisodes > 1 ? 'series' : 'movie';
+
+  const totalEpisodes = film.total_episodes;
+  if (typeof totalEpisodes === 'number' && totalEpisodes > 1) return 'series';
+  if (typeof totalEpisodes === 'number' && totalEpisodes === 1) return 'movie';
+  if (film.episodes && Array.isArray(film.episodes) && film.episodes.length > 0) {
+    const totalItems = film.episodes.reduce((acc, s) => acc + (s.items ? s.items.length : 0), 0);
+    if (totalItems > 1) return 'series';
+  }
+  return 'movie';
 }
 
 function extractGenres(category) {
@@ -136,12 +145,35 @@ function encodeBase64(str) {
 }
 
 function decodeBase64(str) {
-  if (!str) return '';
+  if (!str || typeof str !== 'string') return '';
   try {
-    return Buffer.from(str, 'base64url').toString('utf8');
+    const raw = str.trim();
+    // Try base64url first
+    const urlDecoded = Buffer.from(raw, 'base64url').toString('utf8');
+    if (urlDecoded && (urlDecoded.includes('://') || urlDecoded.startsWith('{') || urlDecoded.length > 0)) {
+      return urlDecoded;
+    }
+    // Try standard base64
+    const stdDecoded = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    return stdDecoded || '';
   } catch {
     return '';
   }
+}
+
+function resolveParamUrl(val) {
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) return trimmed;
+  const decoded = decodeBase64(trimmed);
+  if (decoded) {
+    const trimmedDecoded = decoded.trim();
+    if (trimmedDecoded.startsWith('http://') || trimmedDecoded.startsWith('https://') || trimmedDecoded.startsWith('data:')) {
+      return trimmedDecoded;
+    }
+  }
+  return trimmed;
 }
 
 function mapCatalogItem(item, forceType = null) {
@@ -242,7 +274,7 @@ function parseStreamId(streamId) {
 
 /**
  * Unpack Dean Edwards P.A.C.K.E.R encoded scripts
- * Example: eval(function(p,a,c,k,e,d)...)
+ * Example: eval(function(p,a,c,k,e,d)...) or (p,a,c,k,e,r)
  */
 function unpackDeanEdwards(packed) {
   if (!packed || typeof packed !== 'string') return null;
@@ -250,10 +282,14 @@ function unpackDeanEdwards(packed) {
   if (!match) return null;
 
   try {
-    let payload = match[1];
+    const payload = match[1];
     const radix = parseInt(match[2], 10);
     const count = parseInt(match[3], 10);
     const symtab = match[4].split('|');
+
+    if (isNaN(radix) || isNaN(count) || radix < 2 || radix > 62) {
+      return null;
+    }
 
     const encode = (c) => {
       const a = (c < radix ? '' : encode(Math.floor(c / radix))) + ((c = c % radix) > 35 ? String.fromCharCode(c + 29) : c.toString(36));
@@ -266,29 +302,34 @@ function unpackDeanEdwards(packed) {
       d[key] = symtab[c] || key;
     }
 
-    const unpacked = payload.replace(/\b\w+\b/g, (w) => (Object.prototype.hasOwnProperty.call(d, w) ? d[w] : w));
+    let unpacked = payload.replace(/\b\w+\b/g, (w) => (Object.prototype.hasOwnProperty.call(d, w) ? d[w] : w));
+    unpacked = unpacked.replace(/\\'/g, "'").replace(/\\"/g, '"');
     return unpacked;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
 /**
  * Extract m3u8 URL from embed page (async).
- * Supports Vietsub, Thuyết Minh, Lồng Tiếng, and all upstream CDNs.
+ * Supports Vietsub, Thuyết Minh, Lồng Tiếng, StreamC, and all upstream CDNs.
  */
 async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
-  if (!embedUrl) return null;
+  if (!embedUrl || typeof embedUrl !== 'string') return null;
 
   try {
     // 1. Direct .m3u8 link check
     if (embedUrl.includes('.m3u8')) {
-      return { m3u8Url: embedUrl, embedHost: new URL(embedUrl).origin };
+      let directHost = '';
+      try { directHost = new URL(embedUrl).origin; } catch {}
+      return { m3u8Url: embedUrl, embedHost: directHost };
     }
 
     const axios = require('axios');
-    const embedHost = new URL(embedUrl).origin;
-    const referer = customReferer || 'https://phim.nguonc.com/';
+    let embedHost = '';
+    try { embedHost = new URL(embedUrl).origin; } catch {}
+
+    const referer = customReferer || (embedHost ? `${embedHost}/` : 'https://phim.nguonc.com/');
     let origin = 'https://phim.nguonc.com';
     try { origin = new URL(referer).origin; } catch {}
 
@@ -299,19 +340,27 @@ async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
         Origin: origin,
       },
       timeout: 10000,
+      validateStatus: (status) => status >= 200 && status < 400,
     });
 
-    const html = String(r.data);
+    const html = String(r.data || '');
+    if (!html) return null;
 
     // 2. Check data-obf base64 JSON payload (NguonC / StreamC standard)
-    const obfMatch = html.match(/data-obf="([^"]+)"/);
+    const obfMatch = html.match(/data-obf=["']([^"']+)["']/i);
     if (obfMatch) {
       try {
-        const outerJson = JSON.parse(Buffer.from(obfMatch[1], 'base64').toString('utf8'));
-        if (outerJson && outerJson.sUb) {
-          const sUb = outerJson.sUb;
-          const fullUrl = sUb.startsWith('http') ? sUb : `${embedHost}/${sUb.replace(/^\//, '')}`;
-          return { m3u8Url: fullUrl, embedHost };
+        const rawBase64 = obfMatch[1].trim().replace(/-/g, '+').replace(/_/g, '/');
+        const outerJson = JSON.parse(Buffer.from(rawBase64, 'base64').toString('utf8'));
+        if (outerJson && typeof outerJson === 'object') {
+          const targetSub = outerJson.sUb || outerJson.sub || outerJson.m3u8 || outerJson.url || outerJson.file || outerJson.source || outerJson.stream;
+          if (targetSub && typeof targetSub === 'string') {
+            const fullUrl = targetSub.startsWith('http') ? targetSub : `${embedHost}/${targetSub.replace(/^\//, '')}`;
+            return { m3u8Url: fullUrl, embedHost };
+          } else if (outerJson.hD || outerJson.hd || outerJson.hash) {
+            const vHash = outerJson.hD || outerJson.hd || outerJson.hash;
+            return { m3u8Url: `${embedHost}/stream/${vHash}/master.m3u8`, embedHost };
+          }
         }
       } catch {}
     }
@@ -319,36 +368,29 @@ async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
     // Helper regex scanner across text
     const scanPatterns = (text) => {
       if (!text) return null;
+      const cleanText = text.replace(/\\\//g, '/');
 
       // Pattern 0: baseUrl + videoHash
-      const mBase = text.match(/baseUrl\s*=\s*["'`\x27]([^"'`\x27]+)["'`\x27]/i);
-      const mHash = text.match(/videoHash\s*=\s*["'`\x27]([^"'`\x27]+)["'`\x27]/i);
+      const mBase = cleanText.match(/["'`\x27]?baseUrl["'`\x27]?\s*[:=]\s*["'`\x27]([^"'`\x27]+)["'`\x27]/i);
+      const mHash = cleanText.match(/["'`\x27]?(?:videoHash|hash|fileId)["'`\x27]?\s*[:=]\s*["'`\x27]([^"'`\x27]+)["'`\x27]/i);
       if (mBase && mHash) {
-        return `${mBase[1]}/stream/${mHash[1]}/master.m3u8`;
+        return `${mBase[1].replace(/\/+$/, '')}/stream/${mHash[1]}/master.m3u8`;
       }
 
-      // Pattern 1: file: "..."
-      const mFile = text.match(/file\s*:\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
-      if (mFile) return mFile[1];
+      // Pattern 1: JSON/JS properties: file, source, src, url, link, hls, stream
+      const mProp = cleanText.match(/["'`\x27]?(?:file|source|src|url|link|hls|stream)["'`\x27]?\s*[:=]\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
+      if (mProp) return mProp[1];
 
-      // Pattern 2: source: "..."
-      const mSource = text.match(/source\s*:\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
-      if (mSource) return mSource[1];
-
-      // Pattern 3: (url|src|link|hls|stream) = "..." or : "..."
-      const mVar = text.match(/(?:url|src|link|source|hls|stream)\s*[:=]\s*["'`\x27]([^"'`\x27]+\.m3u8[^"'`\x27]*)["'`\x27]/i);
-      if (mVar) return mVar[1];
-
-      // Pattern 4: General absolute http(s) m3u8 URL
-      const mAbs = text.match(/["'`\x27](https?:\/\/[^"'`\x27\s]+\.m3u8[^"'`\x27\s]*?)["'`\x27]/i);
+      // Pattern 2: General absolute http(s) m3u8 URL
+      const mAbs = cleanText.match(/["'`\x27](https?:\/\/[^"'`\x27\s<>]+\.m3u8[^"'`\x27\s<>]*?)["'`\x27]/i);
       if (mAbs) return mAbs[1];
 
-      // Pattern 5: Relative m3u8 URL starting with /
-      const mRel = text.match(/["'`\x27](\/[^"'`\x27\s]*\.m3u8[^"'`\x27\s]*?)["'`\x27]/i);
+      // Pattern 3: Relative m3u8 URL starting with /
+      const mRel = cleanText.match(/["'`\x27](\/[^"'`\x27\s<>]+\.m3u8[^"'`\x27\s<>]*?)["'`\x27]/i);
       if (mRel) return mRel[1];
 
-      // Pattern 6: Unquoted regex match
-      const mRaw = text.match(/https?:\/\/[a-zA-Z0-9_\-\./%]+\.m3u8[a-zA-Z0-9_\-\./%?=&]*/i);
+      // Pattern 4: Unquoted regex match
+      const mRaw = cleanText.match(/https?:\/\/[a-zA-Z0-9_\-\./%]+\.m3u8[a-zA-Z0-9_\-\./%?=&]*/i);
       if (mRaw) return mRaw[0];
 
       return null;
@@ -368,7 +410,7 @@ async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
     if (candidate) {
       // Decode escaped slashes (e.g., https:\/\/...)
       candidate = candidate.replace(/\\\//g, '/');
-      const finalM3u8 = candidate.startsWith('http') ? candidate : new URL(candidate, embedHost).href;
+      const finalM3u8 = candidate.startsWith('http') ? candidate : (embedHost ? new URL(candidate, embedHost).href : candidate);
       return { m3u8Url: finalM3u8, embedHost };
     }
 
@@ -475,4 +517,5 @@ module.exports = {
   normalizeServerName,
   encodeBase64,
   decodeBase64,
+  resolveParamUrl,
 };

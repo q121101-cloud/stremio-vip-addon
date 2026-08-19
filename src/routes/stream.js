@@ -11,13 +11,13 @@
 
 const express = require('express');
 const router = express.Router();
-const { getCache, setCache } = require('../db/cache');
-const { getMediaMapping, upsertMediaMapping } = require('../db/supabase');
+const dbCache = require('../db/cache');
+const supabaseDb = require('../db/supabase');
 const kkphim = require('../providers/kkphim');
 const nguonc = require('../providers/nguonc');
 const vsmov = require('../providers/vsmov');
 const { decodeBitmask, decodeConfig } = require('../config/compressor');
-const { resolveCinemeta } = require('../lib/cinemeta');
+const cinemeta = require('../lib/cinemeta');
 const { scoreMatch, generateSearchKeywords } = require('../lib/utils');
 const { TIMEOUTS, TTL } = require('../config/constants');
 
@@ -85,7 +85,7 @@ const withTimeout = (promise, ms = 3000, label = 'Provider') => {
   const timeoutPromise = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(`[${label}] Timeout after ${ms}ms`)), ms);
   });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+  return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => clearTimeout(timer));
 };
 
 function encodeB64(str) {
@@ -161,13 +161,15 @@ function findBestMatchSlug(items, title, year, targetType = 'movie', season = 1)
       else score -= 0.2;
     }
 
-    if (score > highestScore && score >= 0.4) {
+    if (score > highestScore && score >= 0.35) {
       highestScore = score;
       bestSlug = item.slug;
     }
   }
 
-  return bestSlug || items[0]?.slug || null;
+  if (bestSlug) return bestSlug;
+  if (items.length === 1 && items[0]?.slug) return items[0].slug;
+  return null;
 }
 
 async function searchProviderWithKeywords(provider, keywords, limit = 5) {
@@ -226,7 +228,7 @@ router.get(STREAM_ROUTES, async (req, res) => {
     const streamKey = `stream:${provKey}:${type}:${id}`;
 
     // BƯỚC 1: Kiểm tra Cache L1/L2 (< 50ms)
-    const cachedStreams = await getCache(streamKey);
+    const cachedStreams = await dbCache.getCache(streamKey);
     if (cachedStreams && Array.isArray(cachedStreams) && cachedStreams.length > 0) {
       const elapsed = Date.now() - startTime;
       console.log(`[Stream Aggregator] CACHE HIT (${elapsed}ms) id=${id} streams=${cachedStreams.length}`);
@@ -298,7 +300,7 @@ router.get(STREAM_ROUTES, async (req, res) => {
     let mapping = null;
     if (imdbId) {
       try {
-        mapping = await getMediaMapping(imdbId);
+        mapping = await supabaseDb.getMediaMapping(imdbId);
       } catch {}
     }
 
@@ -359,7 +361,7 @@ router.get(STREAM_ROUTES, async (req, res) => {
 
       if (!canonicalTitle || !canonicalYear) {
         try {
-          const meta = await resolveCinemeta(type, imdbId);
+          const meta = await cinemeta.resolveCinemeta(type, imdbId);
           if (meta) {
             canonicalTitle = meta.name || meta.title || canonicalTitle;
             canonicalYear  = meta.year || canonicalYear;
@@ -414,7 +416,7 @@ router.get(STREAM_ROUTES, async (req, res) => {
             slug_nguonc: resolvedNguonCSlug,
             slug_vsmov: resolvedVsMovSlug,
           };
-          upsertMediaMapping(mapping).catch(() => {});
+          supabaseDb.upsertMediaMapping(mapping).catch(() => {});
         }
       } catch (searchErr) {
         console.warn(`[Parallel Slug Resolver] ${id}:`, searchErr.message);
@@ -573,7 +575,7 @@ router.get(STREAM_ROUTES, async (req, res) => {
     if (aggregatedStreams.length > 0) {
       const isSeriesItem = type === 'series' || id.includes(':');
       const ttl = isSeriesItem ? (TTL?.SERIES || 4 * 3600) : (TTL?.MOVIE || 24 * 3600);
-      await setCache(streamKey, aggregatedStreams, ttl);
+      await dbCache.setCache(streamKey, aggregatedStreams, ttl);
     }
 
     return sendJSON(res, { streams: aggregatedStreams });

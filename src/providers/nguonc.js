@@ -37,6 +37,94 @@ function encodeBase64(str) {
   return Buffer.from(str, 'utf8').toString('base64url');
 }
 
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ECONNREFUSED',
+  'EAI_AGAIN',
+  'ERR_NETWORK',
+]);
+
+function isRetryableError(err) {
+  if (!err) return false;
+  const status = err.response?.status;
+  if (status && RETRYABLE_STATUS_CODES.has(status)) return true;
+  if (err.code && RETRYABLE_ERROR_CODES.has(err.code)) return true;
+  if (err.message && (
+    err.message.includes('timeout') ||
+    err.message.includes('Network Error') ||
+    err.message.includes('socket hang up') ||
+    err.message.includes('ECONNRESET') ||
+    err.message.includes('ETIMEDOUT')
+  )) {
+    return true;
+  }
+  return false;
+}
+
+function getProxyBase() {
+  const raw = process.env.PROXY_URL ||
+              process.env.RENDER_EXTERNAL_URL ||
+              process.env.RENDER_BACKEND_URL ||
+              process.env.RENDER_URL ||
+              '';
+  return raw ? raw.trim().replace(/\/+$/, '') : '';
+}
+
+function isVercelEnvironment() {
+  return Boolean(
+    process.env.VERCEL === '1' ||
+    process.env.VERCEL === 'true' ||
+    process.env.VERCEL_ENV ||
+    process.env.NOW_REGION ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME
+  );
+}
+
+function resolveProxyUrls(proxyBase, targetUrl) {
+  if (!proxyBase) return [];
+  const cleanProxy = proxyBase.trim().replace(/\/+$/, '');
+  const encoded = encodeURIComponent(targetUrl);
+  if (
+    cleanProxy.endsWith('/proxy/nguonc') ||
+    cleanProxy.endsWith('/api/proxy/nguonc') ||
+    cleanProxy.endsWith('/api/nguonc-proxy')
+  ) {
+    return [`${cleanProxy}?url=${encoded}`];
+  }
+  return [
+    `${cleanProxy}/api/proxy/nguonc?url=${encoded}`,
+    `${cleanProxy}/proxy/nguonc?url=${encoded}`,
+    `${cleanProxy}/api/nguonc-proxy?url=${encoded}`,
+  ];
+}
+
+async function requestWithRetry(requestFn, {
+  retries = 2,
+  baseDelay = 200,
+  factor = 2,
+  maxDelay = 2000,
+  shouldRetry = isRetryableError,
+  sleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+} = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await requestFn(attempt);
+    } catch (err) {
+      if (attempt >= retries || !shouldRetry(err, attempt)) {
+        throw err;
+      }
+      const backoff = Math.min(baseDelay * Math.pow(factor, attempt), maxDelay);
+      await sleepFn(backoff);
+      attempt++;
+    }
+  }
+}
+
 function mapCatalogMeta(item, forceType = null) {
   const type = forceType || mapper.detectType(item);
   const slug = item.slug || '';
@@ -65,39 +153,125 @@ class NguonCProvider extends BaseProvider {
     this.apiBase = 'https://phim.nguonc.com/api';
   }
 
+  async fetchViaProxy(targetUrl, proxyBase, options = {}) {
+    const proxyUrls = resolveProxyUrls(proxyBase, targetUrl);
+    if (proxyUrls.length === 0) {
+      throw new Error(`[NguonC] No valid proxy URL resolved for target: ${targetUrl}`);
+    }
+
+    const retries = options.retries !== undefined
+      ? options.retries
+      : (options.maxRetries !== undefined ? options.maxRetries : 2);
+    const retryDelay = options.retryDelay || options.baseDelay || 200;
+    const factor = options.retryFactor || 2;
+    const maxDelay = options.maxRetryDelay || 2000;
+    const proxyTimeout = options.proxyTimeout || options.timeout || 5000;
+    const sleepFn = options.sleepFn;
+
+    let lastError = null;
+
+    for (const proxyUrl of proxyUrls) {
+      try {
+        return await requestWithRetry(
+          async () => {
+            const res = await axios.get(proxyUrl, {
+              headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
+              timeout: proxyTimeout,
+              params: options.params,
+            });
+            return res.data;
+          },
+          {
+            retries,
+            baseDelay: retryDelay,
+            factor,
+            maxDelay,
+            shouldRetry: isRetryableError,
+            sleepFn,
+          }
+        );
+      } catch (err) {
+        lastError = err;
+        if (err.response?.status === 404) {
+          continue;
+        }
+        continue;
+      }
+    }
+
+    throw lastError || new Error(`[NguonC] Proxy request failed for: ${targetUrl}`);
+  }
+
   async fetchWithFallback(url, options = {}) {
     const targetUrl = (this.baseUrl && typeof url === 'string' && !url.startsWith('http'))
       ? `${this.apiBase.replace(/\/$/, '')}/${url.replace(/^\/?(api\/)?/, '')}`
       : url;
 
+    const proxyBase = options.proxyBase || getProxyBase();
+    const isVercel = options.isVercel !== undefined ? options.isVercel : isVercelEnvironment();
+    const forceProxy = options.forceProxy !== undefined ? options.forceProxy : (isVercel && Boolean(proxyBase));
+
+    // 1. Proactive Proxy on Vercel Serverless environment
+    if (forceProxy && proxyBase) {
+      try {
+        return await this.fetchViaProxy(targetUrl, proxyBase, options);
+      } catch (proxyErr) {
+        if (options.fallbackToDirectOnProxyFailure) {
+          try {
+            const res = await axios.get(targetUrl, {
+              headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
+              timeout: options.timeout || 3500,
+              params: options.params,
+            });
+            return res.data;
+          } catch {}
+        }
+        throw proxyErr;
+      }
+    }
+
+    // 2. Direct connection with retry and fallback to proxy if blocked/failed
+    const retries = options.retries !== undefined
+      ? options.retries
+      : (options.maxRetries !== undefined ? options.maxRetries : 2);
+    const retryDelay = options.retryDelay || options.baseDelay || 200;
+    const factor = options.retryFactor || 2;
+    const maxDelay = options.maxRetryDelay || 2000;
+    const timeout = options.timeout || 3500;
+    const sleepFn = options.sleepFn;
+
     try {
-      const res = await axios.get(targetUrl, {
-        headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
-        timeout: options.timeout || 3500,
-        params: options.params,
-      });
-      return res.data;
+      return await requestWithRetry(
+        async () => {
+          const res = await axios.get(targetUrl, {
+            headers: { ...NGUONC_HEADERS, ...(options.headers || {}) },
+            timeout,
+            params: options.params,
+          });
+          return res.data;
+        },
+        {
+          retries,
+          baseDelay: retryDelay,
+          factor,
+          maxDelay,
+          shouldRetry: (err) => {
+            // Do not retry Cloudflare 403 directly — fast fallback to proxy
+            if (err.response?.status === 403) return false;
+            return isRetryableError(err);
+          },
+          sleepFn,
+        }
+      );
     } catch (err) {
       const isForbiddenOrBlocked =
         err.response?.status === 403 ||
         err.response?.status === 429 ||
         err.code === 'ECONNABORTED' ||
-        (!err.response && (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED'));
+        (!err.response && (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT'));
 
-      if (isForbiddenOrBlocked && process.env.RENDER_BACKEND_URL) {
-        const cleanProxy = process.env.RENDER_BACKEND_URL.replace(/\/+$/, '');
-        // Support both /api/proxy/nguonc and /proxy/nguonc routes
-        const proxyUrl1 = `${cleanProxy}/api/proxy/nguonc?url=${encodeURIComponent(targetUrl)}`;
-        const proxyUrl2 = `${cleanProxy}/proxy/nguonc?url=${encodeURIComponent(targetUrl)}`;
-        try {
-          const proxyRes = await axios.get(proxyUrl1, { timeout: 5000, headers: NGUONC_HEADERS });
-          return proxyRes.data;
-        } catch {
-          try {
-            const proxyRes2 = await axios.get(proxyUrl2, { timeout: 5000, headers: NGUONC_HEADERS });
-            return proxyRes2.data;
-          } catch {}
-        }
+      if (isForbiddenOrBlocked && proxyBase) {
+        return await this.fetchViaProxy(targetUrl, proxyBase, options);
       }
       throw err;
     }
@@ -439,3 +613,9 @@ module.exports.getCatalog = instance.getCatalog.bind(instance);
 module.exports.getDetail  = instance.getDetail.bind(instance);
 module.exports.search     = instance.search.bind(instance);
 module.exports.fetchWithFallback = instance.fetchWithFallback.bind(instance);
+module.exports.getProxyBase = getProxyBase;
+module.exports.isVercelEnvironment = isVercelEnvironment;
+module.exports.resolveProxyUrls = resolveProxyUrls;
+module.exports.isRetryableError = isRetryableError;
+module.exports.requestWithRetry = requestWithRetry;
+module.exports.NGUONC_HEADERS = NGUONC_HEADERS;

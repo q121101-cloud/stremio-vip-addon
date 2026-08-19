@@ -209,7 +209,14 @@ async function handleCatalog(req, res) {
         try {
           const altMetas = await fallback.getCatalog(catType, catalogId, extra, page);
           if (Array.isArray(altMetas) && altMetas.length > 0) {
-            metas = altMetas;
+            if (provKey === 'vsmov') {
+              metas = altMetas.map((m) => ({
+                ...m,
+                id: m.id.startsWith('vsmov_') ? m.id : `vsmov_${m.id.replace(/^(kkphim_|nguonc_|vip_)/, '')}`,
+              }));
+            } else {
+              metas = altMetas;
+            }
             break;
           }
         } catch {}
