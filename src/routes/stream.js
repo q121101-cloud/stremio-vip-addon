@@ -3,19 +3,20 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/routes/stream.js
- *  Parallel Stream Aggregator (< 50ms on Cache, Promise.allSettled)
+ *  Parallel Stream Aggregator with On-the-fly Cinemeta Title Resolver
  * ============================================================
  */
 
 const express = require('express');
 const router = express.Router();
 const { getCache, setCache } = require('../db/cache');
-const { getMediaMapping } = require('../db/supabase');
+const { getMediaMapping, upsertMediaMapping } = require('../db/supabase');
 const kkphim = require('../providers/kkphim');
 const nguonc = require('../providers/nguonc');
 const vsmov = require('../providers/vsmov');
 const { decodeConfig } = require('../config/compressor');
 const { resolveCinemeta } = require('../lib/cinemeta');
+const { scoreMatch } = require('../lib/utils');
 const { TIMEOUTS, TTL } = require('../config/constants');
 
 // Helper bọc timeout 3000ms cho từng provider
@@ -74,6 +75,27 @@ function getStreamPriority(stream) {
   return bucket + providerRank;
 }
 
+function findBestMatchSlug(items, title, year) {
+  if (!Array.isArray(items) || items.length === 0 || !title) return null;
+  let bestSlug = null;
+  let highestScore = 0;
+
+  for (const item of items) {
+    if (!item.slug) continue;
+    const score1 = scoreMatch(title, item.name, year, item.year);
+    const score2 = item.origin_name ? scoreMatch(title, item.origin_name, year, item.year) : 0;
+    const score3 = item.original_name ? scoreMatch(title, item.original_name, year, item.year) : 0;
+    const maxScore = Math.max(score1, score2, score3);
+
+    if (maxScore > highestScore && maxScore >= 0.4) {
+      highestScore = maxScore;
+      bestSlug = item.slug;
+    }
+  }
+
+  return bestSlug || items[0]?.slug || null;
+}
+
 const STREAM_ROUTES = [
   '/stream/:type/:id.json',
   '/c/:bitmask/stream/:type/:id.json',
@@ -110,20 +132,59 @@ router.get(STREAM_ROUTES, async (req, res) => {
       mapping = await getMediaMapping(imdbId);
     } catch {}
 
-    // Cinemeta Metadata Resolution nếu chưa có title
     let canonicalTitle = mapping?.title || null;
     let canonicalYear  = mapping?.year || null;
     let aliases = [];
 
-    if (!canonicalTitle && imdbId.startsWith('tt')) {
-      try {
-        const meta = await resolveCinemeta(imdbId, type);
-        if (meta) {
-          canonicalTitle = meta.name || meta.title;
-          canonicalYear  = meta.year;
-          aliases = meta.aliases || [];
+    // ON-THE-FLY CINEMETA RESOLVER & LIVE SEARCH FALLBACK
+    if (imdbId.startsWith('tt')) {
+      if (!canonicalTitle || !canonicalYear) {
+        try {
+          const meta = await resolveCinemeta(imdbId, type);
+          if (meta) {
+            canonicalTitle = meta.name || meta.title || canonicalTitle;
+            canonicalYear  = meta.year || canonicalYear;
+            aliases        = meta.aliases || [];
+          }
+        } catch (cinemetaErr) {
+          console.warn(`[Cinemeta Resolver] ${imdbId}:`, cinemetaErr.message);
         }
-      } catch {}
+      }
+
+      // If mapping missing or missing provider slugs, perform parallel search to resolve slugs
+      if (canonicalTitle && (!mapping?.slug_kkphim || !mapping?.slug_nguonc || !mapping?.slug_vsmov)) {
+        try {
+          const [kkSearchRes, nguoncSearchRes, vsmovSearchRes] = await Promise.allSettled([
+            !mapping?.slug_kkphim ? kkphim.search(canonicalTitle, 5) : Promise.resolve([]),
+            !mapping?.slug_nguonc ? nguonc.search(canonicalTitle, 5) : Promise.resolve([]),
+            !mapping?.slug_vsmov ? vsmov.search(canonicalTitle) : Promise.resolve({ items: [] }),
+          ]);
+
+          const kkItems = kkSearchRes.status === 'fulfilled' ? kkSearchRes.value : [];
+          const nguoncItems = nguoncSearchRes.status === 'fulfilled' ? nguoncSearchRes.value : [];
+          const vsmovItems = vsmovSearchRes.status === 'fulfilled' ? (vsmovSearchRes.value?.items || vsmovSearchRes.value || []) : [];
+
+          const resolvedKKSlug = mapping?.slug_kkphim || findBestMatchSlug(kkItems, canonicalTitle, canonicalYear);
+          const resolvedNguonCSlug = mapping?.slug_nguonc || findBestMatchSlug(nguoncItems, canonicalTitle, canonicalYear);
+          const resolvedVsMovSlug = mapping?.slug_vsmov || findBestMatchSlug(vsmovItems, canonicalTitle, canonicalYear);
+
+          mapping = {
+            ...(mapping || {}),
+            imdb_id: imdbId,
+            type,
+            title: canonicalTitle,
+            year: canonicalYear,
+            slug_kkphim: resolvedKKSlug,
+            slug_nguonc: resolvedNguonCSlug,
+            slug_vsmov: resolvedVsMovSlug,
+          };
+
+          // Save newly resolved mapping asynchronously to Supabase
+          upsertMediaMapping(mapping).catch(() => {});
+        } catch (searchErr) {
+          console.warn(`[Parallel Slug Resolver] ${imdbId}:`, searchErr.message);
+        }
+      }
     }
 
     const queryPayload = {

@@ -110,7 +110,7 @@ class NguonCProvider extends BaseProvider {
     }
   }
 
-  async search(keyword, limit = 10) {
+  async search(keyword, limit = 5) {
     const cleanKeyword = safeKeyword(keyword);
     if (!cleanKeyword) return [];
     try {

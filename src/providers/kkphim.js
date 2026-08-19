@@ -113,14 +113,14 @@ async function getByImdb(imdbId) {
 // ─────────────────────────────────────────────────────────────
 //  2. Tìm kiếm phim: search(keyword, limit = 10)
 // ─────────────────────────────────────────────────────────────
-async function search(keyword, limit = 10) {
+async function search(keyword, limit = 5) {
   const cleanKeyword = safeKeyword(keyword);
   if (!cleanKeyword) return [];
   try {
     const res = await http.get('/v1/api/tim-kiem', {
       params: {
         keyword: cleanKeyword,
-        limit: Math.max(1, parseInt(limit, 10) || 10),
+        limit: Math.max(1, parseInt(limit, 10) || 5),
       },
     });
     const items = res.data?.data?.items || [];
