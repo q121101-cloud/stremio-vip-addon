@@ -65,6 +65,12 @@ const KNOWN_TITLE_LOCALIZATIONS = {
     type: 'movie',
     aliases: ['Harry Potter và Tên Tù Nhân Ngục Azkaban'],
   },
+  tt34809853: {
+    title: 'Teach You a Lesson',
+    year: 2024,
+    type: 'series',
+    aliases: ['Bài Học Đáng Đời', 'Dạy Cho Mày Bài Học', 'Teach You a Lesson', '참교육', 'True Education'],
+  },
   tt1375666: {
     title: 'Inception',
     year: 2010,

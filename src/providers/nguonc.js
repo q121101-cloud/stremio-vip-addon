@@ -26,17 +26,10 @@ const {
 } = require('../lib/utils');
 
 const NGUONC_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
   'Referer': 'https://phim.nguonc.com/',
-  'Origin': 'https://phim.nguonc.com',
-  'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-  'Sec-Ch-Ua-Mobile': '?0',
-  'Sec-Ch-Ua-Platform': '"macOS"',
-  'Sec-Fetch-Dest': 'empty',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Site': 'same-origin',
 };
 
 function encodeBase64(str) {
@@ -330,6 +323,8 @@ class NguonCProvider extends BaseProvider {
           year,
         });
 
+        const allTargetTitles = [cleanTitle, ...aliases].filter(Boolean);
+
         for (const query of searchQueries) {
           const results = await this.search(query, 10);
           if (results && results.length > 0) {
@@ -337,14 +332,21 @@ class NguonCProvider extends BaseProvider {
             let highestScore = 0;
 
             for (const item of results) {
-              const score = scoreMatch(cleanTitle, item.name, year, item.year);
-              const origScore = item.original_name ? scoreMatch(cleanTitle, item.original_name, year, item.year) : 0;
-              const finalScore = Math.max(score, origScore);
+              for (const target of allTargetTitles) {
+                const score = scoreMatch(target, item.name, year, item.year);
+                const origScore = item.original_name ? scoreMatch(target, item.original_name, year, item.year) : 0;
+                const queryScore = scoreMatch(query, item.name, year, item.year);
+                const finalScore = Math.max(score, origScore, queryScore);
 
-              if (finalScore > highestScore && finalScore >= 50) {
-                highestScore = finalScore;
-                bestMatch = item;
+                if (finalScore > highestScore && (finalScore >= 0.35 || finalScore >= 35)) {
+                  highestScore = finalScore;
+                  bestMatch = item;
+                }
               }
+            }
+
+            if (!bestMatch && results.length === 1) {
+              bestMatch = results[0];
             }
 
             if (bestMatch && bestMatch.slug) {
@@ -374,11 +376,20 @@ class NguonCProvider extends BaseProvider {
         if (isSeries) {
           matchedEp = matchEpisodeItem(items, targetEpStr);
           if (!matchedEp) {
-            matchedEp = items.find((ep) =>
-              ep.name === targetEpStr ||
-              ep.slug === `tap-${targetEpStr}` ||
-              ep.name === `Tập ${targetEpStr}`
-            ) || items[episode - 1];
+            matchedEp = items.find((ep) => {
+              const epName = String(ep.name || '').trim();
+              const epSlug = String(ep.slug || '').trim();
+              return (
+                epName === targetEpStr ||
+                epName === `0${targetEpStr}` ||
+                epName === `Tập ${targetEpStr}` ||
+                epName === `Tập 0${targetEpStr}` ||
+                epSlug === `tap-${targetEpStr}` ||
+                epSlug === `tap-0${targetEpStr}` ||
+                epName.startsWith(targetEpStr) ||
+                epSlug.startsWith(`tap-${targetEpStr}`)
+              );
+            }) || (episode > 0 && episode <= items.length ? items[episode - 1] : items[0]);
           }
         } else {
           matchedEp = items[0];

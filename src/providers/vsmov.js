@@ -11,7 +11,7 @@ const axios = require('axios');
 const BaseProvider = require('./base');
 const { imdbCache, catalogCache, detailCache } = require('../lib/cache');
 const { resolveCinemeta, getCachedCinemeta } = require('../lib/cinemeta');
-const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp } = require('../lib/utils');
+const { safeExtra, safeSlug, safeKeyword, safePage, safeType, isSeasonMatch, scoreMatch, escapeRegExp, generateSearchKeywords } = require('../lib/utils');
 
 const PROVIDER_ID    = 'vsmov';
 const PROVIDER_LABEL = 'VSMOV 4K';
@@ -340,6 +340,7 @@ class VSMOVProvider extends BaseProvider {
     let episode = 1;
     let slug = null;
     let proxyBase = '';
+    let aliases = [];
 
     if (typeof arg1 === 'object' && arg1 !== null) {
       imdbId = arg1.imdbId || arg1.id;
@@ -351,6 +352,7 @@ class VSMOVProvider extends BaseProvider {
       episode = parseInt(arg1.episode, 10) || 1;
       slug = arg1.slug;
       proxyBase = arg1.proxyBase || '';
+      aliases = Array.isArray(arg1.aliases) ? arg1.aliases : [];
     } else {
       const firstStr = String(arg1 || '');
       if (firstStr.startsWith('tt')) {
@@ -402,30 +404,50 @@ class VSMOVProvider extends BaseProvider {
         movieData = await this.getByTmdb(tmdbId);
       }
 
-      // 5. Keyword Search Match
-      if (!movieData && title) {
-        const cleanTitle = String(title).trim();
-        const searchRes = await this.search(cleanTitle);
-        const items = searchRes.items || [];
+      // 5. Keyword Search Match with Aliases
+      if (!movieData && (title || aliases.length > 0)) {
+        const cleanTitle = String(title || '').trim();
+        const allTargetTitles = [cleanTitle, ...aliases].filter(Boolean);
+        const searchQueries = generateSearchKeywords({
+          title: cleanTitle,
+          aliases,
+          type,
+          season,
+          year,
+        });
 
-        let bestMatch = null;
-        let highestScore = 0;
+        for (const q of searchQueries) {
+          const searchRes = await this.search(q);
+          const items = searchRes.items || [];
+          if (items.length === 0) continue;
 
-        for (const item of items) {
-          const score = scoreMatch(cleanTitle, item.name, year, item.year);
-          const origScore = item.origin_name ? scoreMatch(cleanTitle, item.origin_name, year, item.year) : 0;
-          const finalScore = Math.max(score, origScore);
+          let bestMatch = null;
+          let highestScore = 0;
 
-          if (finalScore > highestScore && finalScore >= 50) {
-            highestScore = finalScore;
-            bestMatch = item;
+          for (const item of items) {
+            for (const target of allTargetTitles) {
+              const score = scoreMatch(target, item.name, year, item.year);
+              const origScore = item.origin_name ? scoreMatch(target, item.origin_name, year, item.year) : 0;
+              const qScore = scoreMatch(q, item.name, year, item.year);
+              const finalScore = Math.max(score, origScore, qScore);
+
+              if (finalScore > highestScore && (finalScore >= 0.35 || finalScore >= 35)) {
+                highestScore = finalScore;
+                bestMatch = item;
+              }
+            }
           }
-        }
 
-        if (bestMatch && bestMatch.slug) {
-          movieData = await this.getDetail(bestMatch.slug);
-          if (movieData && imdbId) {
-            imdbCache.set(`vsmov:imdb:${imdbId.toLowerCase().trim()}`, bestMatch.slug, 86400 * 7);
+          if (!bestMatch && items.length === 1) {
+            bestMatch = items[0];
+          }
+
+          if (bestMatch && bestMatch.slug) {
+            movieData = await this.getDetail(bestMatch.slug);
+            if (movieData && imdbId) {
+              imdbCache.set(`vsmov:imdb:${imdbId.toLowerCase().trim()}`, bestMatch.slug, 86400 * 7);
+            }
+            break;
           }
         }
       }
