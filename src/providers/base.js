@@ -8,7 +8,7 @@
  */
 
 const axios = require('axios');
-const { USER_AGENT_CHROME, TIMEOUT } = require('../config/constants');
+const { USER_AGENT_CHROME, TIMEOUTS } = require('../config/constants');
 const {
   scoreMatch,
   normalizeText,
@@ -25,30 +25,52 @@ const {
 
 class BaseProvider {
   /**
-   * @param {string} id - Provider ID (e.g. 'vsmov', 'kkphim', 'nguonc')
-   * @param {string} name - Human readable name
-   * @param {string} baseUrl - Base API URL
+   * @param {string} name - Provider Name or ID
+   * @param {string} [baseUrl=''] - Base API URL
    */
-  constructor(id, name, baseUrl) {
-    this.id = id;
-    this.name = name;
-    this.baseUrl = baseUrl;
-    this.timeout = TIMEOUT.PROVIDER;
-
-    // Resilient HTTP Client Instance
-    this.http = axios.create({
-      baseURL: this.baseUrl,
-      timeout: this.timeout,
-      headers: {
-        'User-Agent': USER_AGENT_CHROME,
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-      maxRedirects: 5,
-    });
+  constructor(name, baseUrl = '') {
+    if (arguments.length >= 3) {
+      this.id = arguments[0];
+      this.name = arguments[1];
+      this.baseUrl = arguments[2];
+    } else {
+      this.name = name;
+      this.id = String(name || '').toLowerCase();
+      this.baseUrl = baseUrl;
+    }
+    this.timeout = TIMEOUTS?.HTTP_FETCH || 5000;
   }
 
-  // Common utilities available to all subclasses
+  async fetch(url, options = {}) {
+    const targetUrl = (this.baseUrl && typeof url === 'string' && !url.startsWith('http'))
+      ? `${this.baseUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`
+      : url;
+
+    const response = await axios({
+      url: targetUrl,
+      timeout: options.timeout || 4000,
+      headers: {
+        'User-Agent': USER_AGENT_CHROME,
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+    return response.data;
+  }
+
+  async getStreams(identifier, season = 1, episode = 1) {
+    throw new Error(`getStreams() not implemented for provider ${this.name}`);
+  }
+
+  async getCatalog(type, id, extra, page = 1) {
+    throw new Error(`getCatalog() not implemented for provider ${this.name}`);
+  }
+
+  async getDetail(slug) {
+    throw new Error(`getDetail() not implemented for provider ${this.name}`);
+  }
+
+  // Common utilities helper methods
   normalize(str) {
     return normalizeText(str);
   }
@@ -64,67 +86,15 @@ class BaseProvider {
   matchEpisode(serverData, targetEp) {
     return matchEpisodeItem(serverData, targetEp);
   }
-
-  /**
-   * Fetch with custom timeout & retry
-   * @param {string} url
-   * @param {object} [config={}]
-   * @returns {Promise<any>}
-   */
-  async request(url, config = {}) {
-    try {
-      const res = await this.http.get(url, {
-        timeout: this.timeout,
-        ...config,
-      });
-      return res.data;
-    } catch (err) {
-      const status = err.response ? err.response.status : 'ERR';
-      console.warn(`[${this.name}] Request failed (${status}): ${url} — ${err.message}`);
-      throw err;
-    }
-  }
-
-  /**
-   * Subclasses must implement getCatalog
-   */
-  async getCatalog(type, id, extra, page = 1) {
-    throw new Error(`[${this.name}] getCatalog not implemented`);
-  }
-
-  /**
-   * Subclasses must implement getDetail
-   */
-  async getDetail(slug) {
-    throw new Error(`[${this.name}] getDetail not implemented`);
-  }
-
-  /**
-   * Subclasses must implement getStreams
-   */
-  async getStreams(payload) {
-    throw new Error(`[${this.name}] getStreams not implemented`);
-  }
-
-  /**
-   * Subclasses must implement search
-   */
-  async search(keyword, type) {
-    throw new Error(`[${this.name}] search not implemented`);
-  }
 }
 
-module.exports = {
-  BaseProvider,
-  scoreMatch,
-  normalizeText,
-  escapeRegExp,
-  safeExtra,
-  safeSlug,
-  safeKeyword,
-  safePage,
-  extractSeasonNumber,
-  isSeasonMatch,
-  generateSearchKeywords,
-  matchEpisodeItem,
-};
+BaseProvider.scoreMatch = scoreMatch;
+BaseProvider.normalizeText = normalizeText;
+BaseProvider.escapeRegExp = escapeRegExp;
+BaseProvider.safeSlug = safeSlug;
+BaseProvider.safeKeyword = safeKeyword;
+BaseProvider.safePage = safePage;
+BaseProvider.generateSearchKeywords = generateSearchKeywords;
+BaseProvider.matchEpisodeItem = matchEpisodeItem;
+
+module.exports = BaseProvider;
