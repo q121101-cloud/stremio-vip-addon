@@ -523,7 +523,7 @@ router.get(STREAM_ROUTES, async (req, res) => {
           if (!Array.isArray(streams)) return [];
           return streams.map((s) => {
             const proxiedUrl = s.url && s.url.startsWith('http') && !s.url.includes('/hls/')
-              ? `${proxyBase}/hls/manifest.m3u8?url=${encodeB64(s.url)}&ref=${encodeB64('https://phim.nguonc.com/')}`
+              ? `${proxyBase}/hls/manifest.m3u8?url=${encodeB64(s.url)}&ref=${encodeB64('https://embed.streamc.xyz/')}`
               : s.url;
 
             const streamObj = {

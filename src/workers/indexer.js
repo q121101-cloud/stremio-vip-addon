@@ -31,11 +31,25 @@ async function handleNguonCProxy(req, res) {
   if (!url) return res.status(400).json({ error: 'Missing url query' });
 
   try {
+    let referer = 'https://phim.nguonc.com/';
+    if (/streamc\.|amass\d*\.top/i.test(url)) {
+      referer = 'https://embed.streamc.xyz/';
+    }
+
     const response = await axios.get(url, {
-      headers: STEALTH_HEADERS,
-      timeout: 6000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8',
+        'Referer': referer,
+      },
+      timeout: 10000,
+      responseType: 'text',
     });
-    return res.json(response.data);
+
+    const contentType = response.headers['content-type'] || 'text/html; charset=utf-8';
+    res.setHeader('Content-Type', contentType);
+    return res.send(response.data);
   } catch (err) {
     return res.status(err.response?.status || 500).json({
       error: 'Proxy Fetch Failed',

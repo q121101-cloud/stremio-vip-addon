@@ -331,18 +331,28 @@ async function extractM3u8FromEmbed(embedUrl, customReferer = null) {
 
     const referer = customReferer || (embedHost ? `${embedHost}/` : 'https://phim.nguonc.com/');
 
-    const r = await axios.get(embedUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        Referer: referer,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
-      },
-      timeout: 10000,
-      validateStatus: (status) => status >= 200 && status < 400,
-    });
-
-    const html = String(r.data || '');
+    let html = '';
+    try {
+      const r = await axios.get(embedUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          Referer: referer,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'vi,en-US;q=0.9,en;q=0.8',
+        },
+        timeout: 10000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+      html = String(r.data || '');
+    } catch (directErr) {
+      const proxyBase = (process.env.PROXY_URL || process.env.RENDER_BACKEND_URL || '').replace(/\/+$/, '');
+      if (proxyBase) {
+        try {
+          const pRes = await axios.get(`${proxyBase}/api/proxy/nguonc?url=${encodeURIComponent(embedUrl)}`, { timeout: 8000 });
+          html = String(pRes.data || '');
+        } catch {}
+      }
+    }
     if (!html) return null;
 
     // 2. Check data-obf base64 JSON payload (NguonC / StreamC standard)
