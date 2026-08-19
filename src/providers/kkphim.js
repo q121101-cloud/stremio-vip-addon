@@ -92,7 +92,7 @@ async function getByImdb(imdbId) {
   const cleanImdb = String(imdbId).toLowerCase().trim();
   if (!cleanImdb) return null;
   const cacheKey = `kkphim:imdb:${cleanImdb}`;
-  const cached = imdbCache.get(cacheKey);
+  const cached = await imdbCache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -149,7 +149,7 @@ async function getDetail(slug) {
   const cleanSlug = safeSlug(slug, 'kkphim');
   if (!cleanSlug) return null;
   const cacheKey = `kkphim:detail:${cleanSlug}`;
-  const cached = detailCache.get(cacheKey);
+  const cached = await detailCache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -168,9 +168,22 @@ async function getDetail(slug) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  4. Danh mục & Bộ lọc Catalog: getCatalog(type, page = 1, extra = {})
+//  4. Danh mục & Bộ lọc Catalog: getCatalog(type, id/page, extra, page)
 // ─────────────────────────────────────────────────────────────
-async function getCatalog(type, page = 1, extra = {}) {
+async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
+  let catalogId = null;
+  let page = 1;
+  let extra = {};
+
+  if (typeof arg2 === 'string' && isNaN(Number(arg2))) {
+    catalogId = arg2;
+    extra = typeof arg3 === 'object' ? arg3 : {};
+    page = typeof arg4 === 'number' ? arg4 : parseInt(arg4, 10) || 1;
+  } else {
+    page = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10) || 1;
+    extra = typeof arg3 === 'object' ? arg3 : {};
+  }
+
   const cleanType = safeType(type, 'phim-le');
   const safe = safeExtra(extra);
   const p = safePage(page);
@@ -178,7 +191,7 @@ async function getCatalog(type, page = 1, extra = {}) {
   const genreFilter = safeKeyword(safe.genre);
   const countryFilter = safeKeyword(safe.country);
   const cacheKey = `kkphim:cat:${cleanType}:${p}:${searchQuery}:${genreFilter}:${countryFilter}`;
-  const cached = catalogCache.get(cacheKey);
+  const cached = await catalogCache.get(cacheKey);
   if (cached) return cached;
 
   try {

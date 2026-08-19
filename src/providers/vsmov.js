@@ -276,7 +276,7 @@ async function getDetail(slug) {
   const cleanSlug = safeSlug(slug, 'vsmov');
   if (!cleanSlug) return null;
   const cacheKey = `vsmov:detail:${cleanSlug}`;
-  const cached = detailCache.get(cacheKey);
+  const cached = await detailCache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -302,7 +302,7 @@ async function getByImdb(imdbId, title = null) {
   if (!imdbId) return null;
   const cleanImdb = String(imdbId).toLowerCase().trim();
   const cacheKey = `vsmov:imdb:${cleanImdb}`;
-  const cachedSlug = imdbCache.get(cacheKey);
+  const cachedSlug = await imdbCache.get(cacheKey);
   if (cachedSlug) {
     const detail = await getDetail(cachedSlug);
     if (detail) return detail;
@@ -354,16 +354,29 @@ async function getByTmdb(tmdbId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  4. Danh mục & Catalog: getCatalog(type, page = 1, extra = {})
+//  4. Danh mục & Catalog: getCatalog(type, id/page, extra, page)
 // ─────────────────────────────────────────────────────────────
-async function getCatalog(type, page = 1, extra = {}) {
+async function getCatalog(type, arg2 = 1, arg3 = {}, arg4 = 1) {
+  let catalogId = null;
+  let page = 1;
+  let extra = {};
+
+  if (typeof arg2 === 'string' && isNaN(Number(arg2))) {
+    catalogId = arg2;
+    extra = typeof arg3 === 'object' ? arg3 : {};
+    page = typeof arg4 === 'number' ? arg4 : parseInt(arg4, 10) || 1;
+  } else {
+    page = typeof arg2 === 'number' ? arg2 : parseInt(arg2, 10) || 1;
+    extra = typeof arg3 === 'object' ? arg3 : {};
+  }
+
   const cleanType = safeType(type, '4k');
   const safe = safeExtra(extra);
   const p = safePage(page);
   const searchQuery = safeKeyword(safe.search || safe.searchQuery || safe.query);
   const genreFilter = safeKeyword(safe.genre);
   const cacheKey = `vsmov:cat:${cleanType}:${p}:${searchQuery}:${genreFilter}`;
-  const cached = catalogCache.get(cacheKey);
+  const cached = await catalogCache.get(cacheKey);
   if (cached) return cached;
 
   try {

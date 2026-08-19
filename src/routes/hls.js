@@ -19,17 +19,8 @@ const router  = express.Router();
 const axios   = require('axios');
 
 const { extractM3u8FromEmbed } = require('../mapper');
-const { m3u8Cache }            = require('../lib/cache');
-
-// ─── Constants ─────────────────────────────────────────────────
-const HLS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-
-const SOURCE_REFERERS = [
-  { pattern: /kkphimplayer|phim1280|phimapi\.com|kkphim|opstream|vlcdn/i, referer: 'https://player.phimapi.com/', origin: 'https://player.phimapi.com' },
-  { pattern: /vsmov|streamvsmov|p25\.streamvsmov/i,        referer: 'https://vsmov.com/',           origin: 'https://vsmov.com' },
-  { pattern: /nguonc\.com/i,                               referer: 'https://phim.nguonc.com/',     origin: 'https://phim.nguonc.com' },
-  { pattern: /streamc\.|amass2\.top/i,                     referer: 'https://embed15.streamc.xyz/', origin: 'https://embed15.streamc.xyz' },
-];
+const { hlsManifestCache: m3u8Cache } = require('../db/cache');
+const { USER_AGENT_CHROME: HLS_UA, HLS_REFERERS: SOURCE_REFERERS } = require('../config/constants');
 
 const DEFAULT_REFERER = 'https://phim.nguonc.com/';
 
@@ -182,7 +173,7 @@ router.get(['/manifest.m3u8', '/m3u8', '/m3u8-proxy'], async (req, res) => {
   const protoHost = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
 
   const cacheKey = `m3u8:${protoHost}:${targetUrl}:${subParam || ''}`;
-  const cached = m3u8Cache.get(cacheKey);
+  const cached = await m3u8Cache.get(cacheKey);
   if (cached) {
     return res.send(cached);
   }

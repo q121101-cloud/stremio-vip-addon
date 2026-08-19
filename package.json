@@ -1,12 +1,16 @@
 {
   "name": "stremio-nguonc-addon",
-  "version": "1.7.1",
-  "description": "Stremio Addon for NguonC - Xem phim Vietsub, thuyết minh từ phim.nguonc.com",
+  "version": "1.8.0",
+  "description": "Enterprise VIP Movies Stremio Addon (VSMOV 4K, KKPhim, NguonC)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node src/test.js"
+    "test": "node tests/unit_providers.test.js && node tests/hls_proxy.test.js && node tests/live_e2e_benchmark.test.js",
+    "test:unit": "node tests/unit_providers.test.js",
+    "test:hls": "node tests/hls_proxy.test.js",
+    "test:benchmark": "node tests/live_e2e_benchmark.test.js",
+    "test:legacy": "node src/test.js"
   },
   "keywords": [
     "stremio",

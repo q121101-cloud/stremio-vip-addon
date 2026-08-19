@@ -3,19 +3,27 @@
 /**
  * ============================================================
  *  VIP Movies Addon — src/routes/manifest.js
- *  Dynamic Manifest Router — hỗ trợ 2 format URL:
- *    1. GET /:config/manifest.json  (Base64URL token)
- *    2. GET /manifest.json?config=  (Query string)
+ *  Stremio Manifest Router with 16-bit Bitmask & Base62 Support
  * ============================================================
  */
 
 const express = require('express');
 const router  = express.Router();
 
-const { MANIFEST, buildManifest } = require('../manifest');
-const { decodeConfig, isConfigToken, VALID_PROVIDERS } = require('../config');
+const {
+  ADDON_ID,
+  ADDON_NAME,
+  ADDON_VERSION,
+  ADDON_DESCRIPTION,
+  ADDON_LOGO,
+  ALL_CATALOGS,
+  ALL_ID_PREFIXES,
+  VALID_PROVIDERS,
+  DEFAULT_CONFIG,
+} = require('../config/constants');
 
-// ─── Helper ────────────────────────────────────────────────────
+const { decodeConfig, isConfigToken } = require('../config/compressor');
+
 function sendJSON(res, data) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,9 +32,72 @@ function sendJSON(res, data) {
   return res.json(data);
 }
 
+const BASE_MANIFEST = {
+  id: ADDON_ID,
+  version: ADDON_VERSION,
+  name: ADDON_NAME,
+  description: ADDON_DESCRIPTION,
+  logo: ADDON_LOGO,
+  resources: [
+    'catalog',
+    {
+      name: 'meta',
+      types: ['movie', 'series'],
+      idPrefixes: ALL_ID_PREFIXES,
+    },
+    {
+      name: 'stream',
+      types: ['movie', 'series'],
+      idPrefixes: ALL_ID_PREFIXES,
+    },
+  ],
+  types: ['movie', 'series'],
+  idPrefixes: ALL_ID_PREFIXES,
+  behaviorHints: {
+    adult: false,
+    p2p: false,
+    configurable: true,
+    configurationRequired: false,
+  },
+};
+
 /**
- * Tạo description động theo config
+ * Build dynamic manifest based on config
+ * @param {object} config
+ * @param {string} [configUrl]
+ * @returns {object}
  */
+function buildManifest(config = DEFAULT_CONFIG, configUrl = '') {
+  const safeProviders = Array.isArray(config?.providers) && config.providers.length > 0
+    ? config.providers
+    : DEFAULT_CONFIG.providers;
+  const safeCategories = Array.isArray(config?.categories) && config.categories.length > 0
+    ? config.categories
+    : DEFAULT_CONFIG.categories;
+
+  const filteredCatalogs = ALL_CATALOGS.filter(
+    (cat) => safeProviders.includes(cat.provider) && safeCategories.includes(cat.category)
+  );
+
+  const catalogs = filteredCatalogs.length > 0
+    ? filteredCatalogs.map(({ provider: _p, category: _c, ...rest }) => rest)
+    : ALL_CATALOGS.map(({ provider: _p, category: _c, ...rest }) => rest);
+
+  const manifest = {
+    ...BASE_MANIFEST,
+    catalogs,
+  };
+
+  if (configUrl) {
+    manifest.behaviorHints = {
+      ...manifest.behaviorHints,
+      configurationURL: configUrl,
+    };
+  }
+
+  return manifest;
+}
+
 function buildDescription(config) {
   const { providers = [], categories = [] } = config || {};
   const providerLabels = {
@@ -53,28 +124,8 @@ function buildDescription(config) {
   return `Đang bật: ${provStr || 'Tất cả nguồn'} — ${catStr || 'Tất cả danh mục'}. Xem phim Vietsub & Thuyết Minh trên Stremio / Nuvio.`;
 }
 
-/**
- * Giải mã config từ token hoặc query string
- * @param {string|null} token - Base64URL token
- * @param {string|null} query - query param ?config=
- * @returns {{ config, isDefault }}
- */
-function resolveConfig(token, query) {
-  if (token && isConfigToken(token)) {
-    return { config: decodeConfig(token), isDefault: false };
-  }
-  if (query) {
-    try {
-      const decoded = decodeConfig(query);
-      return { config: decoded, isDefault: false };
-    } catch {}
-  }
-  return { config: null, isDefault: true };
-}
-
 // ─────────────────────────────────────────────────────────────
-//  GET /manifest.json & GET /manifest
-//  GET /manifest.json?config=<token>&key=<apiKey>
+// GET /manifest.json & GET /manifest
 // ─────────────────────────────────────────────────────────────
 function handleManifest(req, res) {
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:7000';
@@ -83,31 +134,22 @@ function handleManifest(req, res) {
   const configUrl = `${baseUrl}/`;
 
   const configQuery = req.query.config || null;
-  const { config, isDefault } = resolveConfig(null, configQuery);
-
-  if (isDefault) {
-    console.log('[Manifest] Default manifest');
-    const manifest = {
-      ...MANIFEST,
-      behaviorHints: {
-        ...MANIFEST.behaviorHints,
-        configurationURL: configUrl,
-      },
-    };
+  if (configQuery) {
+    const config = decodeConfig(configQuery);
+    const manifest = buildManifest(config, configUrl);
+    manifest.description = buildDescription(config);
     return sendJSON(res, manifest);
   }
 
-  console.log(`[Manifest] Query config: providers=${config.providers.join(',')} cats=${config.categories.join(',')}`);
-  const manifest = buildManifest(config, configUrl);
-  manifest.description = buildDescription(config);
-  sendJSON(res, manifest);
+  const manifest = buildManifest(DEFAULT_CONFIG, configUrl);
+  return sendJSON(res, manifest);
 }
 
 router.get('/manifest.json', handleManifest);
 router.get('/manifest', handleManifest);
 
 // ─────────────────────────────────────────────────────────────
-//  GET /:config/manifest.json & GET /:config/manifest
+// GET /:config/manifest.json & GET /:config/manifest
 // ─────────────────────────────────────────────────────────────
 function handleConfigManifest(req, res) {
   const token    = req.params.config;
@@ -116,28 +158,22 @@ function handleConfigManifest(req, res) {
   const baseUrl  = `${protocol}://${host}`;
   const configUrl = `${baseUrl}/`;
 
-  const { config, isDefault } = resolveConfig(token, null);
-
-  if (isDefault) {
-    console.log(`[Manifest] Invalid token "${token.slice(0, 20)}..." — returning default`);
-    return sendJSON(res, {
-      ...MANIFEST,
-      behaviorHints: { ...MANIFEST.behaviorHints, configurationURL: configUrl },
-    });
+  if (!isConfigToken(token)) {
+    const manifest = buildManifest(DEFAULT_CONFIG, configUrl);
+    return sendJSON(res, manifest);
   }
 
-  console.log(`[Manifest] Token config: providers=${config.providers.join(',')} cats=${config.categories.join(',')}`);
+  const config = decodeConfig(token);
   const manifest = buildManifest(config, configUrl);
   manifest.description = buildDescription(config);
-
-  sendJSON(res, manifest);
+  return sendJSON(res, manifest);
 }
 
 router.get('/:config/manifest.json', handleConfigManifest);
 router.get('/:config/manifest', handleConfigManifest);
 
 // ─────────────────────────────────────────────────────────────
-//  Middleware: attach decoded config to req when /:config is present
+// Middleware: attach decoded config to req when /:config is present
 // ─────────────────────────────────────────────────────────────
 router.use('/:config', (req, res, next) => {
   const token = req.params.config;
@@ -149,3 +185,5 @@ router.use('/:config', (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.buildManifest = buildManifest;
+module.exports.BASE_MANIFEST = BASE_MANIFEST;
