@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIP Movies Stremio Addon — Cyber-Glassmorphism Configurator</title>
+  <meta name="description" content="Addon xem phim Đa Nguồn VIP: VSMOV 4K Ultra HD, KKPhim & NguonC Vietsub / Thuyết Minh siêu tốc cho Stremio.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+<body class="obsidian-space">
+  <!-- Animated Aurora Mesh Canvas Background -->
+  <div class="aurora-mesh" aria-hidden="true">
+    <div class="aurora-orb orb-1"></div>
+    <div class="aurora-orb orb-2"></div>
+    <div class="aurora-orb orb-3"></div>
+    <div class="aurora-orb orb-4"></div>
+  </div>
+  <div class="grid-overlay" aria-hidden="true"></div>
+
+  <!-- Main Container -->
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="cyber-header glass-panel">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <span class="logo-icon">🎬</span>
+          <span class="pulse-ring"></span>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">VIP MOVIES <span class="badge-version">v2.0</span></h1>
+          <p class="brand-subtitle">Đa Nguồn VIP: VSMOV 4K • KKPhim • NguonC StreamC</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-indicator online">
+          <span class="status-dot"></span>
+          <span class="status-label">L1/L2 Cache Active</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content Grid -->
+    <main class="config-grid">
+      <!-- Left Column: Configurator Controls -->
+      <section class="config-controls glass-panel">
+        <div class="panel-header">
+          <h2 class="panel-title"><span class="icon">⚙️</span> Cấu Hình Nhà Cung Cấp & Bộ Lọc</h2>
+          <p class="panel-desc">Tùy chỉnh nguồn phim và danh mục hiển thị trên Stremio của bạn.</p>
+        </div>
+
+        <!-- Provider Toggles -->
+        <div class="control-group">
+          <h3 class="group-title">Nguồn Phim Trực Tuyến (Providers)</h3>
+          
+          <!-- VSMOV 4K Toggle -->
+          <div class="provider-card" data-provider="vsmov">
+            <div class="provider-info">
+              <div class="provider-badge gold">4K UHD</div>
+              <div class="provider-details">
+                <div class="provider-name">VSMOV 4K Ultra HD</div>
+                <div class="provider-meta">3840x2160 • WebVTT Phụ Đề • Thuyết Minh Master</div>
+              </div>
+            </div>
+            <label class="spring-toggle" aria-label="Toggle VSMOV 4K">
+              <input type="checkbox" id="toggle-vsmov" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+
+          <!-- KKPhim Toggle -->
+          <div class="provider-card" data-provider="kkphim">
+            <div class="provider-info">
+              <div class="provider-badge cyan">1080p FHD</div>
+              <div class="provider-details">
+                <div class="provider-name">KKPhim (PhimAPI)</div>
+                <div class="provider-meta">1080p FHD Siêu Tốc • Phim Lẻ, Bộ, Hoạt Hình & Rạp</div>
+              </div>
+            </div>
+            <label class="spring-toggle" aria-label="Toggle KKPhim">
+              <input type="checkbox" id="toggle-kkphim" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+
+          <!-- NguonC Toggle -->
+          <div class="provider-card" data-provider="nguonc">
+            <div class="provider-info">
+              <div class="provider-badge emerald">Anti-403</div>
+              <div class="provider-details">
+                <div class="provider-name">NguonC (StreamC CDN)</div>
+                <div class="provider-meta">StreamC M3U8 • Reverse Proxy Anti-403 Bypasser</div>
+              </div>
+            </div>
+            <label class="spring-toggle" aria-label="Toggle NguonC">
+              <input type="checkbox" id="toggle-nguonc" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Category Multi-Select Chips -->
+        <div class="control-group">
+          <h3 class="group-title">Danh Mục Nội Dung (Catalogs)</h3>
+          <div class="category-chips">
+            <button type="button" class="chip-btn active" data-category="phim-moi">
+              <span class="chip-icon">🔥</span> Phim Mới
+            </button>
+            <button type="button" class="chip-btn active" data-category="phim-le">
+              <span class="chip-icon">🎬</span> Phim Lẻ
+            </button>
+            <button type="button" class="chip-btn active" data-category="phim-bo">
+              <span class="chip-icon">📺</span> Phim Bộ
+            </button>
+            <button type="button" class="chip-btn active" data-category="hoat-hinh">
+              <span class="chip-icon">🌸</span> Hoạt Hình / Anime
+            </button>
+            <button type="button" class="chip-btn active" data-category="phim-chieu-rap">
+              <span class="chip-icon">🍿</span> Phim Chiếu Rạp
+            </button>
+          </div>
+        </div>
+
+        <!-- Audio Preference & Quality Selection -->
+        <div class="control-group">
+          <h3 class="group-title">Tùy Chọn Âm Thanh & Phụ Đề Ưu Tiên</h3>
+          <div class="segmented-control" id="audio-pref">
+            <button type="button" class="segment-btn active" data-audio="vietsub">Vietsub (Mặc định)</button>
+            <button type="button" class="segment-btn" data-audio="thuyet-minh">Thuyết Minh</button>
+            <button type="button" class="segment-btn" data-audio="all">Tất Cả Nguồn</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Live Stream Simulator & Action Card -->
+      <section class="config-preview-section">
+        <!-- Live Stremio Stream Simulator -->
+        <div class="simulator-panel glass-panel">
+          <div class="panel-header">
+            <div class="header-left">
+              <h2 class="panel-title"><span class="icon">📺</span> Trình Mô Phỏng Luồng Stremio</h2>
+              <p class="panel-desc">Xem trước danh sách Stream hiển thị trong ứng dụng Stremio.</p>
+            </div>
+            <!-- Media Selector for Simulator Preview -->
+            <div class="preview-media-picker">
+              <select id="simulator-media-select" class="cyber-select" aria-label="Chọn phim mẫu để mô phỏng">
+                <option value="movie_cuumon">🎬 Cửu Môn (Phim Lẻ)</option>
+                <option value="series_toanchuc">📺 Toàn Chức Cao Thủ - Tập 1 (Phim Bộ)</option>
+                <option value="imdb_whilesleeping">⭐ Khi Nàng Say Giấc (IMDb tt7458054)</option>
+                <option value="movie_avatar2">🌟 Avatar 2 (Phim 4K Rạp)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Simulated Stream List Container -->
+          <div class="stream-list-container" id="stream-simulator-list">
+            <!-- Dynamic Stream Cards Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Installation & Manifest URL Card -->
+        <div class="manifest-card glass-panel">
+          <div class="manifest-info">
+            <h3 class="manifest-title">Đường Dẫn Manifest Của Bạn</h3>
+            <p class="manifest-desc">Sử dụng URL này để cài đặt vào Stremio trên mọi thiết bị.</p>
+          </div>
+
+          <div class="url-copy-box">
+            <input type="text" id="manifest-url-input" class="cyber-input mono" readonly value="" aria-label="Manifest URL">
+            <button type="button" id="btn-copy-manifest" class="btn-icon-action" title="Sao chép URL">
+              <span class="icon">📋</span>
+            </button>
+          </div>
+
+          <div class="action-button-group">
+            <button type="button" id="btn-install-stremio" class="btn-cyber-primary">
+              <span class="btn-glow"></span>
+              <span class="icon">🚀</span> Cài Đặt Vào Stremio (1-Click)
+            </button>
+            <button type="button" id="btn-open-qr-modal" class="btn-cyber-secondary">
+              <span class="icon">📱</span> QR Code Smart TV & Hướng Dẫn
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="cyber-footer">
+      <p>VIP Movies Stremio Addon • High-Performance Multi-Provider Aggregator • Anti-403 Proxy Ready</p>
+    </footer>
+  </div>
+
+  <!-- 1-Click Smart TV Installation & QR Code Modal -->
+  <div class="qr-modal-backdrop" id="qr-modal" aria-hidden="true">
+    <div class="qr-modal-dialog glass-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title-id">
+      <button type="button" class="btn-modal-close" id="btn-close-modal" aria-label="Đóng">&times;</button>
+      
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title-id">📱 Cài Đặt Lên Smart TV & Mọi Thiết Bị</h2>
+        <p class="modal-subtitle">Quét mã QR bằng điện thoại hoặc nhập URL vào ứng dụng Stremio trên TV.</p>
+      </div>
+
+      <div class="modal-body">
+        <!-- QR Code Canvas Container -->
+        <div class="qr-code-wrapper">
+          <div class="qr-frame">
+            <canvas id="qr-canvas" width="220" height="220" aria-label="QR Code"></canvas>
+            <div class="qr-corner top-left"></div>
+            <div class="qr-corner top-right"></div>
+            <div class="qr-corner bottom-left"></div>
+            <div class="qr-corner bottom-right"></div>
+          </div>
+          <p class="qr-caption">Quét để cài đặt tức thì trên Stremio Mobile hoặc TV</p>
+        </div>
+
+        <!-- Platform Instructions Tabs -->
+        <div class="platform-tabs">
+          <div class="tab-nav" role="tablist">
+            <button type="button" class="tab-btn active" data-tab="tab-smarttv" role="tab" aria-selected="true">📺 Smart TV (Android/Apple TV)</button>
+            <button type="button" class="tab-btn" data-tab="tab-webos" role="tab" aria-selected="false">🌐 LG WebOS & Samsung Tizen</button>
+            <button type="button" class="tab-btn" data-tab="tab-desktop" role="tab" aria-selected="false">💻 Máy Tính & Điện Thoại</button>
+          </div>
+
+          <div class="tab-content active" id="tab-smarttv" role="tabpanel">
+            <ol class="steps-list">
+              <li>Mở ứng dụng <strong>Stremio</strong> trên Android TV, Google TV hoặc Apple TV.</li>
+              <li>Vào mục <strong>Cài đặt (Settings)</strong> &rarr; chọn <strong>Addons</strong> &rarr; chọn <strong>Thêm Addon từ URL</strong>.</li>
+              <li>Nhập đường dẫn Manifest đã cấu hình hoặc quét mã QR phía trên bằng điện thoại liên kết cùng tài khoản Stremio.</li>
+            </ol>
+          </div>
+
+          <div class="tab-content" id="tab-webos" role="tabpanel">
+            <ol class="steps-list">
+              <li>Truy cập <strong>web.stremio.com</strong> trên trình duyệt LG WebOS hoặc Samsung Tizen.</li>
+              <li>Đăng nhập tài khoản Stremio &rarr; Vào mục <strong>Addons (Mở rộng)</strong>.</li>
+              <li>Dán đường dẫn Manifest của Addon vào ô tìm kiếm hoặc URL Addon và nhấn <strong>Cài đặt</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="tab-content" id="tab-desktop" role="tabpanel">
+            <ol class="steps-list">
+              <li>Nhấn nút <strong>"Cài Đặt Vào Stremio"</strong> trên trang này để mở ứng dụng Stremio và nhấn <strong>Install</strong>.</li>
+              <li>Hoặc sao chép URL Manifest và dán vào thanh tìm kiếm Addon trong Stremio Desktop / Mobile.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-cyber-primary full-width" id="modal-copy-btn">
+          <span class="icon">📋</span> Sao Chép Manifest URL
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Application Scripts -->
+  <script src="/js/qr-modal.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
