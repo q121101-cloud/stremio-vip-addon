@@ -12,6 +12,7 @@ const catalogRouter = require('./routes/catalog');
 const metaRouter = require('./routes/meta');
 const streamRouter = require('./routes/stream');
 const hlsRouter = require('./routes/hls');
+const usenetRouter = require('./routes/usenet');
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use(catalogRouter);
 app.use(metaRouter);
 app.use(streamRouter);
 app.use(hlsRouter);
+app.use(usenetRouter);
 
 // Configurator Web UI Routes
 const serveDashboard = (req, res) => {
