@@ -41,6 +41,9 @@ app.get(['/:config/manifest.json', '/c/:config/manifest.json'], (req, res) => {
   res.json(getManifest(req.params.config));
 });
 
+// HLS Proxy Routes (mounted FIRST at /hls prefix to ensure no route conflict)
+app.use('/hls', hlsRouter);
+
 // Stremio Core Resource Routers
 app.use(catalogRouter);
 app.use(metaRouter);

@@ -349,10 +349,13 @@ class KKPhimProvider extends BaseProvider {
       } else {
         // Series: Match exact episode number
         epItem = serverData.find(e => {
-          const numMatch = e.name ? e.name.match(/\d+/) : null;
+          const numMatch = (e.name || e.slug || '').match(/\d+/);
           const num = numMatch ? parseInt(numMatch[0], 10) : null;
           return num === targetEpisode;
-        }) || serverData[targetEpisode - 1] || serverData[0];
+        });
+        if (!epItem && targetEpisode >= 1 && targetEpisode <= serverData.length) {
+          epItem = serverData[targetEpisode - 1];
+        }
       }
 
       if (!epItem) continue;

@@ -24,10 +24,10 @@ const PROVIDER_MAP = {
  * Wraps a promise with strict timeout protection and safe fail-soft fallback.
  * @template T
  * @param {Promise<T>} promise
- * @param {number} [timeoutMs=3500]
+ * @param {number} [timeoutMs=2500]
  * @returns {Promise<T|Array>}
  */
-async function fetchWithTimeout(promise, timeoutMs = 3500) {
+async function fetchWithTimeout(promise, timeoutMs = 2500) {
   let timer;
   const timeoutPromise = new Promise((resolve) => {
     timer = setTimeout(() => resolve([]), timeoutMs);
@@ -177,7 +177,7 @@ async function resolveImdbStreams(rawId, type, userConfig, proxyBase) {
           episode,
           proxyBase
         }),
-        TIMEOUTS.STREAM || 3500
+        TIMEOUTS.STREAM || 2500
       );
 
       return streams || [];
@@ -264,7 +264,7 @@ async function resolveDirectStreams(rawId, type, userConfig, proxyBase) {
       episode,
       proxyBase
     }),
-    TIMEOUTS.STREAM || 3500
+    TIMEOUTS.STREAM || 2500
   );
 
   const sortedStreams = rankStreams(streams, userConfig.preferredAudio);
@@ -305,7 +305,7 @@ async function resolveRawSlugStreams(rawSlug, type, userConfig, proxyBase) {
           episode: 1,
           proxyBase
         }),
-        TIMEOUTS.STREAM || 3500
+        TIMEOUTS.STREAM || 2500
       );
       return streams || [];
     } catch (_) {

@@ -46,6 +46,34 @@ function cleanDescription(html) {
 }
 
 /**
+ * Normalizes poster/backdrop image URLs:
+ * - http:// → https://
+ * - relative paths → prefixed with providerBaseUrl
+ * @param {string} url
+ * @param {string} [providerBaseUrl='']
+ * @returns {string}
+ */
+function sanitizePosterUrl(url, providerBaseUrl = '') {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  // Relative path: prefix with provider base domain
+  if (trimmed.startsWith('/')) {
+    try {
+      const base = providerBaseUrl ? new URL(providerBaseUrl).origin : 'https://phim.nguonc.com';
+      return `${base}${trimmed}`;
+    } catch (_) {
+      return trimmed;
+    }
+  }
+  // Protocol-relative
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  // http → https
+  if (trimmed.startsWith('http://')) return `https://${trimmed.slice(7)}`;
+  return trimmed;
+}
+
+/**
  * Parses Stremio extra parameters (e.g. genre=Hành Động&skip=20)
  * @param {string} extraStr
  * @returns {Object}
@@ -111,7 +139,15 @@ async function handleCatalog(req, res) {
       metas = await resolveNguoncCatalog(id, type, genre, search, page);
     }
 
-    const payload = { metas: metas || [] };
+    const sanitizedMetas = (metas || []).map((m) => {
+      const item = { ...m };
+      if (item.poster) item.poster = sanitizePosterUrl(item.poster);
+      if (item.background) item.background = sanitizePosterUrl(item.background);
+      if (item.description) item.description = cleanDescription(item.description);
+      return item;
+    });
+
+    const payload = { metas: sanitizedMetas };
     cache.set(cacheKey, payload, 300); // 5 min TTL
     return res.json(payload);
 

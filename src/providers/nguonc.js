@@ -200,17 +200,36 @@ class NguonCProvider extends BaseProvider {
 
     try {
       const data = await this.request(`${endpoint}?page=${page}`);
-      const items = data?.items || data?.data?.items || [];
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.data?.items)
+          ? data.data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+
+      const sanitizeImg = (url) => {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim();
+        if (trimmed.startsWith('//')) return `https:${trimmed}`;
+        if (trimmed.startsWith('http://')) return `https://${trimmed.slice(7)}`;
+        if (trimmed.startsWith('/')) return `https://phim.nguonc.com${trimmed}`;
+        return trimmed;
+      };
 
       const metas = items.map((item) => {
         const isSeries = item.total_episodes > 1 || (item.current_episode && item.current_episode !== 'FULL' && item.current_episode !== 'Full');
+        const posterUrl = sanitizeImg(item.poster_url || item.thumb_url);
+        const thumbUrl = sanitizeImg(item.thumb_url || item.poster_url);
         return {
           id: this.prefixId(item.slug),
           type: isSeries ? 'series' : 'movie',
           name: item.name || item.original_name,
-          poster: item.poster_url || item.thumb_url,
+          poster: posterUrl,
           posterShape: 'poster',
-          background: item.thumb_url || item.poster_url,
+          background: thumbUrl,
           description: item.description ? item.description.replace(/<[^>]*>?/gm, '').trim() : `Xem phim ${item.name} trên NguonC`,
           releaseInfo: item.year ? `${item.year} · FHD` : 'FHD',
           genres: Array.isArray(item.category)
@@ -239,7 +258,24 @@ class NguonCProvider extends BaseProvider {
 
     try {
       const data = await this.request(`/films/the-loai/${genreSlug}?page=${page}`);
-      const items = data?.items || data?.data?.items || [];
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.data?.items)
+          ? data.data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+
+      const sanitizeImg = (url) => {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim();
+        if (trimmed.startsWith('//')) return `https:${trimmed}`;
+        if (trimmed.startsWith('http://')) return `https://${trimmed.slice(7)}`;
+        if (trimmed.startsWith('/')) return `https://phim.nguonc.com${trimmed}`;
+        return trimmed;
+      };
 
       const metas = items.map((item) => {
         const isSeries = item.total_episodes > 1 || (item.current_episode && item.current_episode !== 'FULL' && item.current_episode !== 'Full');
@@ -247,9 +283,9 @@ class NguonCProvider extends BaseProvider {
           id: this.prefixId(item.slug),
           type: isSeries ? 'series' : 'movie',
           name: item.name || item.original_name,
-          poster: item.poster_url || item.thumb_url,
+          poster: sanitizeImg(item.poster_url || item.thumb_url),
           posterShape: 'poster',
-          background: item.thumb_url || item.poster_url,
+          background: sanitizeImg(item.thumb_url || item.poster_url),
           description: item.description ? item.description.replace(/<[^>]*>?/gm, '').trim() : `Xem phim ${item.name} trên NguonC`,
           releaseInfo: item.year ? `${item.year} · FHD` : 'FHD',
           genres: Array.isArray(item.category)
@@ -278,7 +314,24 @@ class NguonCProvider extends BaseProvider {
     const page = extra.page || 1;
     try {
       const data = await this.request(`/films/search?keyword=${encodeURIComponent(query.trim())}&page=${page}`);
-      const items = data?.items || data?.data?.items || [];
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.data?.items)
+          ? data.data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+
+      const sanitizeImg = (url) => {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim();
+        if (trimmed.startsWith('//')) return `https:${trimmed}`;
+        if (trimmed.startsWith('http://')) return `https://${trimmed.slice(7)}`;
+        if (trimmed.startsWith('/')) return `https://phim.nguonc.com${trimmed}`;
+        return trimmed;
+      };
 
       const metas = items.map((item) => {
         const isSeries = item.total_episodes > 1 || (item.current_episode && item.current_episode !== 'FULL' && item.current_episode !== 'Full');
@@ -286,9 +339,9 @@ class NguonCProvider extends BaseProvider {
           id: this.prefixId(item.slug),
           type: isSeries ? 'series' : 'movie',
           name: item.name || item.original_name,
-          poster: item.poster_url || item.thumb_url,
+          poster: sanitizeImg(item.poster_url || item.thumb_url),
           posterShape: 'poster',
-          background: item.thumb_url || item.poster_url,
+          background: sanitizeImg(item.thumb_url || item.poster_url),
           description: item.description ? item.description.replace(/<[^>]*>?/gm, '').trim() : `Xem phim ${item.name} trên NguonC`,
           releaseInfo: item.year ? String(item.year) : 'HD',
           genres: ['NguonC', 'HD'],

@@ -724,17 +724,19 @@ async function handleSub(req, res) {
   }
 }
 
-// Route Mounts (Support both root and /hls prefixes)
+// Route Mounts (Support both root and /hls prefixes, plus /playlist.m3u8 alias from alternate clients)
 router.get(
   [
     '/manifest.m3u8',
     '/stream.m3u8',
     '/master.m3u8',
     '/index.m3u8',
+    '/playlist.m3u8',
     '/hls/manifest.m3u8',
     '/hls/stream.m3u8',
     '/hls/master.m3u8',
-    '/hls/index.m3u8'
+    '/hls/index.m3u8',
+    '/hls/playlist.m3u8'
   ],
   handleManifest
 );
@@ -745,10 +747,12 @@ router.get(
     '/segment',
     '/segment.m4s',
     '/segment.mp4',
+    '/proxy/ts',
     '/hls/segment.ts',
     '/hls/segment',
     '/hls/segment.m4s',
-    '/hls/segment.mp4'
+    '/hls/segment.mp4',
+    '/hls/proxy/ts'
   ],
   handleSegment
 );

@@ -67,7 +67,23 @@ async function handleMeta(req, res) {
       return res.json({ meta: null });
     }
 
-    const payload = { meta: metaDetail };
+    const sanitizeUrl = (url) => {
+      if (!url || typeof url !== 'string') return '';
+      const trimmed = url.trim();
+      if (!trimmed) return '';
+      if (trimmed.startsWith('//')) return `https:${trimmed}`;
+      if (trimmed.startsWith('http://')) return `https://${trimmed.slice(7)}`;
+      if (trimmed.startsWith('/')) return `https://phim.nguonc.com${trimmed}`;
+      return trimmed;
+    };
+
+    const sanitizedMeta = { ...metaDetail };
+    if (sanitizedMeta.poster) sanitizedMeta.poster = sanitizeUrl(sanitizedMeta.poster);
+    if (sanitizedMeta.background) sanitizedMeta.background = sanitizeUrl(sanitizedMeta.background);
+    if (sanitizedMeta.poster_url) sanitizedMeta.poster_url = sanitizeUrl(sanitizedMeta.poster_url);
+    if (sanitizedMeta.thumb_url) sanitizedMeta.thumb_url = sanitizeUrl(sanitizedMeta.thumb_url);
+
+    const payload = { meta: sanitizedMeta };
     cache.set(cacheKey, payload, 600); // 10 min TTL
     return res.json(payload);
 
